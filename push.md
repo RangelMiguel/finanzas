@@ -54,7 +54,7 @@ pnpm --version   # expect 9.15.x
    | `DATABASE_URL` | **Pooled** (`-pooler` in host) | App runtime on Vercel |
    | `DIRECT_URL` | **Direct** (no pooler) | `prisma migrate deploy` during build |
 
-   Both look like:
+   Both look like: 
 
    ```text
    postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
