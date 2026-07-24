@@ -47,7 +47,14 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
     "PushManager" in window;
 
   useEffect(() => {
-    registerServiceWorker();
+    registerServiceWorker().then(() => {
+      // After SW is ready, warm app HTML into the page cache (when online)
+      if (navigator.onLine) {
+        void import("@/lib/offline/warm-routes").then(({ warmOfflineRoutes }) =>
+          warmOfflineRoutes()
+        );
+      }
+    });
 
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -64,11 +71,18 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
       setInstalled(true);
       setDeferred(null);
     }
+    function onOnline() {
+      void import("@/lib/offline/warm-routes").then(({ warmOfflineRoutes }) =>
+        warmOfflineRoutes()
+      );
+    }
     window.addEventListener("beforeinstallprompt", onBip);
     window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener("online", onOnline);
     return () => {
       window.removeEventListener("beforeinstallprompt", onBip);
       window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("online", onOnline);
     };
   }, []);
 

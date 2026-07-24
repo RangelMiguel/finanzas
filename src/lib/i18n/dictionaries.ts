@@ -70,6 +70,8 @@ export const es = {
     authRequired: "Inicia sesión de nuevo para sincronizar tus cambios offline",
     syncError: "No se pudo sincronizar: {error}",
     needsConnection: "Esta acción requiere conexión a internet",
+    openOnceOnline:
+      "Abre cada pantalla una vez con internet para usarla sin conexión",
   },
 
   accountTypes: {
@@ -844,6 +846,7 @@ export const en: Dictionary = {
     authRequired: "Sign in again to sync your offline changes",
     syncError: "Could not sync: {error}",
     needsConnection: "This action requires an internet connection",
+    openOnceOnline: "Open each screen once online so it works offline",
   },
 
   accountTypes: {

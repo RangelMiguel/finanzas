@@ -28,8 +28,8 @@ import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
 import type { MemberVisibility } from "@/lib/visibility";
-
-type NavKey = keyof MemberVisibility["modules"] | "security";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { warmOfflineRoutes } from "@/lib/offline/warm-routes";
 
 export function Sidebar({
   householdName,
@@ -44,8 +44,51 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { t, locale, setLocale, currency, visibility } = useApp();
+  const { t, locale, setLocale, currency, visibility, ready } = useApp();
   const isAdmin = role === "owner" || role === "admin";
+  const [offline, setOffline] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setOffline(!navigator.onLine);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
+
+  // Prefetch RSC + cache full HTML for offline menu navigation
+  useEffect(() => {
+    if (!ready || offline) return;
+    void warmOfflineRoutes((href) => {
+      try {
+        router.prefetch(href);
+      } catch {
+        /* ignore */
+      }
+    });
+  }, [ready, offline, router]);
+
+  /**
+   * Offline: force full document navigation so the service worker can serve
+   * the cached HTML for that path. Soft Next.js navigations need RSC flights
+   * that often fail offline and bounce users back to home.
+   */
+  const handleNavClick = useCallback(
+    (e: MouseEvent<HTMLAnchorElement>, href: string) => {
+      onNavigate?.();
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        e.preventDefault();
+        const path = href.split("?")[0];
+        if (window.location.pathname !== path || href.includes("?")) {
+          window.location.assign(href);
+        }
+      }
+    },
+    [onNavigate]
+  );
 
   const NAV: {
     href: string;
@@ -164,7 +207,8 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              onClick={onNavigate}
+              prefetch={!offline}
+              onClick={(e) => handleNavClick(e, item.href)}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition-colors",
@@ -216,7 +260,8 @@ export function Sidebar({
         {visibility.modules.dashboard && (
           <Link
             href="/?catchup=1"
-            onClick={onNavigate}
+            prefetch={!offline}
+            onClick={(e) => handleNavClick(e, "/?catchup=1")}
             className="flex w-full items-center gap-2 rounded-xl border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-xs text-teal-100 hover:bg-teal-400/15"
           >
             <CalendarClock className="h-3.5 w-3.5" aria-hidden />
