@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { requireSession, requireHouseholdAccess } from "@/lib/auth";
+import {
+  requireSession,
+  requireHouseholdAccess,
+  ForbiddenError,
+} from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import {
@@ -7,8 +11,10 @@ import {
   FULL_VISIBILITY,
   parseVisibility,
   serializeVisibility,
-  type MemberVisibility,
 } from "@/lib/visibility";
+import { logActivity } from "@/lib/household";
+import { recordSecurityEvent } from "@/lib/security-monitor";
+import { clientIp, clientUserAgent } from "@/lib/rate-limit";
 
 export async function GET() {
   try {
@@ -110,6 +116,90 @@ export async function PATCH(req: Request) {
         role: updated.role,
         user: updated.user,
         visibility: effectiveVisibility(updated.role, updated.visibility),
+      },
+    });
+  } catch (e) {
+    return jsonError(e);
+  }
+}
+
+/**
+ * Remove a member from the household (not the user account).
+ * Owner/admin only. Cannot remove owner, self, or (as admin) another admin.
+ */
+export async function DELETE(req: Request) {
+  try {
+    const session = await requireSession();
+    const m = await requireHouseholdAccess(session.userId, { admin: true });
+    const membershipId = new URL(req.url).searchParams.get("id");
+    if (!membershipId) throw new Error("id requerido");
+
+    const target = await prisma.membership.findFirst({
+      where: { id: membershipId, householdId: m.householdId },
+      include: {
+        user: { select: { id: true, email: true, displayName: true } },
+      },
+    });
+    if (!target) throw new Error("Miembro no encontrado");
+
+    if (target.role === "owner") {
+      throw new ForbiddenError("No se puede quitar al dueño del hogar");
+    }
+    if (target.userId === session.userId) {
+      throw new ForbiddenError("No puedes quitarte a ti mismo del hogar");
+    }
+    if (m.role !== "owner" && target.role === "admin") {
+      throw new ForbiddenError(
+        "Solo el dueño puede quitar a un administrador"
+      );
+    }
+
+    const otherMembership = await prisma.membership.findFirst({
+      where: {
+        userId: target.userId,
+        householdId: { not: m.householdId },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.membership.delete({ where: { id: target.id } });
+
+      const pref = await tx.userPreference.findUnique({
+        where: { userId: target.userId },
+      });
+      if (pref?.householdId === m.householdId) {
+        await tx.userPreference.update({
+          where: { userId: target.userId },
+          data: { householdId: otherMembership?.householdId ?? null },
+        });
+      }
+    });
+
+    await logActivity({
+      householdId: m.householdId,
+      userId: session.userId,
+      action: "remove_member",
+      entityType: "membership",
+      entityId: target.id,
+      summary: `Quitó a ${target.user.displayName} (${target.user.email}) del hogar`,
+    });
+
+    await recordSecurityEvent({
+      type: "member_removed",
+      summary: `${session.displayName} quitó a ${target.user.displayName} del hogar`,
+      householdId: m.householdId,
+      userId: session.userId,
+      ip: clientIp(req),
+      userAgent: clientUserAgent(req),
+    });
+
+    return jsonOk({
+      ok: true,
+      removed: {
+        membershipId: target.id,
+        userId: target.userId,
+        displayName: target.user.displayName,
       },
     });
   } catch (e) {

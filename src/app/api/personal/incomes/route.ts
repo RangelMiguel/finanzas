@@ -14,36 +14,61 @@ export async function POST(req: Request) {
   try {
     const session = await requireSession();
     const m = await requireHouseholdAccess(session.userId, { write: true });
-    const body = z
-      .object({
-        description: z.string().min(1),
-        amount: z.union([z.number(), z.string()]),
-        date: z.string().optional(),
-        userId: z.string().optional(), // admin can add for someone
-      })
-      .parse(await req.json());
+    const raw = await req.json();
+    const { extractIdempotencyKey, withIdempotency } = await import(
+      "@/lib/idempotency"
+    );
+    const idemKey = extractIdempotencyKey(req, raw);
 
-    let userId = session.userId;
-    if (body.userId && body.userId !== session.userId) {
-      if (m.role !== "owner" && m.role !== "admin") {
-        throw new Error("Only admin can add income for others");
-      }
-      userId = body.userId;
-    }
-    const date = body.date || todayISO();
-    const period = periodFromDate(date);
-
-    const row = await prisma.personalIncome.create({
-      data: {
-        householdId: m.householdId,
-        userId,
-        description: body.description,
-        amountCents: amountToCents(body.amount),
-        date,
-        period,
+    return withIdempotency(
+      {
+        userId: session.userId,
+        path: "/api/personal/incomes",
+        key: idemKey,
       },
-    });
-    return jsonOk({ income: row }, 201);
+      async () => {
+        const body = z
+          .object({
+            id: z.string().min(8).max(40).optional(),
+            description: z.string().min(1),
+            amount: z.union([z.number(), z.string()]),
+            date: z.string().optional(),
+            userId: z.string().optional(), // admin can add for someone
+            clientMutationId: z.string().optional(),
+          })
+          .parse(raw);
+
+        let userId = session.userId;
+        if (body.userId && body.userId !== session.userId) {
+          if (m.role !== "owner" && m.role !== "admin") {
+            throw new Error("Only admin can add income for others");
+          }
+          userId = body.userId;
+        }
+        const date = body.date || todayISO();
+        const period = periodFromDate(date);
+
+        if (body.id) {
+          const existing = await prisma.personalIncome.findFirst({
+            where: { id: body.id, householdId: m.householdId },
+          });
+          if (existing) return jsonOk({ income: existing });
+        }
+
+        const row = await prisma.personalIncome.create({
+          data: {
+            ...(body.id ? { id: body.id } : {}),
+            householdId: m.householdId,
+            userId,
+            description: body.description,
+            amountCents: amountToCents(body.amount),
+            date,
+            period,
+          },
+        });
+        return jsonOk({ income: row }, 201);
+      }
+    );
   } catch (e) {
     return jsonError(e);
   }

@@ -12,7 +12,8 @@ export type SecurityEventType =
   | "passkey_added"
   | "passkey_removed"
   | "rate_limited"
-  | "invite_accepted";
+  | "invite_accepted"
+  | "member_removed";
 
 export type SecuritySeverity = "info" | "warning" | "critical";
 
@@ -28,6 +29,7 @@ const SEVERITY: Record<SecurityEventType, SecuritySeverity> = {
   passkey_removed: "warning",
   rate_limited: "warning",
   invite_accepted: "info",
+  member_removed: "warning",
 };
 
 /** Events that land in the in-app tray (info login spam excluded) */
@@ -40,6 +42,7 @@ const TRAY_TYPES = new Set<SecurityEventType>([
   "rate_limited",
   "invite_accepted",
   "register",
+  "member_removed",
   // login_success intentionally omitted from default tray noise
 ]);
 

@@ -6,6 +6,7 @@ import { useApp } from "@/components/providers/app-provider";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SecurityNotifications } from "@/components/security/security-notifications";
+import { OfflineBanner } from "@/components/offline/offline-banner";
 
 export function AppShell({
   children,
@@ -55,6 +56,7 @@ export function AppShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <OfflineBanner />
         <header className="app-topbar sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3 md:px-8">
           <div className="flex min-w-0 items-center gap-2">
             <Button

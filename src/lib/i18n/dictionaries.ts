@@ -60,6 +60,18 @@ export const es = {
   language: "Idioma",
   currency: "Moneda",
 
+  offline: {
+    offline: "Sin conexión — los cambios se guardan en el dispositivo",
+    offlineWithPending:
+      "Sin conexión — {n} cambio(s) pendientes de sincronizar",
+    pending: "{n} cambio(s) pendientes de sincronizar",
+    syncing: "Sincronizando {n} cambio(s)…",
+    syncNow: "Sincronizar",
+    authRequired: "Inicia sesión de nuevo para sincronizar tus cambios offline",
+    syncError: "No se pudo sincronizar: {error}",
+    needsConnection: "Esta acción requiere conexión a internet",
+  },
+
   accountTypes: {
     cash: "Efectivo",
     checking: "Cheques",
@@ -518,6 +530,10 @@ export const es = {
     copy: "Copiar",
     copied: "Copiado",
     roleUpdated: "Rol actualizado",
+    remove: "Quitar",
+    removeConfirm:
+      "¿Quitar a {name} del hogar? Perderá el acceso. Su cuenta no se elimina.",
+    removed: "Miembro quitado del hogar",
     activity: "Actividad reciente",
     noActivity: "Sin actividad aún",
   },
@@ -818,6 +834,17 @@ export const en: Dictionary = {
   skipToContent: "Skip to content",
   language: "Language",
   currency: "Currency",
+
+  offline: {
+    offline: "You're offline — changes are saved on this device",
+    offlineWithPending: "You're offline — {n} change(s) waiting to sync",
+    pending: "{n} change(s) waiting to sync",
+    syncing: "Syncing {n} change(s)…",
+    syncNow: "Sync now",
+    authRequired: "Sign in again to sync your offline changes",
+    syncError: "Could not sync: {error}",
+    needsConnection: "This action requires an internet connection",
+  },
 
   accountTypes: {
     cash: "Cash",
@@ -1277,6 +1304,10 @@ export const en: Dictionary = {
     copy: "Copy",
     copied: "Copied",
     roleUpdated: "Role updated",
+    remove: "Remove",
+    removeConfirm:
+      "Remove {name} from the household? They will lose access. Their account is not deleted.",
+    removed: "Member removed from the household",
     activity: "Recent activity",
     noActivity: "No activity yet",
   },

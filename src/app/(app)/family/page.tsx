@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { toast } from "sonner";
-import { Copy, MessageCircle, Share2 } from "lucide-react";
+import { Copy, MessageCircle, Share2, UserMinus } from "lucide-react";
 
 type Member = {
   id: string;
@@ -19,7 +19,7 @@ type Member = {
 };
 
 export default function FamilyPage() {
-  const { t, tr, householdName } = useApp();
+  const { t, tr, householdName, userId } = useApp();
   const [members, setMembers] = useState<Member[]>([]);
   const [role, setRole] = useState<string>("");
   const [email, setEmail] = useState("");
@@ -140,6 +140,32 @@ export default function FamilyPage() {
   }
 
   const canAdmin = role === "owner" || role === "admin";
+
+  function canRemoveMember(member: Member) {
+    if (!canAdmin) return false;
+    if (member.role === "owner") return false;
+    if (userId && member.user.id === userId) return false;
+    // Only owner may remove admins
+    if (member.role === "admin" && role !== "owner") return false;
+    return true;
+  }
+
+  async function removeMember(member: Member) {
+    const ok = window.confirm(
+      tr(t.family.removeConfirm, { name: member.user.displayName })
+    );
+    if (!ok) return;
+    try {
+      await api(`/api/members?id=${encodeURIComponent(member.id)}`, {
+        method: "DELETE",
+      });
+      toast.success(t.family.removed);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
   const roleLabel = (r: string) =>
     t.roles[r as keyof typeof t.roles] || r;
 
@@ -179,6 +205,17 @@ export default function FamilyPage() {
                   </Select>
                 ) : (
                   <span className="stat-pill">{roleLabel(m.role)}</span>
+                )}
+                {canRemoveMember(m) && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => removeMember(m)}
+                    aria-label={`${t.family.remove} ${m.user.displayName}`}
+                  >
+                    <UserMinus className="h-3.5 w-3.5" />
+                    {t.family.remove}
+                  </Button>
                 )}
               </div>
             </div>

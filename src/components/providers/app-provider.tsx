@@ -36,6 +36,7 @@ type AppContextValue = {
   role: string | null;
   householdName: string | null;
   displayName: string | null;
+  userId: string | null;
   members: Member[];
   visibility: MemberVisibility;
   ready: boolean;
@@ -76,6 +77,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   const [householdName, setHouseholdName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [ready, setReady] = useState(false);
   const [a11y, setA11yState] = useState<A11yPrefs>(defaultA11y);
@@ -105,7 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const data = await api<{
-        user: { displayName: string; locale?: string };
+        user: { userId?: string; displayName: string; locale?: string };
         household: { name: string; currency: string } | null;
         currency?: string;
         role: string | null;
@@ -118,6 +120,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setRole(data.role);
       setHouseholdName(data.household?.name ?? null);
       setDisplayName(data.user.displayName);
+      setUserId(data.user.userId ?? null);
       setMembers(data.members || []);
       if (data.visibility) setVisibility(data.visibility);
       else setVisibility(FULL_VISIBILITY);
@@ -174,6 +177,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       role,
       householdName,
       displayName,
+      userId,
       members,
       visibility,
       ready,
@@ -192,6 +196,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       role,
       householdName,
       displayName,
+      userId,
       members,
       visibility,
       ready,

@@ -115,7 +115,17 @@ export function Sidebar({
   });
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" });
+    try {
+      const { clearAllOfflineData } = await import("@/lib/offline/db");
+      await clearAllOfflineData();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* offline logout: local session cookie may remain until online */
+    }
     toast.success(t.sessionClosed);
     router.push("/login");
     router.refresh();

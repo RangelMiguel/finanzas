@@ -76,91 +76,117 @@ export async function POST(req: Request) {
   try {
     const session = await requireSession();
     const m = await requireHouseholdAccess(session.userId, { write: true });
-    const body = z
-      .object({
-        date: z.string().optional(),
-        amount: z.union([z.number(), z.string()]),
-        description: z.string().min(1),
-        type: z.enum(["income", "expense"]),
-        categoryId: z.string().optional().nullable(),
-        accountId: z.string().optional().nullable(),
-        creditCardId: z.string().optional().nullable(),
-        spentById: z.string().optional().nullable(),
-        autoCategory: z.boolean().optional(),
-        // MSI
-        msiMonths: z.number().int().min(2).max(48).optional(),
-      })
-      .parse(await req.json());
+    const raw = await req.json();
+    const { extractIdempotencyKey, withIdempotency } = await import(
+      "@/lib/idempotency"
+    );
+    const idemKey = extractIdempotencyKey(req, raw);
 
-    const amountCents = pesosToCents(body.amount);
-    if (amountCents <= 0) throw new Error("Monto inválido");
+    return withIdempotency(
+      { userId: session.userId, path: "/api/transactions", key: idemKey },
+      async () => {
+        const body = z
+          .object({
+            id: z.string().min(8).max(40).optional(),
+            date: z.string().optional(),
+            amount: z.union([z.number(), z.string()]),
+            description: z.string().min(1),
+            type: z.enum(["income", "expense"]),
+            categoryId: z.string().optional().nullable(),
+            accountId: z.string().optional().nullable(),
+            creditCardId: z.string().optional().nullable(),
+            spentById: z.string().optional().nullable(),
+            autoCategory: z.boolean().optional(),
+            clientMutationId: z.string().optional(),
+            // MSI
+            msiMonths: z.number().int().min(2).max(48).optional(),
+          })
+          .parse(raw);
 
-    let categoryId = body.categoryId || null;
-    if (!categoryId && body.autoCategory !== false) {
-      const name = suggestCategoryName(body.description);
-      if (name) {
-        const cat = await prisma.category.findFirst({
-          where: {
+        const amountCents = pesosToCents(body.amount);
+        if (amountCents <= 0) throw new Error("Monto inválido");
+
+        // If client sent a stable id that already exists, return it (offline replay)
+        if (body.id) {
+          const existing = await prisma.transaction.findFirst({
+            where: { id: body.id, householdId: m.householdId },
+            include: {
+              category: true,
+              account: true,
+              createdBy: { select: { id: true, displayName: true } },
+            },
+          });
+          if (existing) return jsonOk({ transaction: existing });
+        }
+
+        let categoryId = body.categoryId || null;
+        if (!categoryId && body.autoCategory !== false) {
+          const name = suggestCategoryName(body.description);
+          if (name) {
+            const cat = await prisma.category.findFirst({
+              where: {
+                householdId: m.householdId,
+                name,
+                type: body.type === "income" ? "income" : "expense",
+              },
+            });
+            if (cat) categoryId = cat.id;
+          }
+        }
+
+        let installmentPlanId: string | null = null;
+        if (body.msiMonths && body.type === "expense" && body.creditCardId) {
+          const monthly = Math.round(amountCents / body.msiMonths);
+          const plan = await prisma.installmentPlan.create({
+            data: {
+              householdId: m.householdId,
+              description: body.description,
+              totalAmountCents: amountCents,
+              months: body.msiMonths,
+              monthlyAmountCents: monthly,
+              creditCardId: body.creditCardId,
+              categoryId,
+              startDate: body.date || todayISO(),
+            },
+          });
+          installmentPlanId = plan.id;
+        }
+
+        const spentById = body.spentById || session.userId;
+        const txn = await prisma.transaction.create({
+          data: {
+            ...(body.id ? { id: body.id } : {}),
             householdId: m.householdId,
-            name,
-            type: body.type === "income" ? "income" : "expense",
+            date: body.date || todayISO(),
+            amountCents,
+            description: body.description,
+            type: body.type,
+            categoryId,
+            accountId: body.accountId || null,
+            creditCardId: body.creditCardId || null,
+            installmentPlanId,
+            createdById: session.userId,
+            spentById,
+          },
+          include: {
+            category: true,
+            account: true,
+            createdBy: { select: { id: true, displayName: true } },
           },
         });
-        if (cat) categoryId = cat.id;
-      }
-    }
 
-    let installmentPlanId: string | null = null;
-    if (body.msiMonths && body.type === "expense" && body.creditCardId) {
-      const monthly = Math.round(amountCents / body.msiMonths);
-      const plan = await prisma.installmentPlan.create({
-        data: {
+        await logActivity({
           householdId: m.householdId,
-          description: body.description,
-          totalAmountCents: amountCents,
-          months: body.msiMonths,
-          monthlyAmountCents: monthly,
-          creditCardId: body.creditCardId,
-          categoryId,
-          startDate: body.date || todayISO(),
-        },
-      });
-      installmentPlanId = plan.id;
-    }
+          userId: session.userId,
+          action: "create",
+          entityType: "transaction",
+          entityId: txn.id,
+          summary: `${body.type === "income" ? "Ingreso" : "Gasto"}: ${body.description}`,
+        });
 
-
-    const spentById = body.spentById || session.userId;
-    const txn = await prisma.transaction.create({
-      data: {
-        householdId: m.householdId,
-        date: body.date || todayISO(),
-        amountCents,
-        description: body.description,
-        type: body.type,
-        categoryId,
-        accountId: body.accountId || null,
-        creditCardId: body.creditCardId || null,
-        installmentPlanId,
-        createdById: session.userId,
-        spentById,
-      },
-      include: {
-        category: true,
-        account: true,
-        createdBy: { select: { id: true, displayName: true } },
-      },
-    });
-
-    await logActivity({
-      householdId: m.householdId,
-      userId: session.userId,
-      action: "create",
-      entityType: "transaction",
-      entityId: txn.id,
-      summary: `${body.type === "income" ? "Ingreso" : "Gasto"}: ${body.description}`,
-    });
-
-    return jsonOk({ transaction: txn }, 201);
+        return jsonOk({ transaction: txn }, 201);
+      }
+    );
   } catch (e) {
     return jsonError(e);
   }
