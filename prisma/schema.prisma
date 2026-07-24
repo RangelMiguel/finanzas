@@ -1,0 +1,431 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Direct (non-pooled) URL for migrations. Optional on local Postgres.
+  // Neon/Supabase: use the non-pooled connection string here.
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  locale       String   @default("es")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships          Membership[]
+  invitesCreated       Invite[]            @relation("InviteCreator")
+  transactionsCreated  Transaction[]       @relation("TxnCreatedBy")
+  transactionsSpent    Transaction[]       @relation("TxnSpentBy")
+  preferences          UserPreference?
+  activityEvents       ActivityEvent[]
+  householdsCreated    Household[]         @relation("HouseholdCreator")
+  allowances           Allowance[]
+  personalAllocations  PersonalAllocation[]
+  personalIncomes      PersonalIncome[]
+  personalBudgets      PersonalBudget[]
+  personalExpenses     PersonalExpense[]
+}
+
+model Household {
+  id        String   @id @default(cuid())
+  name      String
+  currency  String   @default("MXN")
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator          User?              @relation("HouseholdCreator", fields: [createdBy], references: [id])
+  memberships      Membership[]
+  invites          Invite[]
+  accounts         Account[]
+  categories       Category[]
+  transactions     Transaction[]
+  budgets          Budget[]
+  budgetDefaults   BudgetDefault[]
+  creditCards      CreditCard[]
+  installmentPlans InstallmentPlan[]
+  recurringIncomes RecurringIncome[]
+  debts            Debt[]
+  debtPayments     DebtPayment[]
+  activityEvents   ActivityEvent[]
+  preferences      UserPreference[]
+  allowances      Allowance[]
+  personalAllocations PersonalAllocation[]
+  personalIncomes     PersonalIncome[]
+  personalBudgets     PersonalBudget[]
+  personalExpenses    PersonalExpense[]
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String
+  role        String   // owner | admin | member | viewer
+  /// Per-member visibility / security policy (JSON MemberVisibility)
+  visibility  String   @default("{}")
+  createdAt   DateTime @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  householdId String
+  email       String
+  role        String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("InviteCreator", fields: [createdById], references: [id])
+
+  @@index([email])
+  @@index([householdId])
+}
+
+model UserPreference {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  householdId String?
+  lastVisitAt DateTime?
+  theme       String    @default("dark")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household Household? @relation(fields: [householdId], references: [id])
+}
+
+model Account {
+  id               String   @id @default(cuid())
+  householdId      String
+  name             String
+  type             String   // cash | checking | debit | savings | other
+  icon             String   @default("🏦")
+  initialBalanceCents Int   @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  household          Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  transactionsFrom   Transaction[]     @relation("TxnAccount")
+  transactionsTo     Transaction[]     @relation("TxnToAccount")
+  recurringIncomes   RecurringIncome[]
+  debtPayments       DebtPayment[]
+
+  @@index([householdId])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  householdId String
+  name        String
+  type        String   // income | expense
+  icon        String   @default("📦")
+  color       String   @default("#6366f1")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  household        Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  transactions     Transaction[]
+  budgets          Budget[]
+  budgetDefaults   BudgetDefault[]
+  installmentPlans InstallmentPlan[]
+  recurringIncomes RecurringIncome[]
+  allowances       Allowance[]
+
+  @@index([householdId])
+}
+
+model Transaction {
+  id                String    @id @default(cuid())
+  householdId       String
+  date              String    // YYYY-MM-DD
+  amountCents       Int
+  description       String
+  type              String    // income | expense | transfer
+  categoryId        String?
+  accountId         String?
+  toAccountId       String?
+  creditCardId      String?
+  installmentPlanId String?
+  isAutoGenerated   Boolean   @default(false)
+  createdById       String?
+  spentById         String?
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  household       Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category        Category?        @relation(fields: [categoryId], references: [id])
+  account         Account?         @relation("TxnAccount", fields: [accountId], references: [id])
+  toAccount       Account?         @relation("TxnToAccount", fields: [toAccountId], references: [id])
+  creditCard      CreditCard?      @relation(fields: [creditCardId], references: [id])
+  installmentPlan InstallmentPlan? @relation(fields: [installmentPlanId], references: [id])
+  createdBy       User?            @relation("TxnCreatedBy", fields: [createdById], references: [id])
+  spentBy         User?            @relation("TxnSpentBy", fields: [spentById], references: [id])
+
+  @@index([householdId, date])
+  @@index([householdId, type])
+  @@index([accountId])
+  @@index([creditCardId])
+}
+
+model Budget {
+  id           String   @id @default(cuid())
+  householdId  String
+  categoryId   String
+  amountCents  Int
+  /// Budget period: YYYY-MM-1 (days 1-15) or YYYY-MM-2 (days 16-end)
+  period       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, categoryId, period])
+  @@index([householdId, period])
+}
+
+/// Template applied to months that have no explicit budget rows
+model BudgetDefault {
+  id          String   @id @default(cuid())
+  householdId String
+  categoryId  String
+  amountCents Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, categoryId])
+  @@index([householdId])
+}
+
+model CreditCard {
+  id          String   @id @default(cuid())
+  householdId String
+  name        String
+  lastFour    String   @default("")
+  cutoffDay   Int      @default(1)
+  graceDays   Int      @default(20)
+  color       String   @default("#8b5cf6")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household        Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  transactions     Transaction[]
+  installmentPlans InstallmentPlan[]
+
+  @@index([householdId])
+}
+
+model InstallmentPlan {
+  id              String   @id @default(cuid())
+  householdId     String
+  description     String
+  totalAmountCents Int
+  months          Int
+  monthlyAmountCents Int
+  creditCardId    String?
+  categoryId      String?
+  startDate       String
+  createdAt       DateTime @default(now())
+
+  household    Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  creditCard   CreditCard?   @relation(fields: [creditCardId], references: [id])
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  transactions Transaction[]
+
+  @@index([householdId])
+}
+
+model RecurringIncome {
+  id          String   @id @default(cuid())
+  householdId String
+  description String
+  amountCents Int
+  categoryId  String?
+  accountId   String?
+  dayOfMonth  Int
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category  Category? @relation(fields: [categoryId], references: [id])
+  account   Account?  @relation(fields: [accountId], references: [id])
+
+  @@index([householdId])
+}
+
+model Debt {
+  id                 String   @id @default(cuid())
+  householdId        String
+  name               String
+  principalCents     Int
+  annualRatePercent  Float    @default(0)
+  monthlyPaymentCents Int     @default(0)
+  paymentDay         Int      @default(1)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  household Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  payments  DebtPayment[]
+
+  @@index([householdId])
+}
+
+model DebtPayment {
+  id               String   @id @default(cuid())
+  householdId      String
+  debtId           String
+  date             String
+  capitalCents     Int
+  interestCents    Int      @default(0)
+  accountId        String?
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  debt      Debt      @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  account   Account?  @relation(fields: [accountId], references: [id])
+
+  @@index([householdId])
+  @@index([debtId])
+}
+
+model ActivityEvent {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String?
+  action      String
+  entityType  String?
+  entityId    String?
+  summary     String
+  createdAt   DateTime @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([householdId, createdAt])
+}
+
+model Allowance {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String
+  name        String
+  amountCents Int
+  period      String   @default("monthly") // monthly | weekly
+  categoryId  String?
+  enforce     Boolean  @default(true)
+  active      Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  Category? @relation(fields: [categoryId], references: [id])
+
+  @@index([householdId])
+  @@index([userId])
+  @@index([householdId, userId])
+}
+
+
+
+/// Admin-defined personal allocation (not household cash). Pool for personal budgets.
+/// amountCents is applied to each half-month (quincena).
+model PersonalAllocation {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String
+  name        String   @default("Asignación personal")
+  amountCents Int
+  /// Frequency label: bimonthly (per quincena) — amount applies each half-month
+  period      String   @default("bimonthly")
+  active      Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, userId])
+}
+
+/// Side-job / personal income (does not affect household accounts)
+model PersonalIncome {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String
+  description String
+  amountCents Int
+  date        String
+  /// Budget period: YYYY-MM-1 (days 1-15) or YYYY-MM-2 (days 16-end)
+  period      String
+  createdAt   DateTime @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, userId, period])
+}
+
+/// Individual budget envelopes funded by allocation + personal income
+model PersonalBudget {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String
+  name        String
+  amountCents Int
+  /// Budget period: YYYY-MM-1 | YYYY-MM-2
+  period      String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses  PersonalExpense[]
+
+  @@index([householdId, userId, period])
+}
+
+/// Personal spending against individual budgets (not household ledger)
+model PersonalExpense {
+  id               String   @id @default(cuid())
+  householdId      String
+  userId           String
+  personalBudgetId String?
+  description      String
+  amountCents      Int
+  date             String
+  /// Budget period: YYYY-MM-1 | YYYY-MM-2
+  period           String
+  createdAt        DateTime @default(now())
+
+  household      Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personalBudget PersonalBudget? @relation(fields: [personalBudgetId], references: [id], onDelete: SetNull)
+
+  @@index([householdId, userId, period])
+  @@index([personalBudgetId])
+}
