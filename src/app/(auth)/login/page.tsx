@@ -9,24 +9,35 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
+import {
+  startAuthentication,
+  browserSupportsWebAuthn,
+} from "@simplewebauthn/browser";
+import { KeyRound } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
   const { t, locale, setLocale, refresh } = useApp();
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function onPasskey(e?: FormEvent) {
+    e?.preventDefault();
+    if (!browserSupportsWebAuthn()) {
+      toast.error(t.auth.passkeyUnsupported);
+      return;
+    }
     setLoading(true);
-    const fd = new FormData(e.currentTarget);
     try {
-      await api("/api/auth/login", {
+      const options = await api<Record<string, unknown>>("/api/auth/webauthn/login", {
         method: "POST",
-        json: {
-          email: fd.get("email"),
-          password: fd.get("password"),
-        },
+        json: email.trim() ? { email: email.trim() } : {},
+      });
+      const response = await startAuthentication({ optionsJSON: options as never });
+      await api("/api/auth/webauthn/login", {
+        method: "PUT",
+        json: { response },
       });
       await refresh();
       toast.success(t.welcome);
@@ -66,44 +77,40 @@ function LoginForm() {
           </div>
         </div>
         <h1 className="font-display text-3xl">{t.auth.loginTitle}</h1>
-        <p className="mt-2 text-sm text-[var(--fg-muted)]">{t.auth.loginSubtitle}</p>
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <p className="mt-2 text-sm text-[var(--fg-muted)]">{t.auth.loginPasskeyOnly}</p>
+
+        <form onSubmit={onPasskey} className="mt-6 space-y-4">
           <div>
             <Label htmlFor="email">{t.email}</Label>
             <Input
               id="email"
               name="email"
               type="email"
-              required
               className="mt-1"
-              autoComplete="email"
-              defaultValue="alice@familia.local"
+              autoComplete="username webauthn"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t.auth.emailOptionalPasskey}
             />
-          </div>
-          <div>
-            <Label htmlFor="password">{t.password}</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              required
-              className="mt-1"
-              autoComplete="current-password"
-              defaultValue="familia123"
-            />
+            <p className="mt-1 text-[11px] text-[var(--fg-faint)]">
+              {t.auth.emailOptionalPasskeyHint}
+            </p>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? t.auth.signingIn : t.login}
+            <KeyRound className="h-4 w-4" />
+            {loading ? t.auth.passkeyWaiting : t.auth.passkeyLogin}
           </Button>
         </form>
+
+        <p className="mt-3 text-center text-[11px] text-[var(--fg-faint)]">
+          {t.auth.passkeyHint}
+        </p>
+
         <p className="mt-4 text-center text-sm text-[var(--fg-muted)]">
           {t.auth.noAccount}{" "}
           <Link href="/register" className="text-[var(--accent)] hover:underline">
             {t.auth.createHousehold}
           </Link>
-        </p>
-        <p className="mt-3 text-center text-[11px] text-[var(--fg-faint)]">
-          {t.auth.demoHint}
         </p>
       </div>
     </div>

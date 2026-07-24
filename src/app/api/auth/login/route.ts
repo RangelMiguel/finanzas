@@ -1,40 +1,24 @@
-import { z } from "zod";
-import {
-  createSessionToken,
-  setSessionCookie,
-  verifyPassword,
-} from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { jsonError, jsonOk } from "@/lib/access";
 import { NextResponse } from "next/server";
+import { clientIp, clientUserAgent } from "@/lib/rate-limit";
+import { recordSecurityEvent } from "@/lib/security-monitor";
 
-const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
+/** Password login is disabled — use WebAuthn passkeys only. */
 export async function POST(req: Request) {
-  try {
-    const body = schema.parse(await req.json());
-    const user = await prisma.user.findUnique({
-      where: { email: body.email.toLowerCase() },
-    });
-    if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
-      return NextResponse.json(
-        { error: "Correo o contraseña incorrectos" },
-        { status: 401 }
-      );
-    }
-    const token = await createSessionToken({
-      userId: user.id,
-      email: user.email,
-      displayName: user.displayName,
-    });
-    await setSessionCookie(token);
-    return jsonOk({
-      user: { id: user.id, email: user.email, displayName: user.displayName },
-    });
-  } catch (e) {
-    return jsonError(e);
-  }
+  const ip = clientIp(req);
+  const ua = clientUserAgent(req);
+  await recordSecurityEvent({
+    type: "login_failed",
+    summary: "Intento de acceso con contraseña (deshabilitado)",
+    detail: "La app solo permite llaves de acceso / biometría",
+    ip,
+    userAgent: ua,
+  }).catch(() => {});
+
+  return NextResponse.json(
+    {
+      error:
+        "El acceso con contraseña está deshabilitado. Usa una llave de acceso (Face ID, huella o llave de seguridad).",
+    },
+    { status: 403 }
+  );
 }

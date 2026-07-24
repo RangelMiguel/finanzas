@@ -19,7 +19,6 @@ cp .env.example .env
 # Edit .env: set DATABASE_URL, DIRECT_URL, and AUTH_SECRET
 pnpm install
 pnpm exec prisma migrate deploy
-pnpm run db:seed   # optional demo users
 pnpm dev
 ```
 
@@ -30,12 +29,9 @@ Open http://localhost:3000
 See **[push.md](./push.md)** for a full step-by-step guide (Postgres → env vars → GitHub → Vercel).  
 The project uses **pnpm** (`pnpm-lock.yaml` + `packageManager` field).
 
-### Demo users (after seed)
+### Auth
 
-| Email | Password | Role |
-|-------|----------|------|
-| `alice@familia.local` | `familia123` | owner |
-| `bob@familia.local` | `familia123` | member |
+Passkey-only. Use **Register** to create a household and enroll Face ID / fingerprint / security key. There is no password login.
 
 ## Features
 
@@ -79,6 +75,12 @@ Keys stay **server-side** only (API routes). Without keys, OCR + regex parsers r
 
 Check status: `GET /api/ai/status` (authenticated).
 
+## Security (summary)
+
+- **Passkey-only auth** (WebAuthn — Face ID, Android biometrics, USB/NFC). No passwords.
+- **Rate limits** on register / passkey login / wipe (Postgres-backed)
+- **Monitoring**: in-app security alerts for every household member (bell icon + Security page). No external email.
+
 ## Production notes
 
 1. Set a strong `AUTH_SECRET` (32+ chars) — e.g. `openssl rand -base64 32`
@@ -97,4 +99,4 @@ Check status: `GET /api/ai/status` (authenticated).
 | `pnpm run db:migrate` | Create/apply migrations (dev) |
 | `pnpm run db:migrate:deploy` | Apply migrations (prod/CI) |
 | `pnpm run db:push` | Push schema without migration files |
-| `pnpm run db:seed` | Seed demo family |
+| `pnpm run db:seed` | Remove legacy demo users (if any) |

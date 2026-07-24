@@ -13,7 +13,8 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  /// Null = passkey-only account (password auth disabled)
+  passwordHash String?
   displayName  String
   locale       String   @default("es")
   createdAt    DateTime @default(now())
@@ -31,6 +32,10 @@ model User {
   personalIncomes      PersonalIncome[]
   personalBudgets      PersonalBudget[]
   personalExpenses     PersonalExpense[]
+  webauthnCredentials  WebAuthnCredential[]
+  securityAlerts       SecurityAlert[]
+  goalsCreated         Goal[]              @relation("GoalCreator")
+  goalReserves         GoalReserve[]
 }
 
 model Household {
@@ -61,6 +66,9 @@ model Household {
   personalIncomes     PersonalIncome[]
   personalBudgets     PersonalBudget[]
   personalExpenses    PersonalExpense[]
+  securityAlerts      SecurityAlert[]
+  goals              Goal[]
+  goalReserves       GoalReserve[]
 }
 
 model Membership {
@@ -98,11 +106,13 @@ model Invite {
 }
 
 model UserPreference {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  householdId String?
-  lastVisitAt DateTime?
-  theme       String    @default("dark")
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  householdId          String?
+  lastVisitAt          DateTime?
+  theme                String    @default("dark")
+  /// Last time user opened / dismissed the security notification feed
+  securityAlertsSeenAt DateTime?
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   household Household? @relation(fields: [householdId], references: [id])
@@ -123,6 +133,7 @@ model Account {
   transactionsTo     Transaction[]     @relation("TxnToAccount")
   recurringIncomes   RecurringIncome[]
   debtPayments       DebtPayment[]
+  goalReserves       GoalReserve[]
 
   @@index([householdId])
 }
@@ -428,4 +439,124 @@ model PersonalExpense {
 
   @@index([householdId, userId, period])
   @@index([personalBudgetId])
+}
+
+/// Passkeys / security keys (WebAuthn) — Face ID, Touch ID, Android biometrics, USB/NFC keys
+model WebAuthnCredential {
+  id           String    @id @default(cuid())
+  userId       String
+  /// Base64URL credential id
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  deviceType   String?
+  backedUp     Boolean   @default(false)
+  /// JSON string array of AuthenticatorTransport
+  transports   String?
+  nickname     String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Short-lived WebAuthn challenges (registration / authentication)
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  /// registration | authentication
+  type      String
+  challenge String   @unique
+  userId    String?
+  email     String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([email])
+}
+
+/// Sliding-window rate limit counters (works on serverless without Redis)
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  count       Int      @default(0)
+  windowStart DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([windowStart])
+}
+
+/// Security monitoring events (shown to household owner + emailed in near real-time)
+model SecurityAlert {
+  id          String    @id @default(cuid())
+  householdId String?
+  userId      String?
+  /// e.g. login_success | login_failed | register | wipe | passkey_added | rate_limited
+  type        String
+  /// info | warning | critical
+  severity    String    @default("info")
+  summary     String
+  detail      String?
+  ip          String?
+  userAgent   String?
+  emailedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  household Household? @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([householdId, createdAt])
+  @@index([createdAt])
+  @@index([type])
+}
+
+
+/// Savings goal (meta) for the household
+model Goal {
+  id                String   @id @default(cuid())
+  householdId       String
+  name              String
+  targetAmountCents Int
+  icon              String   @default("🎯")
+  notes             String?
+  /// active | completed | cancelled
+  status            String   @default("active")
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  household Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdBy User?         @relation("GoalCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reserves  GoalReserve[]
+
+  @@index([householdId, status])
+}
+
+/// Money reserved from an account toward a goal for a given quincena
+model GoalReserve {
+  id            String   @id @default(cuid())
+  householdId   String
+  goalId        String
+  accountId     String
+  amountCents   Int
+  /// Budget period: YYYY-MM-1 | YYYY-MM-2
+  period        String
+  date          String
+  notes         String?
+  createdById   String?
+  /// Linked expense transaction that reduced the account balance
+  transactionId String?
+  createdAt     DateTime @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  goal      Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([householdId, period])
+  @@index([goalId])
+  @@index([accountId])
 }

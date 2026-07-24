@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { AuthError, ForbiddenError, BadRequestError } from "./auth";
+import {
+  AuthError,
+  ForbiddenError,
+  BadRequestError,
+  RateLimitError,
+} from "./auth";
 import { ZodError } from "zod";
 
 export function jsonOk<T>(data: T, status = 200) {
@@ -10,13 +15,18 @@ export function jsonError(error: unknown, fallback = "Error del servidor") {
   if (
     error instanceof AuthError ||
     error instanceof ForbiddenError ||
-    error instanceof BadRequestError
+    error instanceof BadRequestError ||
+    error instanceof RateLimitError
   ) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   if (error instanceof ZodError) {
+    const first =
+      error.issues[0]?.message ||
+      error.flatten().formErrors[0] ||
+      "Datos inválidos";
     return NextResponse.json(
-      { error: "Datos inválidos", details: error.flatten() },
+      { error: first, details: error.flatten() },
       { status: 400 }
     );
   }

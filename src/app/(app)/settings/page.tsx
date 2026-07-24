@@ -44,7 +44,7 @@ export default function SettingsPage() {
     color: "#6366f1",
   });
   const [editCatId, setEditCatId] = useState<string | null>(null);
-  const [wipe, setWipe] = useState({ password: "", confirm: "" });
+  const [wipe, setWipe] = useState({ confirm: "" });
   const canAdmin = role === "owner" || role === "admin";
   const wipeWord = locale === "en" ? "DELETE" : "BORRAR";
 
@@ -382,12 +382,6 @@ export default function SettingsPage() {
               onChange={(e) => setWipe({ ...wipe, confirm: e.target.value })}
               aria-label={wipeWord}
             />
-            <Input
-              type="password"
-              placeholder={t.password}
-              value={wipe.password}
-              onChange={(e) => setWipe({ ...wipe, password: e.target.value })}
-            />
             <Button
               variant="danger"
               onClick={async () => {
@@ -398,10 +392,10 @@ export default function SettingsPage() {
                 try {
                   await api("/api/settings/wipe", {
                     method: "POST",
-                    json: { password: wipe.password, confirm: "BORRAR" },
+                    json: { confirm: "BORRAR" },
                   });
                   toast.success(t.settings.wiped);
-                  setWipe({ password: "", confirm: "" });
+                  setWipe({ confirm: "" });
                   await load();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : t.error);

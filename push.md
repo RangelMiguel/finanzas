@@ -107,7 +107,6 @@ cp .env.example .env
 corepack enable
 pnpm install
 pnpm exec prisma migrate deploy
-pnpm run db:seed    # optional demo users
 pnpm run build      # migrate + next build
 pnpm dev
 ```
@@ -177,8 +176,6 @@ pnpm run db:seed
 
 | Email | Password | Role |
 |-------|----------|------|
-| `alice@familia.local` | `familia123` | owner |
-| `bob@familia.local` | `familia123` | member |
 
 Or just use `/register` on the live site.
 

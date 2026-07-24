@@ -3,6 +3,8 @@ import { requireSession, hashToken } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { logActivity } from "@/lib/household";
+import { recordSecurityEvent } from "@/lib/security-monitor";
+import { clientIp, clientUserAgent } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
@@ -52,6 +54,15 @@ export async function POST(req: Request) {
       action: "join",
       entityType: "membership",
       summary: `${session.displayName} se unió al hogar`,
+    });
+
+    await recordSecurityEvent({
+      type: "invite_accepted",
+      summary: `${session.displayName} aceptó invitación al hogar`,
+      householdId: invite.householdId,
+      userId: session.userId,
+      ip: clientIp(req),
+      userAgent: clientUserAgent(req),
     });
 
     return jsonOk({ household: invite.household });

@@ -20,6 +20,7 @@ import {
   Gift,
   Receipt,
   Shield,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -69,6 +70,7 @@ export function Sidebar({
     },
     { href: "/recurring", label: t.nav.recurring, icon: RefreshCw, module: "recurring" },
     { href: "/debts", label: t.nav.debts, icon: Landmark, module: "debts" },
+    { href: "/goals", label: t.nav.goals, icon: Target, module: "goals" },
     { href: "/personal", label: t.nav.personal || t.nav.allowances, icon: Gift, module: "allowances" },
     {
       href: "/safe-to-spend",

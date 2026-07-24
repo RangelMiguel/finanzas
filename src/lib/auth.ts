@@ -26,7 +26,8 @@ export async function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
 }
 
-export async function verifyPassword(password: string, hash: string) {
+export async function verifyPassword(password: string, hash: string | null | undefined) {
+  if (!hash) return false;
   return bcrypt.compare(password, hash);
 }
 
@@ -108,6 +109,14 @@ export class BadRequestError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "BadRequestError";
+  }
+}
+
+export class RateLimitError extends Error {
+  status = 429;
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimitError";
   }
 }
 

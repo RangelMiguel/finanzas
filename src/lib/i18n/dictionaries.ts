@@ -93,6 +93,7 @@ export const es = {
     creditCards: "Tarjetas",
     recurring: "Recurrentes",
     debts: "Deudas",
+    goals: "Metas",
     safeToSpend: "¿Cuánto gastar?",
     importStatement: "Estado de cuenta",
     tickets: "Tickets / recibos",
@@ -108,10 +109,20 @@ export const es = {
   auth: {
     loginTitle: "MisFinanzas Familiar",
     loginSubtitle: "Inicia sesión para ver las finanzas del hogar",
+    loginPasskeyOnly:
+      "Solo llaves de acceso: Face ID, huella o llave de seguridad. Sin contraseñas.",
     registerTitle: "Crear cuenta y hogar",
     registerSubtitle: "Tú serás el dueño y podrás invitar a la familia",
+    registerPasskeyOnly:
+      "Crearás el hogar y registrarás una llave de acceso (passkey). No usamos contraseñas.",
+    registerPasskeyPrompt:
+      "Al continuar, el sistema pedirá Face ID, huella o llave de seguridad. Es el único método de acceso.",
+    createWithPasskey: "Crear hogar con llave",
+    creatingPasskey: "Creando y registrando llave…",
+    accountCreatedPasskey: "Cuenta creada y llave registrada",
     yourName: "Tu nombre",
-    minPassword: "Contraseña (mín. 8)",
+    minPassword: "Contraseña (deshabilitada)",
+    passwordRules: "Las contraseñas están deshabilitadas; usa una passkey.",
     householdName: "Nombre del hogar",
     householdPlaceholder: "Familia García",
     noAccount: "¿No tienes cuenta?",
@@ -120,8 +131,17 @@ export const es = {
     signIn: "Iniciar sesión",
     creating: "Creando…",
     signingIn: "Entrando…",
-    demoHint: "Demo: alice@familia.local / familia123",
+    demoHint: "Auth solo con passkey — usa Crear hogar",
     accountCreated: "Cuenta creada",
+    or: "o",
+    passkeyLogin: "Entrar con llave / biometría",
+    passkeyWaiting: "Esperando llave…",
+    passkeyHint:
+      "Face ID, huella, o llave de seguridad (Android / iOS / USB)",
+    passkeyUnsupported: "Este navegador no soporta llaves de acceso",
+    emailOptionalPasskey: "correo@ejemplo.com (opcional)",
+    emailOptionalPasskeyHint:
+      "Opcional: ayuda a elegir la llave correcta. En el mismo dispositivo puedes omitirlo.",
   },
 
   dashboard: {
@@ -267,6 +287,45 @@ export const es = {
     ratePayDay: "Tasa {rate}% · Pago sugerido {payment} · Día {day}",
     capitalLine: "Capital {capital}",
     interestLine: " + int. {interest}",
+  },
+
+  goals: {
+    title: "Metas de ahorro",
+    subtitle:
+      "Define metas y al cierre de cada quincena reserva dinero desde una cuenta",
+    newGoal: "Nueva meta",
+    editGoal: "Editar meta",
+    target: "Monto objetivo",
+    icon: "Icono",
+    namePlaceholder: "Ej: Vacaciones, Enganche, Fondo de emergencia",
+    empty: "Aún no hay metas. Crea una y reserva al final de la quincena.",
+    created: "Meta creada",
+    updated: "Meta actualizada",
+    deleted: "Meta eliminada",
+    confirmDelete:
+      "¿Eliminar la meta? Se desharán las reservas y se reintegrará el saldo a las cuentas.",
+    reserve: "Reservar de cuenta",
+    reserveTitle: "Reservar a la meta",
+    reserveForPeriod: "Quincena: {period}",
+    reserved: "Dinero reservado a la meta",
+    remaining: "Faltan {amount}",
+    reservedThisPeriod: "Reservado esta quincena ({period})",
+    quincenaHint:
+      "Al terminar la quincena (día 15 o fin de mes), elige una cuenta con saldo y reserva lo que quieras destinar a cada meta. Eso descuenta el saldo de la cuenta y suma al progreso de la meta.",
+    filter: "Mostrar",
+    filterActive: "Activas",
+    filterAll: "Todas",
+    statusActive: "Activa",
+    statusCompleted: "Completada",
+    statusCancelled: "Cancelada",
+    markComplete: "Marcar completada",
+    reopen: "Reabrir",
+    reservesThisPeriod: "Reservas de esta quincena",
+    allReserves: "Historial ({n} reservas)",
+    undo: "Deshacer",
+    confirmUndoReserve:
+      "¿Deshacer esta reserva? El dinero vuelve a la cuenta.",
+    reserveUndone: "Reserva deshecha",
   },
 
   safe: {
@@ -448,6 +507,28 @@ export const es = {
     presetSpendOnly: "Solo gastos propios",
     applyPreset: "Aplicar",
     hint: "Los roles owner y admin ignoran restricciones (acceso total).",
+    passkeysTitle: "Llaves de seguridad (passkeys)",
+    passkeysSubtitle:
+      "Registra Face ID, huella Android o una llave USB/NFC. Funciona en iOS y Android.",
+    addPasskey: "Registrar llave",
+    passkeyName: "Nombre (opcional)",
+    passkeyNamePlaceholder: "iPhone de Ana, YubiKey…",
+    noPasskeys: "Aún no hay llaves registradas",
+    removePasskey: "Quitar",
+    passkeyAdded: "Llave registrada",
+    passkeyRemoved: "Llave eliminada",
+    monitoringTitle: "Alertas de seguridad",
+    monitoringSubtitle:
+      "Eventos del hogar (inicios de sesión, llaves, borrados). Visibles para todos los miembros.",
+    monitoringInApp: "Solo en la app — sin correo externo",
+    monitoringLive: "En vivo",
+    monitoringEmpty: "Sin alertas recientes",
+    monitoringEmailHint: "Las alertas se guardan en el hogar y aparecen en la campana.",
+    severity: "Severidad",
+    alertType: "Tipo",
+    when: "Cuándo",
+    emailed: "Correo enviado",
+    notEmailed: "En la app",
   },
 
   tickets: {
@@ -492,7 +573,7 @@ export const es = {
     confirmDeleteCat: "¿Eliminar categoría?",
     dangerTitle: "¿Borrar todos los datos?",
     dangerHint:
-      "Esto eliminará transacciones, presupuestos, deudas y más del hogar. Escribe {word} y tu contraseña.",
+      "Esto eliminará transacciones, presupuestos, deudas y más del hogar. Escribe {word} para confirmar.",
     wipe: "Sí, borrar todo",
     wiped: "Datos borrados y semillas restauradas",
     typeDelete: "BORRAR",
@@ -640,6 +721,7 @@ export const en: Dictionary = {
     creditCards: "Cards",
     recurring: "Recurring",
     debts: "Debts",
+    goals: "Goals",
     safeToSpend: "Safe to spend",
     importStatement: "Statement import",
     tickets: "Receipts / tickets",
@@ -655,10 +737,20 @@ export const en: Dictionary = {
   auth: {
     loginTitle: "MyFinances Family",
     loginSubtitle: "Sign in to view household finances",
+    loginPasskeyOnly:
+      "Passkeys only: Face ID, fingerprint, or a security key. No passwords.",
     registerTitle: "Create account & household",
     registerSubtitle: "You will be the owner and can invite family members",
+    registerPasskeyOnly:
+      "You'll create a household and register a passkey. We don't use passwords.",
+    registerPasskeyPrompt:
+      "Next, your device will ask for Face ID, fingerprint, or a security key. That's the only way to sign in.",
+    createWithPasskey: "Create household with passkey",
+    creatingPasskey: "Creating and registering key…",
+    accountCreatedPasskey: "Account created and passkey registered",
     yourName: "Your name",
-    minPassword: "Password (min 8)",
+    minPassword: "Password (disabled)",
+    passwordRules: "Passwords are disabled; use a passkey.",
     householdName: "Household name",
     householdPlaceholder: "Garcia Family",
     noAccount: "Don't have an account?",
@@ -667,8 +759,17 @@ export const en: Dictionary = {
     signIn: "Sign in",
     creating: "Creating…",
     signingIn: "Signing in…",
-    demoHint: "Demo: alice@familia.local / familia123",
+    demoHint: "Passkey-only auth — use Create household",
     accountCreated: "Account created",
+    or: "or",
+    passkeyLogin: "Sign in with key / biometrics",
+    passkeyWaiting: "Waiting for key…",
+    passkeyHint:
+      "Face ID, fingerprint, or security key (Android / iOS / USB)",
+    passkeyUnsupported: "This browser does not support passkeys",
+    emailOptionalPasskey: "you@example.com (optional)",
+    emailOptionalPasskeyHint:
+      "Optional: helps pick the right key. On the same device you can leave it blank.",
   },
 
   dashboard: {
@@ -814,6 +915,45 @@ export const en: Dictionary = {
     ratePayDay: "Rate {rate}% · Suggested payment {payment} · Day {day}",
     capitalLine: "Principal {capital}",
     interestLine: " + int. {interest}",
+  },
+
+  goals: {
+    title: "Savings goals",
+    subtitle:
+      "Set goals and at the end of each half-month reserve money from an account",
+    newGoal: "New goal",
+    editGoal: "Edit goal",
+    target: "Target amount",
+    icon: "Icon",
+    namePlaceholder: "e.g. Vacation, Down payment, Emergency fund",
+    empty: "No goals yet. Create one and reserve at the end of the pay period.",
+    created: "Goal created",
+    updated: "Goal updated",
+    deleted: "Goal deleted",
+    confirmDelete:
+      "Delete this goal? Reserves will be undone and balances returned to accounts.",
+    reserve: "Reserve from account",
+    reserveTitle: "Reserve toward goal",
+    reserveForPeriod: "Period: {period}",
+    reserved: "Money reserved toward the goal",
+    remaining: "{amount} left",
+    reservedThisPeriod: "Reserved this period ({period})",
+    quincenaHint:
+      "At the end of each half-month (day 15 or month end), pick an account with balance and reserve what you want for each goal. That reduces the account balance and increases goal progress.",
+    filter: "Show",
+    filterActive: "Active",
+    filterAll: "All",
+    statusActive: "Active",
+    statusCompleted: "Completed",
+    statusCancelled: "Cancelled",
+    markComplete: "Mark complete",
+    reopen: "Reopen",
+    reservesThisPeriod: "Reserves this period",
+    allReserves: "History ({n} reserves)",
+    undo: "Undo",
+    confirmUndoReserve:
+      "Undo this reserve? Money returns to the account.",
+    reserveUndone: "Reserve undone",
   },
 
   safe: {
@@ -995,6 +1135,28 @@ export const en: Dictionary = {
     presetSpendOnly: "Own spending only",
     applyPreset: "Apply",
     hint: "Owner and admin roles ignore restrictions (full access).",
+    passkeysTitle: "Security keys (passkeys)",
+    passkeysSubtitle:
+      "Register Face ID, Android fingerprint, or a USB/NFC key. Works on iOS and Android.",
+    addPasskey: "Register key",
+    passkeyName: "Name (optional)",
+    passkeyNamePlaceholder: "Ana’s iPhone, YubiKey…",
+    noPasskeys: "No keys registered yet",
+    removePasskey: "Remove",
+    passkeyAdded: "Key registered",
+    passkeyRemoved: "Key removed",
+    monitoringTitle: "Security alerts",
+    monitoringSubtitle:
+      "Household events (logins, keys, wipes). Visible to every family member.",
+    monitoringInApp: "In-app only — no external email",
+    monitoringLive: "Live",
+    monitoringEmpty: "No recent alerts",
+    monitoringEmailHint: "Alerts stay in the household and show in the bell icon.",
+    severity: "Severity",
+    alertType: "Type",
+    when: "When",
+    emailed: "Email sent",
+    notEmailed: "In-app",
   },
 
   tickets: {
@@ -1039,7 +1201,7 @@ export const en: Dictionary = {
     confirmDeleteCat: "Delete category?",
     dangerTitle: "Delete all data?",
     dangerHint:
-      "This removes transactions, budgets, debts, and more from the household. Type {word} and your password.",
+      "This removes transactions, budgets, debts, and more from the household. Type {word} to confirm.",
     wipe: "Yes, wipe everything",
     wiped: "Data wiped and defaults restored",
     typeDelete: "DELETE",

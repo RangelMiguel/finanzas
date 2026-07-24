@@ -11,6 +11,11 @@ import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
 import { CURRENCIES } from "@/lib/currencies";
+import {
+  startRegistration,
+  browserSupportsWebAuthn,
+} from "@simplewebauthn/browser";
+import { KeyRound } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,6 +24,10 @@ export default function RegisterPage() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!browserSupportsWebAuthn()) {
+      toast.error(t.auth.passkeyUnsupported);
+      return;
+    }
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     try {
@@ -26,11 +35,25 @@ export default function RegisterPage() {
         method: "POST",
         json: {
           email: fd.get("email"),
-          password: fd.get("password"),
           displayName: fd.get("displayName"),
           householdName: fd.get("householdName"),
         },
       });
+
+      // Required: create the first passkey immediately
+      const options = await api<Record<string, unknown>>(
+        "/api/auth/webauthn/register",
+        { method: "POST" }
+      );
+      const response = await startRegistration({ optionsJSON: options as never });
+      await api("/api/auth/webauthn/register", {
+        method: "PUT",
+        json: {
+          response,
+          nickname: String(fd.get("displayName") || "Primary").slice(0, 80),
+        },
+      });
+
       const currency = String(fd.get("currency") || "MXN");
       if (currency !== "MXN") {
         try {
@@ -47,7 +70,7 @@ export default function RegisterPage() {
         json: { locale },
       });
       await refresh();
-      toast.success(t.auth.accountCreated);
+      toast.success(t.auth.accountCreatedPasskey);
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -84,7 +107,7 @@ export default function RegisterPage() {
           </div>
         </div>
         <h1 className="font-display text-3xl">{t.auth.registerTitle}</h1>
-        <p className="mt-2 text-sm text-[var(--fg-muted)]">{t.auth.registerSubtitle}</p>
+        <p className="mt-2 text-sm text-[var(--fg-muted)]">{t.auth.registerPasskeyOnly}</p>
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
             <Label htmlFor="displayName">{t.auth.yourName}</Label>
@@ -93,18 +116,6 @@ export default function RegisterPage() {
           <div>
             <Label htmlFor="email">{t.email}</Label>
             <Input id="email" name="email" type="email" required className="mt-1" autoComplete="email" />
-          </div>
-          <div>
-            <Label htmlFor="password">{t.auth.minPassword}</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              minLength={8}
-              required
-              className="mt-1"
-              autoComplete="new-password"
-            />
           </div>
           <div>
             <Label htmlFor="householdName">{t.auth.householdName}</Label>
@@ -125,8 +136,13 @@ export default function RegisterPage() {
               ))}
             </Select>
           </div>
+          <p className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/10 px-3 py-2 text-xs text-[var(--fg-muted)]">
+            <KeyRound className="mr-1 inline h-3.5 w-3.5" />
+            {t.auth.registerPasskeyPrompt}
+          </p>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? t.auth.creating : t.register}
+            <KeyRound className="h-4 w-4" />
+            {loading ? t.auth.creatingPasskey : t.auth.createWithPasskey}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-[var(--fg-muted)]">
