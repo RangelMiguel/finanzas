@@ -131,7 +131,6 @@ export const es = {
     signIn: "Iniciar sesión",
     creating: "Creando…",
     signingIn: "Entrando…",
-    demoHint: "Auth solo con passkey — usa Crear hogar",
     accountCreated: "Cuenta creada",
     or: "o",
     passkeyLogin: "Entrar con llave / biometría",
@@ -139,7 +138,7 @@ export const es = {
     passkeyHint:
       "Face ID, huella, o llave de seguridad (Android / iOS / USB)",
     passkeyUnsupported: "Este navegador no soporta llaves de acceso",
-    emailOptionalPasskey: "correo@ejemplo.com (opcional)",
+    emailOptionalPasskey: "tu@correo.com (opcional)",
     emailOptionalPasskeyHint:
       "Opcional: ayuda a elegir la llave correcta. En el mismo dispositivo puedes omitirlo.",
   },
@@ -759,7 +758,6 @@ export const en: Dictionary = {
     signIn: "Sign in",
     creating: "Creating…",
     signingIn: "Signing in…",
-    demoHint: "Passkey-only auth — use Create household",
     accountCreated: "Account created",
     or: "or",
     passkeyLogin: "Sign in with key / biometrics",
@@ -767,7 +765,7 @@ export const en: Dictionary = {
     passkeyHint:
       "Face ID, fingerprint, or security key (Android / iOS / USB)",
     passkeyUnsupported: "This browser does not support passkeys",
-    emailOptionalPasskey: "you@example.com (optional)",
+    emailOptionalPasskey: "you@email.com (optional)",
     emailOptionalPasskeyHint:
       "Optional: helps pick the right key. On the same device you can leave it blank.",
   },

@@ -79,7 +79,13 @@ function LoginForm() {
         <h1 className="font-display text-3xl">{t.auth.loginTitle}</h1>
         <p className="mt-2 text-sm text-[var(--fg-muted)]">{t.auth.loginPasskeyOnly}</p>
 
-        <form onSubmit={onPasskey} className="mt-6 space-y-4">
+        <form
+          onSubmit={onPasskey}
+          className="mt-6 space-y-4"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+        >
           <div>
             <Label htmlFor="email">{t.email}</Label>
             <Input
@@ -88,6 +94,9 @@ function LoginForm() {
               type="email"
               className="mt-1"
               autoComplete="username webauthn"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t.auth.emailOptionalPasskey}
