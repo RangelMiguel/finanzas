@@ -141,13 +141,26 @@ export function canManageMembers(role: string) {
   return ROLE_RANK[role as Role] >= ROLE_RANK.admin;
 }
 
-/** Resolve active household membership for user (first membership). */
+/** Resolve active household membership for user (preference, else first). */
 export async function getActiveMembership(userId: string, householdId?: string) {
   if (householdId) {
     return prisma.membership.findUnique({
       where: { householdId_userId: { householdId, userId } },
       include: { household: true },
     });
+  }
+  const pref = await prisma.userPreference.findUnique({
+    where: { userId },
+    select: { householdId: true },
+  });
+  if (pref?.householdId) {
+    const preferred = await prisma.membership.findUnique({
+      where: {
+        householdId_userId: { householdId: pref.householdId, userId },
+      },
+      include: { household: true },
+    });
+    if (preferred) return preferred;
   }
   return prisma.membership.findFirst({
     where: { userId },

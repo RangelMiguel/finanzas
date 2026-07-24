@@ -505,7 +505,15 @@ export const es = {
     subtitle: "Miembros del hogar, invitaciones y actividad",
     members: "Miembros",
     invite: "Invitar miembro",
-    inviteCreated: "Invitación creada — copia el enlace",
+    inviteCreated: "Invitación creada — compártela por WhatsApp o mensaje",
+    inviteHint:
+      "Crea un enlace para que se unan con su propia cuenta (sin crear otro hogar). Compártelo por WhatsApp o mensaje.",
+    shareInvite: "Comparte este enlace con la persona invitada",
+    shareMessage:
+      "Te invito a unirte a {name} en MisFinanzas Familiar. Abre el enlace, crea tu cuenta con {email} y entra al hogar (no necesitas crear un hogar nuevo):\n{url}",
+    shareWhatsApp: "WhatsApp",
+    shareSms: "Mensaje",
+    share: "Compartir",
     link: "Enlace",
     copy: "Copiar",
     copied: "Copiado",
@@ -718,11 +726,18 @@ export const es = {
   invite: {
     title: "Invitación familiar",
     invitedTo: "Te invitaron a {name} como {role}.",
-    expectedEmail: "Correo esperado: {email}",
+    expectedEmail: "Correo de la invitación: {email}",
     accept: "Aceptar invitación",
     joining: "Uniéndote…",
     joined: "¡Te uniste al hogar!",
+    joinedWithAccount: "¡Cuenta creada y unida al hogar!",
     needAuth: "Si no tienes sesión, inicia sesión o regístrate primero.",
+    createAccountHint:
+      "Crea tu cuenta para unirte a este hogar. No necesitas crear un hogar propio.",
+    createAndJoin: "Crear cuenta y unirme",
+    hasAccount: "¿Ya tienes cuenta?",
+    wrongAccount:
+      "Estás conectado como {session}, pero la invitación es para {expected}. Cierra sesión e inicia con ese correo, o usa el enlace para crear la cuenta.",
   },
 
   roles: {
@@ -1249,7 +1264,15 @@ export const en: Dictionary = {
     subtitle: "Household members, invites, and activity",
     members: "Members",
     invite: "Invite member",
-    inviteCreated: "Invite created — copy the link",
+    inviteCreated: "Invite created — share it via WhatsApp or message",
+    inviteHint:
+      "Create a link so they can join with their own account (no need to create another household). Share it on WhatsApp or by message.",
+    shareInvite: "Share this link with the invited person",
+    shareMessage:
+      "You're invited to join {name} on MyFinances Family. Open the link, create your account with {email}, and join the household (you don't need to create a new home):\n{url}",
+    shareWhatsApp: "WhatsApp",
+    shareSms: "Message",
+    share: "Share",
     link: "Link",
     copy: "Copy",
     copied: "Copied",
@@ -1462,11 +1485,18 @@ export const en: Dictionary = {
   invite: {
     title: "Family invite",
     invitedTo: "You were invited to {name} as {role}.",
-    expectedEmail: "Expected email: {email}",
+    expectedEmail: "Invite email: {email}",
     accept: "Accept invite",
     joining: "Joining…",
     joined: "You joined the household!",
+    joinedWithAccount: "Account created and joined the household!",
     needAuth: "If you're not signed in, sign in or register first.",
+    createAccountHint:
+      "Create your account to join this household. You don't need to create your own home.",
+    createAndJoin: "Create account & join",
+    hasAccount: "Already have an account?",
+    wrongAccount:
+      "You're signed in as {session}, but this invite is for {expected}. Sign out and sign in with that email, or use the link to create the account.",
   },
 
   roles: {

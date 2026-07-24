@@ -17,6 +17,15 @@ export async function POST(req: Request) {
     if (!invite || invite.acceptedAt) throw new Error("Invitación inválida");
     if (invite.expiresAt < new Date()) throw new Error("Invitación expirada");
 
+    // Prefer matching invite email (token is still the secret)
+    if (
+      invite.email.toLowerCase() !== session.email.toLowerCase()
+    ) {
+      throw new Error(
+        `Esta invitación es para ${invite.email}. Inicia sesión con ese correo o crea una cuenta desde el enlace.`
+      );
+    }
+
     const existing = await prisma.membership.findUnique({
       where: {
         householdId_userId: {
@@ -26,6 +35,11 @@ export async function POST(req: Request) {
       },
     });
     if (existing) {
+      await prisma.userPreference.upsert({
+        where: { userId: session.userId },
+        create: { userId: session.userId, householdId: invite.householdId },
+        update: { householdId: invite.householdId },
+      });
       return jsonOk({ household: invite.household, alreadyMember: true });
     }
 

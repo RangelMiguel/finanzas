@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,10 +17,17 @@ import {
 } from "@simplewebauthn/browser";
 import { KeyRound } from "lucide-react";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const inviteToken = params.get("invite") || "";
   const [loading, setLoading] = useState(false);
   const { t, locale, setLocale, refresh } = useApp();
+
+  // Invite signup lives on /invite/[token] (no own household)
+  useEffect(() => {
+    if (inviteToken) router.replace(`/invite/${inviteToken}`);
+  }, [inviteToken, router]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -153,5 +160,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

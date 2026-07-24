@@ -117,9 +117,18 @@ function LoginForm() {
 
         <p className="mt-4 text-center text-sm text-[var(--fg-muted)]">
           {t.auth.noAccount}{" "}
-          <Link href="/register" className="text-[var(--accent)] hover:underline">
-            {t.auth.createHousehold}
-          </Link>
+          {params.get("next")?.startsWith("/invite/") ? (
+            <Link
+              href={params.get("next")!}
+              className="text-[var(--accent)] hover:underline"
+            >
+              {t.invite.createAndJoin}
+            </Link>
+          ) : (
+            <Link href="/register" className="text-[var(--accent)] hover:underline">
+              {t.auth.createHousehold}
+            </Link>
+          )}
         </p>
       </div>
     </div>
