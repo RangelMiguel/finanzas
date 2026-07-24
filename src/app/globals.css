@@ -62,25 +62,30 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.01em;
   background-color: var(--bg-deep);
+  /* Fewer layers + no fixed attachment (fixed bg is costly on Android) */
   background-image:
-    radial-gradient(ellipse 900px 500px at 0% -10%, rgba(45, 212, 191, 0.14), transparent 55%),
-    radial-gradient(ellipse 700px 480px at 100% 0%, rgba(167, 139, 250, 0.16), transparent 50%),
-    radial-gradient(ellipse 600px 400px at 80% 100%, rgba(251, 113, 133, 0.1), transparent 55%),
-    radial-gradient(ellipse 500px 300px at 20% 80%, rgba(251, 191, 36, 0.06), transparent 50%),
+    radial-gradient(ellipse 700px 420px at 0% -10%, rgba(45, 212, 191, 0.12), transparent 55%),
+    radial-gradient(ellipse 560px 400px at 100% 0%, rgba(167, 139, 250, 0.12), transparent 50%),
     linear-gradient(180deg, #05060f 0%, #03040a 100%);
-  background-attachment: fixed;
+  background-attachment: scroll;
 }
 
-/* Film grain */
+/* Film grain — desktop only (SVG turbulence is expensive on mobile GPUs) */
 body::before {
-  content: "";
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  opacity: 0.045;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  content: none;
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  body::before {
+    content: "";
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
 }
 
 ::selection {
@@ -112,42 +117,56 @@ body::before {
   font-weight: 500;
 }
 
-/* Cards */
+/* Cards — solid-ish fills; blur only on larger screens */
 .glass-card {
   background:
-    linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 40%),
-    var(--bg-panel);
+    linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02) 40%),
+    #0c101f;
   border: 1px solid var(--line);
   box-shadow:
     0 0 0 1px rgba(0,0,0,0.4) inset,
-    0 20px 50px rgba(0,0,0,0.4);
-  backdrop-filter: blur(18px) saturate(1.2);
+    0 12px 32px rgba(0,0,0,0.35);
+}
+
+@media (min-width: 768px) {
+  .glass-card {
+    background:
+      linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01) 40%),
+      var(--bg-panel);
+    backdrop-filter: blur(14px) saturate(1.15);
+  }
 }
 
 .glass-card-premium {
   position: relative;
   overflow: hidden;
 }
+/* Gradient border pseudo is heavy (mask-composite); skip on small screens */
 .glass-card-premium::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(45, 212, 191, 0.45),
-    transparent 30%,
-    transparent 70%,
-    rgba(167, 139, 250, 0.35),
-    rgba(251, 113, 133, 0.25)
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+  content: none;
+}
+@media (min-width: 768px) {
+  .glass-card-premium::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(45, 212, 191, 0.45),
+      transparent 30%,
+      transparent 70%,
+      rgba(167, 139, 250, 0.35),
+      rgba(251, 113, 133, 0.25)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
 }
 
 .noise-panel {
@@ -282,10 +301,15 @@ body::before {
 }
 .auth-card-inner {
   border-radius: calc(1.75rem - 1px);
-  background: rgba(6, 8, 18, 0.94);
-  backdrop-filter: blur(24px);
+  background: #060812;
   border: 1px solid var(--line);
   padding: 1.85rem;
+}
+@media (min-width: 768px) {
+  .auth-card-inner {
+    background: rgba(6, 8, 18, 0.94);
+    backdrop-filter: blur(20px);
+  }
 }
 
 .ambient-orb {
@@ -293,8 +317,14 @@ body::before {
   position: absolute;
   border-radius: 999px;
   filter: blur(50px);
-  opacity: 0.5;
-  animation: float 12s ease-in-out infinite;
+  opacity: 0.45;
+  /* No continuous animation on mobile — saves battery/GPU */
+  animation: none;
+}
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .ambient-orb {
+    animation: float 12s ease-in-out infinite;
+  }
 }
 @keyframes float {
   0%, 100% { transform: translateY(0) scale(1); }
@@ -352,4 +382,102 @@ body::before {
 
 html[data-reduced-motion="true"] .ambient-orb {
   animation: none;
+}
+
+/* ─── App top bar (solid, cheap paint on mobile) ─── */
+.app-topbar {
+  background: #0a0e1a;
+  border-bottom-color: var(--line);
+}
+@media (min-width: 768px) {
+  .app-topbar {
+    background: rgba(8, 10, 20, 0.92);
+    backdrop-filter: blur(12px);
+  }
+}
+
+/* ─── Security notifications panel (opaque — no see-through on mobile) ─── */
+.security-notif-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.security-notif-panel {
+  position: fixed;
+  z-index: 90;
+  /* Mobile: full-width sheet under status/header */
+  left: 0.75rem;
+  right: 0.75rem;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  max-height: min(70vh, 32rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Fully opaque slate — no transparency / no backdrop-filter */
+  background: #12182b;
+  color: var(--fg);
+  padding: 0.9rem;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 24px 64px rgba(0, 0, 0, 0.75);
+}
+
+@media (min-width: 768px) {
+  .security-notif-panel {
+    left: auto;
+    right: 1.5rem;
+    top: 3.75rem;
+    width: 22rem;
+    max-height: min(70vh, 28rem);
+    background: #141b32;
+  }
+  .security-notif-scrim {
+    background: rgba(0, 0, 0, 0.45);
+  }
+}
+
+.security-notif-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.security-notif-item {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0a0f1c;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Soften bento glow on mobile */
+@media (max-width: 767px) {
+  .bento-stat {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  }
+  .bento-stat::after {
+    display: none;
+  }
+  .ambient-orb {
+    display: none;
+  }
+  /* Cheaper scrolling */
+  main {
+    -webkit-overflow-scrolling: touch;
+  }
 }

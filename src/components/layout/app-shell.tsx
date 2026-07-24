@@ -39,11 +39,11 @@ export function AppShell({
         <div className="fixed inset-0 z-40 md:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-black/70"
             aria-label={t.closeMenu}
             onClick={() => setOpen(false)}
           />
-          <div className="relative z-50 h-full w-[17rem] shadow-2xl">
+          <div className="relative z-50 h-full w-[17rem] max-w-[85vw] shadow-2xl">
             <Sidebar
               householdName={householdName}
               userName={userName}
@@ -55,29 +55,38 @@ export function AppShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-2 border-b border-white/10 bg-black/20 px-4 py-3 backdrop-blur md:hidden">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={open ? t.closeMenu : t.openMenu}
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
-          <div className="font-display text-base">{t.appName}</div>
-          <div className="flex items-center gap-1">
+        <header className="app-topbar sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3 md:px-8">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              aria-label={open ? t.closeMenu : t.openMenu}
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+            >
+              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+            <div className="font-display truncate text-base md:hidden">
+              {t.appName}
+            </div>
+            <div className="hidden truncate text-sm text-[var(--fg-muted)] md:block">
+              {householdName || t.appName}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <SecurityNotifications />
-            <div className="text-xs text-[var(--fg-muted)]">{userName}</div>
+            <div className="hidden max-w-[10rem] truncate text-xs text-[var(--fg-muted)] sm:block">
+              {userName}
+            </div>
           </div>
         </header>
 
-        {/* Desktop top bar: security notifications for all household members */}
-        <div className="hidden items-center justify-end border-b border-white/5 px-8 py-2 md:flex">
-          <SecurityNotifications />
-        </div>
-
-        <main id="main-content" className="relative flex-1 overflow-auto p-4 md:p-8" tabIndex={-1}>
+        <main
+          id="main-content"
+          className="relative flex-1 overflow-auto p-4 md:p-8"
+          tabIndex={-1}
+        >
           {children}
         </main>
       </div>
