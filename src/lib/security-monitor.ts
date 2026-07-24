@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { pushSecurityAlert } from "./web-push";
 
 export type SecurityEventType =
   | "login_success"
@@ -29,6 +30,19 @@ const SEVERITY: Record<SecurityEventType, SecuritySeverity> = {
   invite_accepted: "info",
 };
 
+/** Events that land in the in-app tray (info login spam excluded) */
+const TRAY_TYPES = new Set<SecurityEventType>([
+  "login_failed",
+  "login_passkey_failed",
+  "wipe",
+  "passkey_added",
+  "passkey_removed",
+  "rate_limited",
+  "invite_accepted",
+  "register",
+  // login_success intentionally omitted from default tray noise
+]);
+
 export type RecordSecurityEventInput = {
   type: SecurityEventType;
   summary: string;
@@ -37,11 +51,13 @@ export type RecordSecurityEventInput = {
   householdId?: string | null;
   ip?: string | null;
   userAgent?: string | null;
+  /** Force into tray even if type is noisy */
+  forceTray?: boolean;
 };
 
 /**
- * Persist a security alert for the household feed (in-app only — no email).
- * Also writes a structured line to server logs for operators.
+ * Persist a security alert, log it, optionally push to device trays.
+ * Successful logins are logged server-side only (not the in-app tray).
  */
 export async function recordSecurityEvent(input: RecordSecurityEventInput) {
   let householdId = input.householdId || null;
@@ -56,6 +72,26 @@ export async function recordSecurityEvent(input: RecordSecurityEventInput) {
   }
 
   const severity = SEVERITY[input.type] || "info";
+  const inTray = input.forceTray || TRAY_TYPES.has(input.type);
+
+  // Always log
+  console.info(
+    JSON.stringify({
+      kind: "security_alert",
+      type: input.type,
+      severity,
+      summary: input.summary,
+      householdId,
+      userId: input.userId || null,
+      ip: input.ip || null,
+      tray: inTray,
+      at: new Date().toISOString(),
+    })
+  );
+
+  if (!inTray) {
+    return null;
+  }
 
   const alert = await prisma.securityAlert.create({
     data: {
@@ -70,19 +106,14 @@ export async function recordSecurityEvent(input: RecordSecurityEventInput) {
     },
   });
 
-  console.info(
-    JSON.stringify({
-      kind: "security_alert",
-      id: alert.id,
-      type: input.type,
-      severity,
-      summary: input.summary,
-      householdId,
-      userId: input.userId || null,
-      ip: input.ip || null,
-      at: alert.createdAt.toISOString(),
-    })
-  );
+  // Fire-and-forget system notifications (Android/iOS tray when PWA installed)
+  void pushSecurityAlert({
+    householdId,
+    severity,
+    summary: input.summary,
+    detail: input.detail,
+    excludeUserId: input.userId,
+  }).catch((e) => console.warn("[push]", e));
 
   return alert;
 }

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell, X } from "lucide-react";
+import { Bell, X, Trash2, Download, Smartphone } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { usePwa } from "@/components/pwa/pwa-provider";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ const POLL_MS = 20_000;
 
 export function SecurityNotifications() {
   const { t, ready } = useApp();
+  const pwa = usePwa();
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [unread, setUnread] = useState(0);
@@ -56,9 +58,12 @@ export function SecurityNotifications() {
             setAlerts((prev) => {
               const ids = new Set(prev.map((a) => a.id));
               const fresh = res.alerts.filter((a) => !ids.has(a.id));
-              if (fresh[0] && !open) {
-                // Light toast only when panel closed
-                toast.message(fresh[0].summary, {
+              // Toast only for warning/critical
+              const important = fresh.find(
+                (a) => a.severity === "warning" || a.severity === "critical"
+              );
+              if (important && !open) {
+                toast.message(important.summary, {
                   description: t.security.monitoringLive,
                   duration: 3500,
                 });
@@ -72,7 +77,7 @@ export function SecurityNotifications() {
         setUnread(res.unreadCount);
         sinceRef.current = res.serverTime;
       } catch {
-        /* not logged in or no household */
+        /* not logged in */
       } finally {
         loadingRef.current = false;
       }
@@ -83,15 +88,9 @@ export function SecurityNotifications() {
   useEffect(() => {
     if (!ready) return;
     load(null);
-    const id = setInterval(() => {
-      // When panel open, full refresh less often; when closed, only poll deltas
-      load(sinceRef.current);
-    }, POLL_MS);
-
+    const id = setInterval(() => load(sinceRef.current), POLL_MS);
     function onVis() {
-      if (document.visibilityState === "visible") {
-        load(sinceRef.current);
-      }
+      if (document.visibilityState === "visible") load(sinceRef.current);
     }
     document.addEventListener("visibilitychange", onVis);
     return () => {
@@ -108,7 +107,6 @@ export function SecurityNotifications() {
     function onDoc(e: MouseEvent | TouchEvent) {
       const target = e.target as Node;
       if (panelRef.current && !panelRef.current.contains(target)) {
-        // ignore clicks on the bell button (handled by toggle)
         const bell = (e.target as HTMLElement)?.closest?.("[data-sec-bell]");
         if (bell) return;
         setOpen(false);
@@ -126,10 +124,40 @@ export function SecurityNotifications() {
 
   async function markSeen() {
     try {
-      await api("/api/security/alerts", { method: "POST" });
+      await api("/api/security/alerts", {
+        method: "POST",
+        json: { action: "seen" },
+      });
       setUnread(0);
     } catch {
       /* ignore */
+    }
+  }
+
+  async function dismissOne(id: string) {
+    try {
+      await api("/api/security/alerts", {
+        method: "DELETE",
+        json: { alertId: id },
+      });
+      setAlerts((prev) => prev.filter((a) => a.id !== id));
+      setUnread((u) => Math.max(0, u - 1));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function dismissAll() {
+    try {
+      await api("/api/security/alerts", {
+        method: "DELETE",
+        json: { all: true },
+      });
+      setAlerts([]);
+      setUnread(0);
+      toast.success(t.security.dismissedAll);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
     }
   }
 
@@ -142,9 +170,31 @@ export function SecurityNotifications() {
     }
   }
 
+  async function onEnablePush() {
+    try {
+      const ok = await pwa.enablePush();
+      if (ok) toast.success(t.pwa.pushEnabled);
+      else toast.error(t.pwa.pushDenied);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function onInstall() {
+    try {
+      if (pwa.canInstall) {
+        await pwa.install();
+        toast.success(t.pwa.installed);
+      } else {
+        toast.message(t.pwa.installManual);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
   const panel = open && (
     <>
-      {/* Scrim — solid-ish so content underneath doesn't show through on mobile */}
       <button
         type="button"
         className="security-notif-scrim"
@@ -167,17 +217,80 @@ export function SecurityNotifications() {
               {t.security.monitoringInApp}
             </div>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            aria-label={t.close}
-            onClick={() => setOpen(false)}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            {alerts.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-[11px] text-rose-200"
+                onClick={dismissAll}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {t.security.dismissAll}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t.close}
+              onClick={() => setOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+
+        {/* PWA / system notifications */}
+        <div className="mb-3 space-y-2 rounded-xl border border-white/10 bg-[#0a0f1c] p-2.5">
+          {!pwa.installed && (
+            <button
+              type="button"
+              onClick={onInstall}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-[var(--fg)] hover:bg-white/5"
+            >
+              <Download className="h-4 w-4 shrink-0 text-teal-300" />
+              <span>
+                <span className="font-medium">{t.pwa.installTitle}</span>
+                <span className="mt-0.5 block text-[10px] text-[var(--fg-faint)]">
+                  {pwa.canInstall ? t.pwa.installHint : t.pwa.installManual}
+                </span>
+              </span>
+            </button>
+          )}
+          {pwa.installed && (
+            <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-emerald-300/90">
+              <Smartphone className="h-3.5 w-3.5" />
+              {t.pwa.installedLabel}
+            </div>
+          )}
+          {pwa.pushSupported && pwa.pushConfigured && (
+            <button
+              type="button"
+              onClick={() =>
+                pwa.pushEnabled ? pwa.disablePush() : onEnablePush()
+              }
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-[var(--fg)] hover:bg-white/5"
+            >
+              <Bell className="h-4 w-4 shrink-0 text-sky-300" />
+              <span>
+                <span className="font-medium">
+                  {pwa.pushEnabled ? t.pwa.pushOn : t.pwa.pushOff}
+                </span>
+                <span className="mt-0.5 block text-[10px] text-[var(--fg-faint)]">
+                  {t.pwa.pushHint}
+                </span>
+              </span>
+            </button>
+          )}
+          {pwa.pushSupported && !pwa.pushConfigured && (
+            <p className="px-2 text-[10px] text-[var(--fg-faint)]">
+              {t.pwa.pushNotConfigured}
+            </p>
+          )}
+        </div>
+
         <ul className="security-notif-list">
           {alerts.length === 0 ? (
             <li className="px-1 py-6 text-center text-sm text-[var(--fg-faint)]">
@@ -186,34 +299,48 @@ export function SecurityNotifications() {
           ) : (
             alerts.map((a) => (
               <li key={a.id} className="security-notif-item">
-                <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                  <span
-                    className={
-                      a.severity === "critical"
-                        ? "font-semibold text-red-300"
-                        : a.severity === "warning"
-                          ? "font-semibold text-amber-200"
-                          : "font-semibold text-sky-200"
-                    }
-                  >
-                    {a.severity}
-                  </span>
-                  <span className="text-[var(--fg-faint)]">{a.type}</span>
-                  <span className="text-[var(--fg-faint)]">
-                    {new Date(a.createdAt).toLocaleString()}
-                  </span>
-                </div>
-                <div className="mt-0.5 font-medium leading-snug text-white">
-                  {a.summary}
-                </div>
-                {a.detail && (
-                  <div className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
-                    {a.detail}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span
+                        className={
+                          a.severity === "critical"
+                            ? "font-semibold text-red-300"
+                            : a.severity === "warning"
+                              ? "font-semibold text-amber-200"
+                              : "font-semibold text-sky-200"
+                        }
+                      >
+                        {a.severity}
+                      </span>
+                      <span className="text-[var(--fg-faint)]">{a.type}</span>
+                      <span className="text-[var(--fg-faint)]">
+                        {new Date(a.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 font-medium leading-snug text-white">
+                      {a.summary}
+                    </div>
+                    {a.detail && (
+                      <div className="mt-0.5 text-[12px] text-[var(--fg-muted)]">
+                        {a.detail}
+                      </div>
+                    )}
+                    {a.ip && (
+                      <div className="text-[11px] text-[var(--fg-faint)]">
+                        IP {a.ip}
+                      </div>
+                    )}
                   </div>
-                )}
-                {a.ip && (
-                  <div className="text-[11px] text-[var(--fg-faint)]">IP {a.ip}</div>
-                )}
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg p-1.5 text-[var(--fg-faint)] hover:bg-white/10 hover:text-white"
+                    aria-label={t.security.dismiss}
+                    onClick={() => dismissOne(a.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </li>
             ))
           )}

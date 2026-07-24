@@ -21,6 +21,7 @@ import {
   Receipt,
   Shield,
   Target,
+  Palmtree,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -71,6 +72,12 @@ export function Sidebar({
     { href: "/recurring", label: t.nav.recurring, icon: RefreshCw, module: "recurring" },
     { href: "/debts", label: t.nav.debts, icon: Landmark, module: "debts" },
     { href: "/goals", label: t.nav.goals, icon: Target, module: "goals" },
+    {
+      href: "/retirement",
+      label: t.nav.retirement,
+      icon: Palmtree,
+      module: "retirement",
+    },
     { href: "/personal", label: t.nav.personal || t.nav.allowances, icon: Gift, module: "allowances" },
     {
       href: "/safe-to-spend",

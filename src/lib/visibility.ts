@@ -15,6 +15,7 @@ export type MemberVisibility = {
     debts: boolean;
     allowances: boolean;
     goals: boolean;
+    retirement: boolean;
     safeToSpend: boolean;
     tickets: boolean;
     statements: boolean;
@@ -71,6 +72,7 @@ export const FULL_VISIBILITY: MemberVisibility = {
     debts: true,
     allowances: true,
     goals: true,
+    retirement: true,
     safeToSpend: true,
     tickets: true,
     statements: true,

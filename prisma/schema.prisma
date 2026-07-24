@@ -34,8 +34,11 @@ model User {
   personalExpenses     PersonalExpense[]
   webauthnCredentials  WebAuthnCredential[]
   securityAlerts       SecurityAlert[]
+  alertDismissals      SecurityAlertDismissal[]
+  pushSubscriptions    PushSubscription[]
   goalsCreated         Goal[]              @relation("GoalCreator")
   goalReserves         GoalReserve[]
+  retirementPlans      RetirementPlan[]
 }
 
 model Household {
@@ -69,6 +72,7 @@ model Household {
   securityAlerts      SecurityAlert[]
   goals              Goal[]
   goalReserves       GoalReserve[]
+  retirementPlans    RetirementPlan[]
 }
 
 model Membership {
@@ -505,14 +509,44 @@ model SecurityAlert {
   emailedAt   DateTime?
   createdAt   DateTime  @default(now())
 
-  household Household? @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  household   Household? @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  dismissals  SecurityAlertDismissal[]
 
   @@index([householdId, createdAt])
   @@index([createdAt])
   @@index([type])
 }
 
+/// Per-user dismissals so each member can clear their tray without deleting household audit log
+model SecurityAlertDismissal {
+  id        String   @id @default(cuid())
+  alertId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  alert SecurityAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, userId])
+  @@index([userId])
+}
+
+/// Web Push subscription for system notification tray (Android/iOS/desktop)
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
 
 /// Savings goal (meta) for the household
 model Goal {
@@ -559,4 +593,62 @@ model GoalReserve {
   @@index([householdId, period])
   @@index([goalId])
   @@index([accountId])
+}
+
+
+/// Per-user retirement projection parameters (within a household)
+model RetirementPlan {
+  id        String   @id @default(cuid())
+  householdId String
+  userId    String
+  /// Display name for this plan
+  name      String   @default("Mi retiro")
+
+  currentAge          Int      @default(35)
+  retirementAge       Int      @default(65)
+  lifeExpectancyAge   Int      @default(90)
+
+  /// Desired annual spending in retirement, in TODAY's currency units (cents/year)
+  desiredAnnualIncomeCents Int @default(36000000)
+  /// Current gross annual income (for replacement-ratio suggestions), cents
+  currentAnnualIncomeCents Int @default(0)
+  /// Target replacement ratio 0-100 (informational / helper)
+  replacementPercent  Int      @default(70)
+
+  /// Override nest egg; if null, use sum of household accounts (+ optional goals)
+  currentSavingsCents Int?
+  includeAccountBalances Boolean @default(true)
+  includeGoalReserves    Boolean @default(true)
+
+  /// Monthly contribution toward retirement, cents
+  monthlyContributionCents Int @default(0)
+  /// Expected contribution growth % per year (raises, etc.)
+  contributionGrowthPercent Float @default(0)
+
+  /// Expected nominal annual return % while working
+  returnPrePercent    Float    @default(7)
+  /// Expected nominal annual return % in retirement
+  returnPostPercent   Float    @default(4)
+  /// Expected inflation % per year
+  inflationPercent    Float    @default(3.5)
+  /// Safe withdrawal rate % (e.g. 4) — used as alternate nest-egg estimate
+  withdrawalRatePercent Float  @default(4)
+
+  /// Expected annual pension / IMSS / social security in TODAY's pesos (cents)
+  pensionAnnualCents  Int      @default(0)
+  /// Other guaranteed annual income in retirement (today's pesos, cents)
+  otherIncomeAnnualCents Int   @default(0)
+
+  /// Optional effective tax drag on portfolio returns (0-100)
+  taxDragPercent      Float    @default(0)
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, userId])
+  @@index([userId])
 }
