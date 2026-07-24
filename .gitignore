@@ -9,6 +9,10 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+# npm lockfile must not be committed (project uses pnpm)
+package-lock.json
+npm-shrinkwrap.json
+yarn.lock
 
 # testing
 /coverage

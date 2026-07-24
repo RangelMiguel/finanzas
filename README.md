@@ -11,21 +11,24 @@ Clone of [MisFinanzas Local Only](https://finanzaslocales.lovable.app/) with a *
 
 ## Quick start
 
+Requires **Node.js 20+** and **pnpm 9** (`corepack enable && corepack prepare pnpm@9.15.9 --activate`).
+
 ```bash
 cd misfinanzas-family
 cp .env.example .env
 # Edit .env: set DATABASE_URL, DIRECT_URL, and AUTH_SECRET
-npm install
-npx prisma migrate deploy
-npm run db:seed   # optional demo users
-npm run dev
+pnpm install
+pnpm exec prisma migrate deploy
+pnpm run db:seed   # optional demo users
+pnpm dev
 ```
 
 Open http://localhost:3000
 
 ### Deploy to Vercel
 
-See **[push.md](./push.md)** for a full step-by-step guide (Postgres → GitHub → Vercel env vars → deploy).
+See **[push.md](./push.md)** for a full step-by-step guide (Postgres → env vars → GitHub → Vercel).  
+The project uses **pnpm** (`pnpm-lock.yaml` + `packageManager` field).
 
 ### Demo users (after seed)
 
@@ -88,10 +91,10 @@ Check status: `GET /api/ai/status` (authenticated).
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Dev server |
-| `npm run build` | Migrate + production build |
-| `npm run start` | Start production server |
-| `npm run db:migrate` | Create/apply migrations (dev) |
-| `npm run db:migrate:deploy` | Apply migrations (prod/CI) |
-| `npm run db:push` | Push schema without migration files |
-| `npm run db:seed` | Seed demo family |
+| `pnpm dev` | Dev server |
+| `pnpm run build` | Env check + migrate + production build |
+| `pnpm start` | Start production server |
+| `pnpm run db:migrate` | Create/apply migrations (dev) |
+| `pnpm run db:migrate:deploy` | Apply migrations (prod/CI) |
+| `pnpm run db:push` | Push schema without migration files |
+| `pnpm run db:seed` | Seed demo family |
