@@ -69,6 +69,7 @@ export async function GET(
           startDate: true,
           description: true,
           totalAmountCents: true,
+          removedDates: true,
         },
       }),
     ]);

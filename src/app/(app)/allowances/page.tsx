@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { centsToInput } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -37,6 +38,7 @@ type Cat = { id: string; name: string; type: string; icon: string };
 
 export default function AllowancesPage() {
   const { t, money, tr, role } = useApp();
+  const { confirm } = useConfirm();
   const [items, setItems] = useState<Allowance[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
@@ -115,7 +117,14 @@ export default function AllowancesPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm(t.allowances.confirmDelete)) return;
+    const ok = await confirm({
+      title: t.delete,
+      description: t.allowances.confirmDelete,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/allowances?id=${id}`, { method: "DELETE" });
       toast.success(t.allowances.deleted);

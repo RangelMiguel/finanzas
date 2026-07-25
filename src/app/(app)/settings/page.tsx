@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useApp, type FontScale } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { CURRENCIES, LOCALES } from "@/lib/currencies";
 import type { AppLocale } from "@/lib/currencies";
 
@@ -35,6 +36,7 @@ export default function SettingsPage() {
     a11y,
     setA11y,
   } = useApp();
+  const { confirm } = useConfirm();
   const [categories, setCategories] = useState<Cat[]>([]);
   const [name, setName] = useState(householdName || "");
   const [form, setForm] = useState({
@@ -116,7 +118,14 @@ export default function SettingsPage() {
   }
 
   async function removeCat(id: string) {
-    if (!confirm(t.settings.confirmDeleteCat)) return;
+    const ok = await confirm({
+      title: t.delete,
+      description: t.settings.confirmDeleteCat,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/categories?id=${id}`, { method: "DELETE" });
       await load();

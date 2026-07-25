@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
 import { centsToInput } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ const emptyForm = {
 
 export default function AccountsPage() {
   const { money, t } = useApp();
+  const { confirm } = useConfirm();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit" | "transfer">("none");
   const [editId, setEditId] = useState<string | null>(null);
@@ -103,7 +105,14 @@ export default function AccountsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm(t.accounts.confirmDelete)) return;
+    const ok = await confirm({
+      title: t.delete,
+      description: t.accounts.confirmDelete,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/accounts?id=${id}`, { method: "DELETE" });
       toast.success(t.accounts.deleted);

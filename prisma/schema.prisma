@@ -300,6 +300,8 @@ model InstallmentPlan {
   creditCardId    String?
   categoryId      String?
   startDate       String
+  /// JSON array of charge dates (YYYY-MM-DD) removed from the schedule (single-payment deletes)
+  removedDates    String   @default("[]")
   createdAt       DateTime @default(now())
 
   household    Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)

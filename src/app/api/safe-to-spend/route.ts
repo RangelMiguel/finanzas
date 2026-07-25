@@ -105,6 +105,7 @@ async function buildFutureItems(opts: {
         startDate: true,
         description: true,
         totalAmountCents: true,
+        removedDates: true,
       },
     }),
   ]);

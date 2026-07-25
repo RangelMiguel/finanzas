@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
 
 type PaymentBucket = {
@@ -33,6 +34,7 @@ type CC = {
 
 export default function CreditCardsPage() {
   const { money, t, tr, locale } = useApp();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const [cards, setCards] = useState<CC[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
@@ -101,7 +103,14 @@ export default function CreditCardsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm(t.cards.confirmDelete)) return;
+    const ok = await confirm({
+      title: t.delete,
+      description: t.cards.confirmDelete,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     await api(`/api/credit-cards?id=${id}`, { method: "DELETE" });
     await load();
   }

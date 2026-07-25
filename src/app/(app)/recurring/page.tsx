@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { centsToInput } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -35,6 +36,7 @@ type Acc = { id: string; name: string };
 
 export default function RecurringPage() {
   const { money, t, tr } = useApp();
+  const { confirm } = useConfirm();
   const [items, setItems] = useState<Rec[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
@@ -108,7 +110,14 @@ export default function RecurringPage() {
   }
 
   async function removePlan(id: string) {
-    if (!confirm(t.recurring.confirmDeleteMsi)) return;
+    const ok = await confirm({
+      title: t.delete,
+      description: t.recurring.confirmDeleteMsi,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     await api(`/api/installments?id=${id}`, { method: "DELETE" });
     await load();
   }

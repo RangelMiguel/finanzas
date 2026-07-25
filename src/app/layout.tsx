@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Toaster } from "sonner";
 import { DM_Sans, Fraunces } from "next/font/google";
 import { AppProvider } from "@/components/providers/app-provider";
+import { ConfirmProvider } from "@/components/providers/confirm-provider";
 import { PwaProvider } from "@/components/pwa/pwa-provider";
 import "./globals.css";
 
@@ -54,10 +55,12 @@ export default function RootLayout({
     <html lang="es" className={`dark ${sans.variable} ${display.variable}`} suppressHydrationWarning>
       <body className="antialiased">
         <AppProvider>
-          <PwaProvider>
-            {children}
-            <Toaster theme="dark" richColors position="top-right" closeButton />
-          </PwaProvider>
+          <ConfirmProvider>
+            <PwaProvider>
+              {children}
+              <Toaster theme="dark" richColors position="top-right" closeButton />
+            </PwaProvider>
+          </ConfirmProvider>
         </AppProvider>
       </body>
     </html>

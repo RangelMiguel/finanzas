@@ -13,6 +13,7 @@ import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { centsToInput } from "@/lib/utils";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/providers/confirm-provider";
 
 type PaymentLine = {
   date: string;
@@ -78,6 +79,7 @@ export default function CreditCardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { money, t, tr, locale } = useApp();
+  const { confirm, confirmChoice } = useConfirm();
   const dateLocale = locale === "en" ? enUS : esLocale;
   const [data, setData] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,11 +118,48 @@ export default function CreditCardDetailPage() {
     ? data.msiPending
     : data?.msiPlans?.filter((p) => (p.monthsLeft ?? 0) > 0) || [];
 
-  async function deleteMsi(planId: string) {
-    if (!confirm(t.cards.confirmDeleteMsi)) return;
+  async function deleteMsiPlan(planId: string) {
+    const ok = await confirm({
+      title: t.cards.confirmDeleteTitle,
+      description: t.cards.confirmDeleteMsi,
+      confirmLabel: t.cards.deleteMsiAll,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/installments?id=${planId}`, { method: "DELETE" });
-      toast.success(t.success);
+      toast.success(t.cards.deletedAllMsi || t.success);
+      setMsiEdit(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  /** Line-level MSI delete: ask one payment vs whole plan */
+  async function deleteMsiLine(planId: string, chargeDate: string) {
+    const choice = await confirmChoice({
+      title: t.cards.confirmDeleteMsiTitle,
+      description: t.cards.confirmDeleteMsiDesc,
+      cancelLabel: t.cancel,
+      actions: [
+        { id: "one", label: t.cards.deleteMsiOne, variant: "secondary" },
+        { id: "all", label: t.cards.deleteMsiAll, variant: "danger" },
+      ],
+    });
+    if (!choice) return;
+    try {
+      if (choice === "all") {
+        await api(`/api/installments?id=${planId}`, { method: "DELETE" });
+        toast.success(t.cards.deletedAllMsi || t.success);
+      } else {
+        await api("/api/installments", {
+          method: "PATCH",
+          json: { id: planId, removeChargeDate: chargeDate },
+        });
+        toast.success(t.cards.deletedOneMsi || t.success);
+      }
       setMsiEdit(null);
       await load();
     } catch (e) {
@@ -153,7 +192,14 @@ export default function CreditCardDetailPage() {
   }
 
   async function deletePurchase(txnId: string) {
-    if (!confirm(t.cards.confirmDeletePurchase)) return;
+    const ok = await confirm({
+      title: t.cards.confirmDeletePurchaseTitle,
+      description: t.cards.confirmDeletePurchase,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/transactions?id=${txnId}`, { method: "DELETE" });
       toast.success(t.success);
@@ -330,7 +376,7 @@ export default function CreditCardDetailPage() {
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => deleteMsi(msiEdit.id)}
+                    onClick={() => deleteMsiPlan(msiEdit.id)}
                   >
                     {t.cards.deleteMsi}
                   </Button>
@@ -445,7 +491,7 @@ export default function CreditCardDetailPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteMsi(p.id)}
+                        onClick={() => deleteMsiPlan(p.id)}
                       >
                         {t.delete}
                       </Button>
@@ -533,7 +579,7 @@ export default function CreditCardDetailPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteMsi(line.planId!)}
+                              onClick={() => deleteMsiLine(line.planId!, line.date)}
                             >
                               {t.delete}
                             </Button>

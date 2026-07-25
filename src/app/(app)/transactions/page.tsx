@@ -11,6 +11,7 @@ import { api } from "@/lib/api-client";
 import { monthKey, todayISO, centsToInput, amountToCents } from "@/lib/utils";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { sourceKey } from "@/lib/transaction-funding";
 
 type FundingRow = {
@@ -99,6 +100,7 @@ function fundingLabel(txn: Txn): string {
 
 export default function TransactionsPage() {
   const { t, money, members, tr } = useApp();
+  const { confirm } = useConfirm();
   const [month, setMonth] = useState(monthKey());
   const [txns, setTxns] = useState<Txn[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
@@ -306,7 +308,14 @@ export default function TransactionsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm(t.transactions.confirmDelete)) return;
+    const ok = await confirm({
+      title: t.delete,
+      description: t.transactions.confirmDelete,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/transactions?id=${id}`, { method: "DELETE" });
       await load();

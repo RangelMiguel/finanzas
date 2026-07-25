@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
 import { Copy, MessageCircle, Share2, UserMinus } from "lucide-react";
 
@@ -20,6 +21,7 @@ type Member = {
 
 export default function FamilyPage() {
   const { t, tr, householdName, userId } = useApp();
+  const { confirm } = useConfirm();
   const [members, setMembers] = useState<Member[]>([]);
   const [role, setRole] = useState<string>("");
   const [email, setEmail] = useState("");
@@ -151,9 +153,15 @@ export default function FamilyPage() {
   }
 
   async function removeMember(member: Member) {
-    const ok = window.confirm(
-      tr(t.family.removeConfirm, { name: member.user.displayName })
-    );
+    const ok = await confirm({
+      title: t.delete,
+      description: tr(t.family.removeConfirm, {
+        name: member.user.displayName,
+      }),
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
     if (!ok) return;
     try {
       await api(`/api/members?id=${encodeURIComponent(member.id)}`, {

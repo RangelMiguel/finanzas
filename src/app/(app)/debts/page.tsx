@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { centsToInput } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -32,6 +33,7 @@ type Acc = { id: string; name: string };
 
 export default function DebtsPage() {
   const { money, t, tr } = useApp();
+  const { confirm } = useConfirm();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [accounts, setAccounts] = useState<Acc[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
@@ -120,7 +122,14 @@ export default function DebtsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm(t.debts.confirmDelete)) return;
+    const ok = await confirm({
+      title: t.delete,
+      description: t.debts.confirmDelete,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     await api(`/api/debts?id=${id}`, { method: "DELETE" });
     await load();
   }

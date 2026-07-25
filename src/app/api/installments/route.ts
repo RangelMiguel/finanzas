@@ -3,6 +3,11 @@ import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { pesosToCents, todayISO } from "@/lib/utils";
+import {
+  addMonthsISO,
+  parseRemovedDates,
+  serializeRemovedDates,
+} from "@/lib/credit-card-cycles";
 
 export async function GET() {
   try {
@@ -66,6 +71,8 @@ export async function PATCH(req: Request) {
         monthlyAmount: z.union([z.number(), z.string()]).optional(),
         startDate: z.string().optional(),
         creditCardId: z.string().nullable().optional(),
+        /** Remove a single MSI charge date from the schedule (YYYY-MM-DD) */
+        removeChargeDate: z.string().optional(),
       })
       .parse(await req.json());
 
@@ -73,6 +80,39 @@ export async function PATCH(req: Request) {
       where: { id: body.id, householdId: m.householdId },
     });
     if (!existing) throw new Error("Plan no encontrado");
+
+    // Single installment removal
+    if (body.removeChargeDate) {
+      const chargeDate = body.removeChargeDate.slice(0, 10);
+      const removed = parseRemovedDates(existing.removedDates);
+      // Validate the date is a real charge on this plan
+      let valid = false;
+      for (let i = 0; i < existing.months; i++) {
+        if (addMonthsISO(existing.startDate, i) === chargeDate) {
+          valid = true;
+          break;
+        }
+      }
+      if (!valid) throw new Error("Esa fecha no pertenece a este plan MSI");
+      removed.add(chargeDate);
+
+      // If every charge is removed, drop the whole plan
+      if (removed.size >= existing.months) {
+        await prisma.transaction.updateMany({
+          where: { installmentPlanId: body.id },
+          data: { deletedAt: new Date(), installmentPlanId: null },
+        });
+        await prisma.installmentPlan.delete({ where: { id: body.id } });
+        return jsonOk({ deleted: true, installmentPlan: null });
+      }
+
+      const plan = await prisma.installmentPlan.update({
+        where: { id: body.id },
+        data: { removedDates: serializeRemovedDates(removed) },
+        include: { creditCard: true, category: true },
+      });
+      return jsonOk({ installmentPlan: plan, removedChargeDate: chargeDate });
+    }
 
     const months = body.months ?? existing.months;
     let totalAmountCents = existing.totalAmountCents;

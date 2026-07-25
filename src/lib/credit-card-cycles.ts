@@ -43,7 +43,29 @@ export type InstallmentLike = {
   startDate: string;
   description?: string | null;
   totalAmountCents?: number;
+  /** JSON string or array of charge dates excluded from the schedule */
+  removedDates?: string | string[] | null;
 };
+
+export function parseRemovedDates(
+  raw: string | string[] | null | undefined
+): Set<string> {
+  if (!raw) return new Set();
+  if (Array.isArray(raw)) return new Set(raw.filter(Boolean));
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return new Set(parsed.filter((x): x is string => typeof x === "string"));
+    }
+  } catch {
+    /* ignore */
+  }
+  return new Set();
+}
+
+export function serializeRemovedDates(dates: Iterable<string>): string {
+  return JSON.stringify([...new Set(dates)].sort());
+}
 
 export type LabeledCharge = {
   date: string;
@@ -227,13 +249,19 @@ export function expandInstallmentCharges(
   for (const p of plans) {
     if (p.creditCardId !== creditCardId) continue;
     if (p.monthlyAmountCents <= 0 || p.months <= 0) continue;
+    const removed = parseRemovedDates(p.removedDates);
+    let shown = 0;
+    const activeMonths = p.months - removed.size;
     for (let i = 0; i < p.months; i++) {
+      const date = addMonthsISO(p.startDate, i);
+      if (removed.has(date)) continue;
+      shown++;
       out.push({
-        date: addMonthsISO(p.startDate, i),
+        date,
         amountCents: p.monthlyAmountCents,
         label: p.description
-          ? `MSI: ${p.description} (${i + 1}/${p.months})`
-          : `MSI (${i + 1}/${p.months})`,
+          ? `MSI: ${p.description} (${shown}/${Math.max(activeMonths, 1)})`
+          : `MSI (${shown}/${Math.max(activeMonths, 1)})`,
         kind: "msi",
         planId: p.id,
       });
@@ -306,8 +334,12 @@ export function lastInstallmentChargeDate(
   let last: string | null = null;
   for (const p of plans) {
     if (p.creditCardId !== creditCardId || p.months <= 0) continue;
-    const end = addMonthsISO(p.startDate, p.months - 1);
-    if (!last || end > last) last = end;
+    const removed = parseRemovedDates(p.removedDates);
+    for (let i = 0; i < p.months; i++) {
+      const d = addMonthsISO(p.startDate, i);
+      if (removed.has(d)) continue;
+      if (!last || d > last) last = d;
+    }
   }
   return last;
 }
@@ -323,7 +355,7 @@ export type PendingMsiSummary = {
   nextChargeDate: string | null;
 };
 
-/** MSI installments still owed (charge date on/after asOf). */
+/** MSI installments still owed (charge date on/after asOf, not removed). */
 export function pendingMsiForCard(
   plans: InstallmentLike[],
   creditCardId: string,
@@ -333,10 +365,12 @@ export function pendingMsiForCard(
   for (const p of plans) {
     if (p.creditCardId !== creditCardId) continue;
     if (!p.id || p.months <= 0 || p.monthlyAmountCents <= 0) continue;
+    const removed = parseRemovedDates(p.removedDates);
     let monthsLeft = 0;
     let nextChargeDate: string | null = null;
     for (let i = 0; i < p.months; i++) {
       const d = addMonthsISO(p.startDate, i);
+      if (removed.has(d)) continue;
       if (d >= asOf) {
         monthsLeft++;
         if (!nextChargeDate) nextChargeDate = d;

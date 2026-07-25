@@ -290,8 +290,17 @@ export const es = {
     deleteMsi: "Eliminar MSI",
     confirmDeleteMsi:
       "¿Eliminar este plan MSI? Dejará de contar en pagos y en ¿Cuánto gastar?",
+    confirmDeleteMsiTitle: "Eliminar pago MSI",
+    confirmDeleteMsiDesc:
+      "Este cargo forma parte de un plan a meses. ¿Qué quieres eliminar?",
+    deleteMsiOne: "Solo este pago",
+    deleteMsiAll: "Todo el plan MSI",
     confirmDeletePurchase:
       "¿Eliminar este cargo de la tarjeta? También se quitará del historial de movimientos.",
+    confirmDeletePurchaseTitle: "Eliminar cargo",
+    confirmDeleteTitle: "Confirmar eliminación",
+    deletedOneMsi: "Pago MSI eliminado",
+    deletedAllMsi: "Plan MSI eliminado",
     msiTotal: "Monto total",
     msiMonths: "Meses",
     msiMonthly: "Mensualidad",
@@ -1114,8 +1123,17 @@ export const en: Dictionary = {
     deleteMsi: "Delete MSI",
     confirmDeleteMsi:
       "Delete this MSI plan? It will stop counting in payments and Safe to spend.",
+    confirmDeleteMsiTitle: "Delete MSI payment",
+    confirmDeleteMsiDesc:
+      "This charge is part of an installment plan. What do you want to remove?",
+    deleteMsiOne: "Only this payment",
+    deleteMsiAll: "Entire MSI plan",
     confirmDeletePurchase:
       "Delete this card charge? It will also be removed from transaction history.",
+    confirmDeletePurchaseTitle: "Delete charge",
+    confirmDeleteTitle: "Confirm deletion",
+    deletedOneMsi: "MSI payment removed",
+    deletedAllMsi: "MSI plan deleted",
     msiTotal: "Total amount",
     msiMonths: "Months",
     msiMonthly: "Monthly amount",

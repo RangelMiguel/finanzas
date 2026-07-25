@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   budgetPeriodKey,
   centsToInput,
@@ -50,6 +51,7 @@ type Acc = {
 
 export default function GoalsPage() {
   const { money, t, tr, locale } = useApp();
+  const { confirm } = useConfirm();
   const initial = parseBudgetPeriod(budgetPeriodKey());
   const [month, setMonth] = useState(initial.monthKey);
   const [half, setHalf] = useState<BudgetHalf>(initial.half);
@@ -179,7 +181,14 @@ export default function GoalsPage() {
   }
 
   async function undoReserve(reserveId: string) {
-    if (!confirm(t.goals.confirmUndoReserve)) return;
+    const ok = await confirm({
+      title: t.goals.confirmUndoReserve,
+      description: t.goals.confirmUndoReserve,
+      confirmLabel: t.confirm,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api("/api/goals", {
         method: "DELETE",
@@ -193,7 +202,14 @@ export default function GoalsPage() {
   }
 
   async function deleteGoal(id: string) {
-    if (!confirm(t.goals.confirmDelete)) return;
+    const okDel = await confirm({
+      title: t.delete,
+      description: t.goals.confirmDelete,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!okDel) return;
     try {
       await api("/api/goals", { method: "DELETE", json: { id } });
       toast.success(t.goals.deleted);
