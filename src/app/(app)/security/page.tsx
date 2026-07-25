@@ -18,7 +18,16 @@ import {
   accessLevelOf,
   type MemberVisibility,
 } from "@/lib/visibility";
-import { Shield, KeyRound, Radio, Trash2, Eye, BookmarkPlus } from "lucide-react";
+import {
+  Shield,
+  KeyRound,
+  Radio,
+  Trash2,
+  Eye,
+  BookmarkPlus,
+  RefreshCw,
+  Copy,
+} from "lucide-react";
 import {
   startRegistration,
   browserSupportsWebAuthn,
@@ -137,10 +146,13 @@ export default function SecurityPage() {
   const [templateName, setTemplateName] = useState("");
   const [bulkIds, setBulkIds] = useState<string[]>([]);
   const [bulkTemplateId, setBulkTemplateId] = useState("");
+  const [copyFromMemberId, setCopyFromMemberId] = useState("");
+  const [templateFromMemberId, setTemplateFromMemberId] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   const [showPasskeys, setShowPasskeys] = useState(false);
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 
   const canAdmin = role === "owner" || role === "admin";
   const selectedInvite = isInviteTarget(selectedId)
@@ -427,20 +439,50 @@ export default function SecurityPage() {
     });
   }
 
+  function cloneVisibility(v: MemberVisibility): MemberVisibility {
+    return {
+      ...v,
+      modules: { ...v.modules },
+      hiddenAccountIds: [...v.hiddenAccountIds],
+      allowedAccountIds: [...v.allowedAccountIds],
+      hiddenCategoryIds: [...v.hiddenCategoryIds],
+      allowedCategoryIds: [...(v.allowedCategoryIds || [])],
+      hiddenCreditCardIds: [...v.hiddenCreditCardIds],
+      hiddenDebtIds: [...v.hiddenDebtIds],
+      hiddenTransactionIds: [...(v.hiddenTransactionIds || [])],
+      hiddenBudgetIds: [...(v.hiddenBudgetIds || [])],
+    };
+  }
+
   function applyTemplate(tpl: VisibilityTemplate) {
-    setPolicy({
-      ...tpl.visibility,
-      modules: { ...tpl.visibility.modules },
-      hiddenAccountIds: [...tpl.visibility.hiddenAccountIds],
-      allowedAccountIds: [...tpl.visibility.allowedAccountIds],
-      hiddenCategoryIds: [...tpl.visibility.hiddenCategoryIds],
-      allowedCategoryIds: [...(tpl.visibility.allowedCategoryIds || [])],
-      hiddenCreditCardIds: [...tpl.visibility.hiddenCreditCardIds],
-      hiddenDebtIds: [...tpl.visibility.hiddenDebtIds],
-      hiddenTransactionIds: [...(tpl.visibility.hiddenTransactionIds || [])],
-      hiddenBudgetIds: [...(tpl.visibility.hiddenBudgetIds || [])],
-    });
+    setPolicy(cloneVisibility(tpl.visibility));
     toast.success(t.security.templateApplied);
+  }
+
+  /** Load another member's (or invite's) policy into the editor without saving. */
+  function copyPolicyFromTarget(targetId: string) {
+    if (!targetId) return;
+    if (isInviteTarget(targetId)) {
+      const inv = invites.find((i) => i.id === inviteIdFromTarget(targetId));
+      if (!inv) return;
+      setPolicy(
+        cloneVisibility(inv.rawVisibility || inv.visibility || LIMITED_VISIBILITY)
+      );
+      toast.success(
+        tr(t.security.policyCopiedFrom, { name: inv.email })
+      );
+      return;
+    }
+    const m = members.find((x) => x.id === targetId);
+    if (!m) return;
+    const vis =
+      m.role === "owner"
+        ? FULL_VISIBILITY
+        : m.rawVisibility || m.visibility;
+    setPolicy(cloneVisibility(vis));
+    toast.success(
+      tr(t.security.policyCopiedFrom, { name: m.user.displayName })
+    );
   }
 
   async function saveAsTemplate() {
@@ -460,6 +502,64 @@ export default function SecurityPage() {
         "/api/security/templates"
       );
       setTemplates(tpl.templates || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  /** Create a named template by copying a member's stored visibility (not the editor). */
+  async function saveTemplateFromMember() {
+    const name = templateName.trim();
+    if (!name) {
+      toast.error(t.security.templateName);
+      return;
+    }
+    if (!templateFromMemberId) {
+      toast.error(t.security.saveFromMemberPh);
+      return;
+    }
+    const source = members.find((m) => m.id === templateFromMemberId);
+    try {
+      await api("/api/security/templates", {
+        method: "POST",
+        json: { name, membershipId: templateFromMemberId },
+      });
+      setTemplateName("");
+      setTemplateFromMemberId("");
+      toast.success(
+        tr(t.security.templateFromMemberSaved, {
+          name: source?.user.displayName || name,
+        })
+      );
+      const tpl = await api<{ templates: VisibilityTemplate[] }>(
+        "/api/security/templates"
+      );
+      setTemplates(tpl.templates || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function resendSelectedInvite() {
+    if (!selectedInvite) return;
+    try {
+      const res = await api<{ inviteUrl: string }>("/api/invites", {
+        method: "POST",
+        json: { resendInviteId: selectedInvite.id },
+      });
+      const url =
+        typeof window !== "undefined"
+          ? `${window.location.origin}${res.inviteUrl}`
+          : res.inviteUrl;
+      setLastInviteUrl(url);
+      toast.success(t.security.inviteResent);
+      await load();
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success(t.family.copied);
+      } catch {
+        /* clipboard may be blocked */
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
     }
@@ -707,6 +807,57 @@ export default function SecurityPage() {
           {isOwnerTarget && (
             <p className="text-sm text-amber-200/90">{t.security.ownerLocked}</p>
           )}
+
+          {/* Copy policy from another member/invite into the editor */}
+          {!isOwnerTarget && selectedId && (
+            <div className="space-y-1.5 border-t border-white/10 pt-3">
+              <Label htmlFor="copy-from">{t.security.copyFromMember}</Label>
+              <p className="text-xs text-[var(--fg-faint)]">
+                {t.security.copyFromMemberHint}
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select
+                  id="copy-from"
+                  className="flex-1"
+                  value={copyFromMemberId}
+                  onChange={(e) => setCopyFromMemberId(e.target.value)}
+                >
+                  <option value="">{t.security.copyFromMemberPh}</option>
+                  {invites
+                    .filter(
+                      (inv) => INVITE_PREFIX + inv.id !== selectedId
+                    )
+                    .map((inv) => (
+                      <option
+                        key={inv.id}
+                        value={INVITE_PREFIX + inv.id}
+                      >
+                        {inv.email} ({t.security.pendingBadge})
+                      </option>
+                    ))}
+                  {members
+                    .filter((m) => m.id !== selectedId)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.user.displayName} ({m.role})
+                      </option>
+                    ))}
+                </Select>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!copyFromMemberId}
+                  onClick={() => {
+                    copyPolicyFromTarget(copyFromMemberId);
+                    setCopyFromMemberId("");
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {t.security.copyFromMember}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -822,6 +973,16 @@ export default function SecurityPage() {
           </Button>
           {isInviteSelected && (
             <Button
+              variant="secondary"
+              onClick={resendSelectedInvite}
+              disabled={loading}
+            >
+              <RefreshCw className="h-4 w-4" />
+              {t.security.resendInvite}
+            </Button>
+          )}
+          {isInviteSelected && (
+            <Button
               variant="ghost"
               onClick={revokeSelectedInvite}
               disabled={loading}
@@ -832,6 +993,16 @@ export default function SecurityPage() {
           )}
         </div>
         <p className="text-xs text-[var(--fg-faint)]">{t.security.viewAsHint}</p>
+        {isInviteSelected && lastInviteUrl && (
+          <div className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/10 p-3">
+            <p className="text-xs font-medium text-[var(--fg-muted)]">
+              {t.family.shareInvite}
+            </p>
+            <p className="mt-1 break-all text-xs text-[var(--fg-faint)]">
+              {lastInviteUrl}
+            </p>
+          </div>
+        )}
 
         {/* Advanced (collapsed) */}
         <Card premium>
@@ -1017,6 +1188,41 @@ export default function SecurityPage() {
                 >
                   {t.security.saveAsTemplate}
                 </Button>
+              </div>
+
+              {/* Create template from an existing member's policy */}
+              <div className="space-y-2 rounded-xl border border-white/10 p-3">
+                <p className="text-sm font-medium text-[var(--fg)]">
+                  {t.security.saveFromMember}
+                </p>
+                <p className="text-xs text-[var(--fg-faint)]">
+                  {t.security.saveFromMemberHint}
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Select
+                      value={templateFromMemberId}
+                      onChange={(e) =>
+                        setTemplateFromMemberId(e.target.value)
+                      }
+                    >
+                      <option value="">{t.security.saveFromMemberPh}</option>
+                      {members.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.user.displayName} ({m.role})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={saveTemplateFromMember}
+                    disabled={!templateFromMemberId || !templateName.trim()}
+                  >
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    {t.security.saveFromMember}
+                  </Button>
+                </div>
               </div>
               {templates.length === 0 ? (
                 <p className="text-sm text-[var(--fg-faint)]">

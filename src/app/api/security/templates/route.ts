@@ -36,11 +36,33 @@ export async function POST(req: Request) {
     const body = z
       .object({
         name: z.string().min(1).max(80),
-        visibility: z.record(z.string(), z.unknown()),
+        /** Explicit policy JSON, or omit when copying from a member. */
+        visibility: z.record(z.string(), z.unknown()).optional(),
+        /** Create the template by copying this member's current visibility. */
+        membershipId: z.string().optional(),
       })
       .parse(await req.json());
 
-    const visibility = parseVisibility(body.visibility);
+    let visibility;
+    if (body.membershipId) {
+      const member = await prisma.membership.findFirst({
+        where: {
+          id: body.membershipId,
+          householdId: m.householdId,
+        },
+      });
+      if (!member) throw new Error("Miembro no encontrado");
+      // Owner is always full access at runtime; store full policy for the template
+      visibility =
+        member.role === "owner"
+          ? parseVisibility({})
+          : parseVisibility(member.visibility);
+    } else if (body.visibility) {
+      visibility = parseVisibility(body.visibility);
+    } else {
+      throw new Error("visibility o membershipId requerido");
+    }
+
     const created = await prisma.visibilityTemplate.create({
       data: {
         householdId: m.householdId,

@@ -11,7 +11,14 @@ import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
-import { Copy, MessageCircle, Share2, UserMinus, Trash2 } from "lucide-react";
+import {
+  Copy,
+  MessageCircle,
+  Share2,
+  UserMinus,
+  Trash2,
+  RefreshCw,
+} from "lucide-react";
 
 type Member = {
   id: string;
@@ -95,6 +102,21 @@ export default function FamilyPage() {
       setLastInvite({ url, email });
       toast.success(t.family.inviteCreated);
       setEmail("");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function resendInvite(inv: PendingInvite) {
+    try {
+      const res = await api<{ inviteUrl: string }>("/api/invites", {
+        method: "POST",
+        json: { resendInviteId: inv.id },
+      });
+      const url = `${window.location.origin}${res.inviteUrl}`;
+      setLastInvite({ url, email: inv.email });
+      toast.success(t.family.inviteResent);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
@@ -367,14 +389,24 @@ export default function FamilyPage() {
                           })}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => revokeInvite(inv)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        {t.family.revokeInvite}
-                      </Button>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => resendInvite(inv)}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          {t.family.resendInvite}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => revokeInvite(inv)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {t.family.revokeInvite}
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>

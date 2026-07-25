@@ -60,11 +60,63 @@ export async function POST(req: Request) {
     const m = await requireHouseholdAccess(session.userId, { admin: true });
     const body = z
       .object({
-        email: z.string().email(),
+        /** Resend an existing pending invite: new token + extended expiry only. Does not change role or visibility. */
+        resendInviteId: z.string().optional(),
+        email: z.string().email().optional(),
         role: z.enum(["admin", "member", "viewer"]).default("member"),
         visibility: z.record(z.string(), z.unknown()).optional(),
       })
       .parse(await req.json());
+
+    // --- Resend path: regenerate token & extend expiry; keep policies ---
+    if (body.resendInviteId) {
+      const existing = await prisma.invite.findFirst({
+        where: {
+          id: body.resendInviteId,
+          householdId: m.householdId,
+          acceptedAt: null,
+        },
+      });
+      if (!existing) throw new Error("Invitación no encontrada");
+
+      const token = generateInviteToken();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const updated = await prisma.invite.update({
+        where: { id: existing.id },
+        data: {
+          tokenHash: hashToken(token),
+          expiresAt,
+          // intentionally do NOT touch role, email, or visibility
+        },
+      });
+
+      await logActivity({
+        householdId: m.householdId,
+        userId: session.userId,
+        action: "invite_resend",
+        entityType: "invite",
+        entityId: updated.id,
+        summary: `Reenvió invitación a ${updated.email}`,
+      });
+
+      return jsonOk({
+        invite: {
+          id: updated.id,
+          email: updated.email,
+          role: updated.role,
+          expiresAt: updated.expiresAt,
+          visibility: parseVisibility(updated.visibility),
+        },
+        token,
+        inviteUrl: `/invite/${token}`,
+        resent: true,
+      });
+    }
+
+    // --- Create path ---
+    if (!body.email) throw new Error("email requerido");
 
     const token = generateInviteToken();
     const expiresAt = new Date();

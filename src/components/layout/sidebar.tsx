@@ -22,6 +22,7 @@ import {
   Shield,
   Target,
   Palmtree,
+  CircleHelp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -158,6 +159,8 @@ export function Sidebar({
       adminOnly: true,
     },
     { href: "/settings", label: t.nav.settings, icon: Settings, module: "settings" },
+    // Always visible — no module gate
+    { href: "/help", label: t.nav.help, icon: CircleHelp },
   ];
 
   const visibleNav = NAV.filter((item) => {

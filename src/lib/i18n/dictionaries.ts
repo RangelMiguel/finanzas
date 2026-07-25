@@ -118,6 +118,7 @@ export const es = {
     personal: "Presupuestos personales",
     settings: "Ajustes",
     security: "Seguridad",
+    help: "Ayuda",
     catchUp: "Ponerme al día",
   },
 
@@ -583,6 +584,9 @@ export const es = {
     revokeInvite: "Revocar",
     confirmRevokeInvite: "¿Revocar la invitación a {email}? El enlace dejará de funcionar.",
     inviteRevoked: "Invitación revocada",
+    resendInvite: "Reenviar",
+    inviteResent:
+      "Invitación reenviada — el enlace anterior deja de valer; los permisos no cambian",
     expiresAt: "Expira {date}",
     inviteHint:
       "Crea un enlace para que se unan con su propia cuenta (sin crear otro hogar). Compártelo por WhatsApp o mensaje.",
@@ -712,7 +716,7 @@ export const es = {
       "Oculta esa categoría en movimientos y en presupuestos (gasto y límite de la categoría).",
     templates: "Plantillas personalizadas",
     templatesHint:
-      "Guarda políticas reutilizables y aplícalas a varios miembros o invitaciones.",
+      "Guarda políticas reutilizables y aplícalas a varios miembros o invitaciones. También puedes copiar la de un miembro existente.",
     templateName: "Nombre de la plantilla",
     templateNamePh: "Ej. Hijos, Contador, Pareja…",
     saveAsTemplate: "Guardar política actual como plantilla",
@@ -729,6 +733,19 @@ export const es = {
     applyToManyDone: "Política aplicada a {n} destinatarios",
     selectTargets: "Destinatarios",
     noneSelected: "Selecciona al menos un miembro o invitación",
+    copyFromMember: "Copiar política de un miembro",
+    copyFromMemberHint:
+      "Carga en el editor la misma política que tiene otro miembro (no se guarda hasta que pulses Guardar).",
+    copyFromMemberPh: "Elegir miembro…",
+    policyCopiedFrom: "Política copiada de {name}",
+    saveFromMember: "Guardar como plantilla desde miembro",
+    saveFromMemberHint:
+      "Crea una plantilla reutilizable con la política actual de un miembro.",
+    saveFromMemberPh: "Miembro fuente…",
+    templateFromMemberSaved: "Plantilla creada a partir de {name}",
+    resendInvite: "Reenviar invitación",
+    inviteResent:
+      "Invitación reenviada — el enlace anterior deja de valer; los permisos no cambian",
 
     modules: "Módulos y pantallas",
     txnTypes: "Tipos de movimiento",
@@ -897,6 +914,21 @@ export const es = {
     member: "Miembro",
     viewer: "Solo lectura",
   },
+
+  help: {
+    title: "Centro de ayuda",
+    subtitle:
+      "Guía clara de cada pantalla, opción y flujo del hogar. Busca o navega por temas.",
+    searchPlaceholder: "Buscar en la ayuda… (ej. MSI, invitación, quincena)",
+    toc: "Contenido",
+    expandAll: "Expandir todo",
+    collapseAll: "Contraer todo",
+    tips: "Consejos",
+    openScreen: "Abrir esta pantalla",
+    noResults: "No hay resultados para esa búsqueda. Prueba otras palabras.",
+    sectionsCount: "{n} temas",
+    resultsCount: "{n} de {total} temas",
+  },
 };
 
 type DeepStringify<T> = {
@@ -1026,6 +1058,7 @@ export const en: Dictionary = {
     personal: "Personal budgets",
     settings: "Settings",
     security: "Security",
+    help: "Help",
     catchUp: "Catch up",
   },
 
@@ -1491,6 +1524,9 @@ export const en: Dictionary = {
     confirmRevokeInvite:
       "Revoke the invite to {email}? The link will stop working.",
     inviteRevoked: "Invite revoked",
+    resendInvite: "Resend",
+    inviteResent:
+      "Invite resent — the previous link no longer works; permissions are unchanged",
     expiresAt: "Expires {date}",
     inviteHint:
       "Create a link so they can join with their own account (no need to create another household). Share it on WhatsApp or by message.",
@@ -1620,7 +1656,7 @@ export const en: Dictionary = {
       "Hides that category in transactions and in budgets (spent + budget line).",
     templates: "Custom templates",
     templatesHint:
-      "Save reusable policies and apply them to several members or invites.",
+      "Save reusable policies and apply them to several members or invites. You can also copy from an existing member.",
     templateName: "Template name",
     templateNamePh: "e.g. Kids, Accountant, Partner…",
     saveAsTemplate: "Save current policy as template",
@@ -1637,6 +1673,19 @@ export const en: Dictionary = {
     applyToManyDone: "Policy applied to {n} targets",
     selectTargets: "Targets",
     noneSelected: "Select at least one member or invite",
+    copyFromMember: "Copy policy from a member",
+    copyFromMemberHint:
+      "Load another member’s policy into the editor (not saved until you press Save).",
+    copyFromMemberPh: "Choose member…",
+    policyCopiedFrom: "Policy copied from {name}",
+    saveFromMember: "Save as template from member",
+    saveFromMemberHint:
+      "Create a reusable template from a member’s current policy.",
+    saveFromMemberPh: "Source member…",
+    templateFromMemberSaved: "Template created from {name}",
+    resendInvite: "Resend invite",
+    inviteResent:
+      "Invite resent — the previous link no longer works; permissions are unchanged",
     modules: "Modules & screens",
     txnTypes: "Transaction types",
     showIncome: "View income",
@@ -1803,6 +1852,21 @@ export const en: Dictionary = {
     admin: "Admin",
     member: "Member",
     viewer: "Viewer",
+  },
+
+  help: {
+    title: "Help center",
+    subtitle:
+      "A clear guide to every screen, option, and household flow. Search or browse by topic.",
+    searchPlaceholder: "Search help… (e.g. installments, invite, half-month)",
+    toc: "Contents",
+    expandAll: "Expand all",
+    collapseAll: "Collapse all",
+    tips: "Tips",
+    openScreen: "Open this screen",
+    noResults: "No results for that search. Try different words.",
+    sectionsCount: "{n} topics",
+    resultsCount: "{n} of {total} topics",
   },
 };
 
