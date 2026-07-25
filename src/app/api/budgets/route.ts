@@ -12,7 +12,12 @@ import {
   budgetPeriodBounds,
   parseBudgetPeriod,
 } from "@/lib/utils";
-import { canSeeModule } from "@/lib/visibility";
+import {
+  canSeeModule,
+  filterBudget,
+  filterCategoryId,
+  filterTransaction,
+} from "@/lib/visibility";
 import { ensurePeriodBudgets, saveBudgetWithScope } from "@/lib/budget-defaults";
 
 export async function GET(req: Request) {
@@ -55,13 +60,32 @@ export async function GET(req: Request) {
         deletedAt: null,
         date: { gte: start, lte: end },
       },
-      select: { categoryId: true, amountCents: true },
+      select: {
+        id: true,
+        categoryId: true,
+        amountCents: true,
+        type: true,
+        accountId: true,
+        toAccountId: true,
+        creditCardId: true,
+        createdById: true,
+        spentById: true,
+      },
     });
     const spentByCat: Record<string, number> = {};
     for (const e of expenses) {
       if (!e.categoryId) continue;
-      spentByCat[e.categoryId] = (spentByCat[e.categoryId] || 0) + e.amountCents;
+      if (!filterTransaction(m.visibility, e, session.userId)) continue;
+      spentByCat[e.categoryId] =
+        (spentByCat[e.categoryId] || 0) + e.amountCents;
     }
+
+    const visibleBudgets = budgets.filter((b) =>
+      filterBudget(m.visibility, b)
+    );
+    const visibleDefaults = defaults.filter((d) =>
+      filterCategoryId(m.visibility, d.categoryId)
+    );
 
     return jsonOk({
       period,
@@ -69,8 +93,8 @@ export async function GET(req: Request) {
       half: meta.half,
       bounds: { start, end },
       appliedDefaults: applied,
-      defaults,
-      budgets: budgets.map((b) => ({
+      defaults: visibleDefaults,
+      budgets: visibleBudgets.map((b) => ({
         ...b,
         spentCents: spentByCat[b.categoryId] || 0,
         isFromDefault: defaults.some((d) => d.categoryId === b.categoryId),

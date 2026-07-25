@@ -28,22 +28,50 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
 
-    const accounts = await prisma.account.findMany({
-      where: { householdId: m.householdId },
-      select: { id: true, name: true, icon: true },
-    });
-    const categories = await prisma.category.findMany({
-      where: { householdId: m.householdId },
-      select: { id: true, name: true, icon: true, type: true },
-    });
-    const creditCards = await prisma.creditCard.findMany({
-      where: { householdId: m.householdId },
-      select: { id: true, name: true, lastFour: true },
-    });
-    const debts = await prisma.debt.findMany({
-      where: { householdId: m.householdId },
-      select: { id: true, name: true },
-    });
+    const [accounts, categories, creditCards, debts, transactions, budgets] =
+      await Promise.all([
+        prisma.account.findMany({
+          where: { householdId: m.householdId },
+          select: { id: true, name: true, icon: true },
+        }),
+        prisma.category.findMany({
+          where: { householdId: m.householdId },
+          select: { id: true, name: true, icon: true, type: true },
+        }),
+        prisma.creditCard.findMany({
+          where: { householdId: m.householdId },
+          select: { id: true, name: true, lastFour: true },
+        }),
+        prisma.debt.findMany({
+          where: { householdId: m.householdId },
+          select: { id: true, name: true },
+        }),
+        // Recent movements for granular hide pickers (admin security UI)
+        prisma.transaction.findMany({
+          where: { householdId: m.householdId, deletedAt: null },
+          select: {
+            id: true,
+            date: true,
+            description: true,
+            amountCents: true,
+            type: true,
+            category: { select: { name: true, icon: true } },
+          },
+          orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+          take: 200,
+        }),
+        prisma.budget.findMany({
+          where: { householdId: m.householdId },
+          select: {
+            id: true,
+            period: true,
+            amountCents: true,
+            category: { select: { id: true, name: true, icon: true } },
+          },
+          orderBy: { period: "desc" },
+          take: 120,
+        }),
+      ]);
 
     return jsonOk({
       members: members.map((row) => ({
@@ -55,7 +83,14 @@ export async function GET() {
       })),
       role: m.role,
       myVisibility: m.visibility,
-      catalogs: { accounts, categories, creditCards, debts },
+      catalogs: {
+        accounts,
+        categories,
+        creditCards,
+        debts,
+        transactions,
+        budgets,
+      },
       defaults: FULL_VISIBILITY,
     });
   } catch (e) {

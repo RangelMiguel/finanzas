@@ -5,7 +5,11 @@ import { jsonError, jsonOk } from "@/lib/access";
 import { accountBalance } from "@/lib/money";
 import { logActivity } from "@/lib/household";
 import { pesosToCents } from "@/lib/utils";
-import { canSeeModule, filterAccountId } from "@/lib/visibility";
+import {
+  canSeeModule,
+  filterAccountId,
+  filterTransaction,
+} from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 
 export async function GET() {
@@ -23,6 +27,7 @@ export async function GET() {
     const txns = await prisma.transaction.findMany({
       where: { householdId: m.householdId, deletedAt: null },
       select: {
+        id: true,
         type: true,
         amountCents: true,
         accountId: true,
@@ -30,6 +35,9 @@ export async function GET() {
         date: true,
         deletedAt: true,
         creditCardId: true,
+        categoryId: true,
+        createdById: true,
+        spentById: true,
         fundings: {
           select: {
             amountCents: true,
@@ -39,10 +47,14 @@ export async function GET() {
         },
       },
     });
+    // Exclude transactions this member is not allowed to see (so balances don't leak them)
+    const visibleTxns = txns.filter((t) =>
+      filterTransaction(m.visibility, t, session.userId)
+    );
     const withBalances = visible.map((a) => ({
       ...a,
       balanceCents: m.visibility.showAccountBalances
-        ? accountBalance(a.initialBalanceCents, txns, a.id)
+        ? accountBalance(a.initialBalanceCents, visibleTxns, a.id)
         : null,
       initialBalanceCents: m.visibility.showAccountBalances
         ? a.initialBalanceCents

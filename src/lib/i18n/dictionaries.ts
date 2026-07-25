@@ -726,6 +726,12 @@ export const es = {
     categories: "Categorías ocultas",
     cards: "Tarjetas ocultas",
     debtsHide: "Deudas ocultas",
+    hideTransactions: "Ocultar movimientos específicos",
+    hideTransactionsHint:
+      "Marca movimientos que este miembro no debe ver (también se excluyen de saldos y presupuestos).",
+    hideBudgets: "Ocultar presupuestos específicos",
+    hideBudgetsHint:
+      "Marca filas de presupuesto (categoría × quincena) que no debe ver. Las categorías ocultas también ocultan sus presupuestos.",
     scope: "Alcance de datos",
     onlyOwn: "Solo sus propios movimientos (creados o gastados por él/ella)",
     showOthers: "Ver nombres de otros miembros",
@@ -1617,6 +1623,12 @@ export const en: Dictionary = {
     categories: "Hidden categories",
     cards: "Hidden credit cards",
     debtsHide: "Hidden debts",
+    hideTransactions: "Hide specific transactions",
+    hideTransactionsHint:
+      "Select movements this member must not see (also excluded from balances and budget spent).",
+    hideBudgets: "Hide specific budgets",
+    hideBudgetsHint:
+      "Select budget rows (category × half-month) to hide. Hidden categories also hide their budgets.",
     scope: "Data scope",
     onlyOwn: "Only their own transactions (created or spent by them)",
     showOthers: "See other members' names",

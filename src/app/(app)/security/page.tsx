@@ -52,6 +52,20 @@ type Catalogs = {
   categories: { id: string; name: string; icon: string; type: string }[];
   creditCards: { id: string; name: string; lastFour: string }[];
   debts: { id: string; name: string }[];
+  transactions?: {
+    id: string;
+    date: string;
+    description: string;
+    amountCents: number;
+    type: string;
+    category?: { name: string; icon: string } | null;
+  }[];
+  budgets?: {
+    id: string;
+    period: string;
+    amountCents: number;
+    category: { id: string; name: string; icon: string };
+  }[];
 };
 
 const INVITE_PREFIX = "invite:";
@@ -106,7 +120,7 @@ const MODULE_KEYS: (keyof MemberVisibility["modules"])[] = [
 ];
 
 export default function SecurityPage() {
-  const { t, tr, role, refresh } = useApp();
+  const { t, tr, role, refresh, money } = useApp();
   const { confirm } = useConfirm();
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
@@ -302,7 +316,9 @@ export default function SecurityPage() {
       | "allowedAccountIds"
       | "hiddenCategoryIds"
       | "hiddenCreditCardIds"
-      | "hiddenDebtIds",
+      | "hiddenDebtIds"
+      | "hiddenTransactionIds"
+      | "hiddenBudgetIds",
     id: string
   ) {
     setPolicy((p) => {
@@ -401,6 +417,8 @@ export default function SecurityPage() {
       allowedCategoryIds: [...(tpl.visibility.allowedCategoryIds || [])],
       hiddenCreditCardIds: [...tpl.visibility.hiddenCreditCardIds],
       hiddenDebtIds: [...tpl.visibility.hiddenDebtIds],
+      hiddenTransactionIds: [...(tpl.visibility.hiddenTransactionIds || [])],
+      hiddenBudgetIds: [...(tpl.visibility.hiddenBudgetIds || [])],
     });
     toast.success(t.security.templateApplied);
   }
@@ -1155,6 +1173,26 @@ export default function SecurityPage() {
               selected={policy.hiddenDebtIds}
               onToggle={(id) => toggleInList("hiddenDebtIds", id)}
             />
+            <MultiPick
+              title={t.security.hideTransactions}
+              hint={t.security.hideTransactionsHint}
+              items={(catalogs.transactions || []).map((tx) => ({
+                id: tx.id,
+                label: `${tx.date} · ${tx.category?.icon || "•"} ${tx.description} · ${money(tx.amountCents)} (${tx.type})`,
+              }))}
+              selected={policy.hiddenTransactionIds || []}
+              onToggle={(id) => toggleInList("hiddenTransactionIds", id)}
+            />
+            <MultiPick
+              title={t.security.hideBudgets}
+              hint={t.security.hideBudgetsHint}
+              items={(catalogs.budgets || []).map((b) => ({
+                id: b.id,
+                label: `${b.category.icon} ${b.category.name} · ${b.period} · ${money(b.amountCents)}`,
+              }))}
+              selected={policy.hiddenBudgetIds || []}
+              onToggle={(id) => toggleInList("hiddenBudgetIds", id)}
+            />
           </>
         )}
       </fieldset>
@@ -1185,11 +1223,13 @@ function Toggle({
 
 function MultiPick({
   title,
+  hint,
   items,
   selected,
   onToggle,
 }: {
   title: string;
+  hint?: string;
   items: { id: string; label: string }[];
   selected: string[];
   onToggle: (id: string) => void;
@@ -1199,8 +1239,11 @@ function MultiPick({
     <Card premium>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
+        {hint ? (
+          <p className="mt-1 text-xs text-[var(--fg-faint)]">{hint}</p>
+        ) : null}
       </CardHeader>
-      <CardContent className="grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2">
+      <CardContent className="grid max-h-56 gap-1 overflow-y-auto sm:grid-cols-1 lg:grid-cols-2">
         {items.map((it) => (
           <label
             key={it.id}

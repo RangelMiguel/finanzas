@@ -45,6 +45,12 @@ export type MemberVisibility = {
   hiddenCreditCardIds: string[];
   hiddenDebtIds: string[];
 
+  // —— Granular item hides ——
+  /** Specific transactions hidden from this member */
+  hiddenTransactionIds: string[];
+  /** Specific budget rows (category×period) hidden from this member */
+  hiddenBudgetIds: string[];
+
   // —— Member scope ——
   /** Only transactions createdBy or spentBy self */
   onlyOwnTransactions: boolean;
@@ -91,6 +97,8 @@ export const FULL_VISIBILITY: MemberVisibility = {
   allowedCategoryIds: [],
   hiddenCreditCardIds: [],
   hiddenDebtIds: [],
+  hiddenTransactionIds: [],
+  hiddenBudgetIds: [],
   onlyOwnTransactions: false,
   showOtherMembers: true,
   showDashboardIncome: true,
@@ -152,6 +160,8 @@ export function parseVisibility(raw: unknown): MemberVisibility {
     allowedCategoryIds: arr(obj.allowedCategoryIds),
     hiddenCreditCardIds: arr(obj.hiddenCreditCardIds),
     hiddenDebtIds: arr(obj.hiddenDebtIds),
+    hiddenTransactionIds: arr(obj.hiddenTransactionIds),
+    hiddenBudgetIds: arr(obj.hiddenBudgetIds),
   };
 }
 
@@ -213,6 +223,7 @@ export function filterTxnType(vis: MemberVisibility, type: string): boolean {
 }
 
 export type TxnFilterable = {
+  id?: string;
   type: string;
   accountId?: string | null;
   toAccountId?: string | null;
@@ -222,11 +233,26 @@ export type TxnFilterable = {
   spentById?: string | null;
 };
 
+export type BudgetFilterable = {
+  id: string;
+  categoryId: string;
+};
+
+export function filterBudget(
+  vis: MemberVisibility,
+  budget: BudgetFilterable
+): boolean {
+  if (vis.hiddenBudgetIds.includes(budget.id)) return false;
+  if (!filterCategoryId(vis, budget.categoryId)) return false;
+  return true;
+}
+
 export function filterTransaction(
   vis: MemberVisibility,
   txn: TxnFilterable,
   userId: string
 ): boolean {
+  if (txn.id && vis.hiddenTransactionIds.includes(txn.id)) return false;
   if (!filterTxnType(vis, txn.type)) return false;
   if (!filterCategoryId(vis, txn.categoryId)) return false;
   if (txn.accountId && !filterAccountId(vis, txn.accountId)) return false;
