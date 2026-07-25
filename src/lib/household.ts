@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES } from "./seeds";
+import { ensurePersonalAccount } from "./personal";
 
 export async function seedHouseholdDefaults(householdId: string) {
   await prisma.category.createMany({
@@ -40,6 +41,15 @@ export async function createHouseholdWithOwner(opts: {
     },
   });
   await seedHouseholdDefaults(household.id);
+  const owner = await prisma.user.findUnique({
+    where: { id: opts.userId },
+    select: { displayName: true },
+  });
+  await ensurePersonalAccount({
+    householdId: household.id,
+    userId: opts.userId,
+    displayName: owner?.displayName,
+  });
   await prisma.userPreference.upsert({
     where: { userId: opts.userId },
     create: { userId: opts.userId, householdId: household.id },

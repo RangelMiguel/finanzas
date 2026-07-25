@@ -7,7 +7,7 @@ import {
   parseBudgetPeriod,
   makeBudgetPeriod,
 } from "@/lib/utils";
-import { personalPool } from "@/lib/personal";
+import { ensureAllPersonalAccounts, personalPool } from "@/lib/personal";
 import { canSeeModule } from "@/lib/visibility";
 
 export async function GET(req: Request) {
@@ -39,18 +39,17 @@ export async function GET(req: Request) {
       userId = qUser;
     }
 
+    // Lazy-create private personal accounts for every member
+    await ensureAllPersonalAccounts(m.householdId);
+
     const pool = await personalPool({
       householdId: m.householdId,
       userId,
       period,
     });
 
-    const [allocations, incomes, budgets, expenses, members] =
+    const [incomes, budgets, expenses, members, transfersIn] =
       await Promise.all([
-        prisma.personalAllocation.findMany({
-          where: { householdId: m.householdId, userId },
-          orderBy: { createdAt: "desc" },
-        }),
         prisma.personalIncome.findMany({
           where: { householdId: m.householdId, userId, period },
           orderBy: { date: "desc" },
@@ -75,6 +74,23 @@ export async function GET(req: Request) {
               },
             })
           : Promise.resolve([]),
+        prisma.transaction.findMany({
+          where: {
+            householdId: m.householdId,
+            deletedAt: null,
+            type: "transfer",
+            toAccountId: pool.personalAccount.id,
+            date: { gte: bounds.start, lte: bounds.end },
+          },
+          select: {
+            id: true,
+            date: true,
+            amountCents: true,
+            description: true,
+            account: { select: { name: true } },
+          },
+          orderBy: { date: "desc" },
+        }),
       ]);
 
     const budgetsEnriched = budgets.map((b) => {
@@ -93,10 +109,13 @@ export async function GET(req: Request) {
       bounds,
       userId,
       pool,
-      allocations,
+      // Legacy field kept empty — funding is via personal account transfers
+      allocations: [],
+      transfersIn,
       incomes,
       budgets: budgetsEnriched,
       expenses,
+      personalAccount: pool.personalAccount,
       members: members.map((x) => ({
         id: x.id,
         role: x.role,

@@ -40,6 +40,7 @@ model User {
   goalReserves         GoalReserve[]
   retirementPlans      RetirementPlan[]
   mutationIdempotency  MutationIdempotency[]
+  personalAccounts     Account[]             @relation("PersonalAccountOwner")
 }
 
 /// Prevents duplicate creates when offline outbox retries a POST.
@@ -162,13 +163,16 @@ model Account {
   id               String   @id @default(cuid())
   householdId      String
   name             String
-  type             String   // cash | checking | debit | savings | other
+  type             String   // cash | checking | debit | savings | personal | other
   icon             String   @default("🏦")
   initialBalanceCents Int   @default(0)
+  /// If set, this is a private personal account for that household member
+  ownerUserId      String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   household          Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  owner              User?             @relation("PersonalAccountOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   transactionsFrom   Transaction[]     @relation("TxnAccount")
   transactionsTo     Transaction[]     @relation("TxnToAccount")
   recurringIncomes   RecurringIncome[]
@@ -177,6 +181,8 @@ model Account {
   fundings           TransactionFunding[]
 
   @@index([householdId])
+  @@index([householdId, ownerUserId])
+  @@unique([householdId, ownerUserId])
 }
 
 model Category {

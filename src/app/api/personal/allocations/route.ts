@@ -5,54 +5,12 @@ import { jsonError, jsonOk } from "@/lib/access";
 import { amountToCents } from "@/lib/utils";
 import { logActivity } from "@/lib/household";
 
-export async function POST(req: Request) {
-  try {
-    const session = await requireSession();
-    const m = await requireHouseholdAccess(session.userId, { admin: true });
-    const body = z
-      .object({
-        userId: z.string(),
-        name: z.string().min(1).default("Asignación personal"),
-        amount: z.union([z.number(), z.string()]),
-        period: z.enum(["bimonthly", "monthly", "weekly"]).default("bimonthly"),
-        notes: z.string().nullable().optional(),
-        active: z.boolean().optional(),
-      })
-      .parse(await req.json());
-
-    const member = await prisma.membership.findUnique({
-      where: {
-        householdId_userId: {
-          householdId: m.householdId,
-          userId: body.userId,
-        },
-      },
-    });
-    if (!member) throw new Error("Member not in household");
-
-    const row = await prisma.personalAllocation.create({
-      data: {
-        householdId: m.householdId,
-        userId: body.userId,
-        name: body.name,
-        amountCents: amountToCents(body.amount),
-        period: body.period,
-        notes: body.notes ?? null,
-        active: body.active ?? true,
-      },
-    });
-    await logActivity({
-      householdId: m.householdId,
-      userId: session.userId,
-      action: "create",
-      entityType: "personal_allocation",
-      entityId: row.id,
-      summary: `Personal allocation for user ${body.userId}`,
-    });
-    return jsonOk({ allocation: row }, 201);
-  } catch (e) {
-    return jsonError(e);
-  }
+export async function POST() {
+  return jsonError(
+    new Error(
+      "Las asignaciones editables ya no se usan. Transfiere dinero a la cuenta Personal del miembro desde Cuentas."
+    )
+  );
 }
 
 export async function PATCH(req: Request) {

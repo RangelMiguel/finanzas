@@ -24,15 +24,18 @@ type Pool = {
   expenseCents: number;
   availableCents: number;
   totalPoolCents: number;
+  personalAccount?: {
+    id: string;
+    name: string;
+    balanceCents: number;
+  };
 };
-type Allocation = {
+type TransferIn = {
   id: string;
-  name: string;
+  date: string;
   amountCents: number;
-  period: string;
-  active: boolean;
-  notes?: string | null;
-  userId: string;
+  description: string;
+  account?: { name: string } | null;
 };
 type Income = {
   id: string;
@@ -73,17 +76,12 @@ export default function PersonalPage() {
   );
   const [viewUserId, setViewUserId] = useState("");
   const [pool, setPool] = useState<Pool | null>(null);
-  const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [transfersIn, setTransfersIn] = useState<TransferIn[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
 
-  const [allocForm, setAllocForm] = useState({
-    userId: "",
-    name: "",
-    amount: "",
-  });
   const [incomeForm, setIncomeForm] = useState({
     description: "",
     amount: "",
@@ -113,7 +111,7 @@ export default function PersonalPage() {
     if (viewUserId) qs.set("userId", viewUserId);
     const res = await api<{
       pool: Pool;
-      allocations: Allocation[];
+      transfersIn?: TransferIn[];
       incomes: Income[];
       budgets: Budget[];
       expenses: Expense[];
@@ -123,42 +121,22 @@ export default function PersonalPage() {
       bounds: { start: string; end: string };
       period: string;
       half: number;
+      personalAccount?: Pool["personalAccount"];
     }>(`/api/personal/summary?${qs}`);
     setPool(res.pool);
-    setAllocations(res.allocations);
+    setTransfersIn(res.transfersIn || []);
     setIncomes(res.incomes);
     setBudgets(res.budgets);
     setExpenses(res.expenses);
     setMembers(res.members || []);
     setBounds(res.bounds);
     if (!viewUserId) setViewUserId(res.userId);
-    if (!allocForm.userId && res.members?.[0]) {
-      setAllocForm((f) => ({
-        ...f,
-        userId: res.members[0].user.id,
-        name: t.personal?.defaultAllocation || "Personal allocation",
-      }));
-    }
   }
 
   useEffect(() => {
     load().catch((e) => toast.error(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, viewUserId]);
-
-  async function addAllocation() {
-    try {
-      await api("/api/personal/allocations", {
-        method: "POST",
-        json: { ...allocForm, period: "bimonthly" },
-      });
-      toast.success(t.personal?.allocationCreated || t.success);
-      setAllocForm((f) => ({ ...f, amount: "", name: f.name }));
-      await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t.error);
-    }
-  }
 
   async function addIncome() {
     try {
@@ -236,9 +214,9 @@ export default function PersonalPage() {
         kicker={t.nav.personal || t.nav.allowances}
         title={t.personal?.title || "Personal budgets"}
         subtitle={
-          t.personal?.subtitleBimonthly ||
+          t.personal?.subtitleFunded ||
           t.personal?.subtitle ||
-          "Your private pool from admin allocation + side income — two half-months per month"
+          "Funded by transfers to your private personal account + side income"
         }
         actions={
           <div className="flex flex-wrap gap-2 items-center">
@@ -299,9 +277,9 @@ export default function PersonalPage() {
       </div>
 
       {pool && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Stat
-            label={t.personal?.adminAllocation || "Admin allocation"}
+            label={t.personal?.receivedTransfers || "Received (transfers)"}
             value={money(pool.allocationCents)}
           />
           <Stat
@@ -319,83 +297,58 @@ export default function PersonalPage() {
             value={money(pool.availableCents)}
             accent
           />
+          {pool.personalAccount && (
+            <Stat
+              label={t.personal?.accountBalance || "Personal account"}
+              value={money(pool.personalAccount.balanceCents)}
+            />
+          )}
         </div>
       )}
 
-      <p className="text-xs text-[var(--fg-faint)]">
-        {t.personal?.disclaimer ||
-          "Personal money is separate from household accounts and balances."}
-      </p>
+      {pool?.personalAccount && (
+        <p className="text-xs text-[var(--fg-faint)]">
+          {t.personal?.fundingHint ||
+            "To fund this pool, transfer money from a household account to"}{" "}
+          <span className="font-medium text-[var(--fg-muted)]">
+            {pool.personalAccount.name}
+          </span>
+          {" · "}
+          {t.personal?.fundingHint2 ||
+            "Admins: use Accounts → Transfer. That amount appears here for the quincena."}
+        </p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {isAdmin && (
-          <Card premium>
-            <CardHeader>
-              <CardTitle>
-                {t.personal?.setAllocation || "Set allocation (admin)"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label>{t.security?.selectMember || "Member"}</Label>
-                <Select
-                  className="mt-1"
-                  value={allocForm.userId}
-                  onChange={(e) =>
-                    setAllocForm({ ...allocForm, userId: e.target.value })
-                  }
+        <Card premium>
+          <CardHeader>
+            <CardTitle>
+              {t.personal?.transfersIn || "Transfers received this period"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {transfersIn.length === 0 ? (
+              <p className="text-sm text-[var(--fg-faint)]">
+                {t.personal?.noTransfers || "No transfers into the personal account this period."}
+              </p>
+            ) : (
+              transfersIn.map((tr) => (
+                <div
+                  key={tr.id}
+                  className="flex justify-between text-sm border-b border-white/5 py-1"
                 >
-                  {members.map((m) => (
-                    <option key={m.user.id} value={m.user.id}>
-                      {m.user.displayName}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label>{t.name}</Label>
-                <Input
-                  className="mt-1"
-                  value={allocForm.name}
-                  onChange={(e) =>
-                    setAllocForm({ ...allocForm, name: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label>
-                  {t.amount}{" "}
-                  <span className="text-[var(--fg-faint)] font-normal">
-                    ({t.personal?.perPeriod || t.budgets?.periodHalf || "per quincena"})
+                  <span>
+                    {tr.date}
+                    {tr.account?.name ? ` · ${tr.account.name}` : ""}
+                    {" · "}
+                    {tr.description}
                   </span>
-                </Label>
-                <Input
-                  className="mt-1"
-                  value={allocForm.amount}
-                  onChange={(e) =>
-                    setAllocForm({ ...allocForm, amount: e.target.value })
-                  }
-                />
-              </div>
-              <div className="flex items-end">
-                <Button onClick={addAllocation}>{t.save}</Button>
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                {allocations.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex justify-between text-sm border-b border-white/5 py-1"
-                  >
-                    <span>
-                      {a.name} · {a.active ? t.active : t.inactive}
-                    </span>
-                    <span>{money(a.amountCents)}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  <span className="money-income">{money(tr.amountCents)}</span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
         <Card premium>
           <CardHeader>

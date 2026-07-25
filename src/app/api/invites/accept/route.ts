@@ -3,6 +3,7 @@ import { requireSession, hashToken } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { logActivity } from "@/lib/household";
+import { ensurePersonalAccount } from "@/lib/personal";
 import { recordSecurityEvent } from "@/lib/security-monitor";
 import { clientIp, clientUserAgent } from "@/lib/rate-limit";
 
@@ -63,6 +64,12 @@ export async function POST(req: Request) {
         update: { householdId: invite.householdId },
       }),
     ]);
+
+    await ensurePersonalAccount({
+      householdId: invite.householdId,
+      userId: session.userId,
+      displayName: session.displayName,
+    });
 
     await logActivity({
       householdId: invite.householdId,

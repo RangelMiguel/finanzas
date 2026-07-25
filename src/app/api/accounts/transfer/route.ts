@@ -34,6 +34,16 @@ export async function POST(req: Request) {
     ]);
     if (!from || !to) throw new Error("Cuenta no encontrada");
 
+    // Members may only send into their own personal account (or between shared accounts)
+    const { canAdmin } = await import("@/lib/auth");
+    const admin = canAdmin(m.realRole || m.role);
+    if (to.ownerUserId && to.ownerUserId !== session.userId && !admin) {
+      throw new Error("No puedes transferir a la cuenta personal de otro");
+    }
+    if (from.ownerUserId && from.ownerUserId !== session.userId && !admin) {
+      throw new Error("No puedes transferir desde la cuenta personal de otro");
+    }
+
     const txn = await prisma.transaction.create({
       data: {
         householdId: m.householdId,

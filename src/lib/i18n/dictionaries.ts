@@ -607,14 +607,24 @@ export const es = {
 
   personal: {
     title: "Presupuestos personales",
-    subtitle: "Tu bolsa privada: asignación del admin + ingresos extra. No mueve el dinero del hogar.",
+    subtitle: "Tu bolsa privada: transferencias a tu cuenta Personal + ingresos extra.",
     subtitleBimonthly:
-      "Bolsa personal por quincena (2 por mes): asignación + ingresos extra. No mueve el dinero del hogar.",
+      "Bolsa personal por quincena: transferencias a tu cuenta Personal + ingresos extra.",
+    subtitleFunded:
+      "Financiada con transferencias a tu cuenta personal privada + ingresos extra.",
     adminAllocation: "Asignación del admin",
+    receivedTransfers: "Recibido (transferencias)",
     sideIncome: "Ingresos extra",
     personalSpent: "Gastado personal",
     available: "Disponible",
-    disclaimer: "Esto es independiente de las cuentas y saldos del hogar.",
+    accountBalance: "Saldo cuenta personal",
+    transfersIn: "Transferencias recibidas en el periodo",
+    noTransfers: "Sin transferencias a la cuenta personal en este periodo.",
+    fundingHint: "Para fondear esta bolsa, transfiere desde una cuenta del hogar a",
+    fundingHint2:
+      "Admin: Cuentas → Transferir hacia la cuenta Personal del miembro. Ese monto se refleja aquí en la quincena.",
+    disclaimer:
+      "La asignación ya no se edita a mano: se fondea con movimientos reales a la cuenta Personal de cada quien.",
     setAllocation: "Definir asignación (admin)",
     addSideIncome: "Agregar ingreso extra",
     sideIncomePh: "Freelance, trabajo extra…",
@@ -1505,14 +1515,24 @@ export const en: Dictionary = {
 
   personal: {
     title: "Personal budgets",
-    subtitle: "Your private pool: admin allocation + side income. Does not move household cash.",
+    subtitle: "Your private pool: transfers to your Personal account + side income.",
     subtitleBimonthly:
-      "Personal pool per half-month (2 per month): allocation + side income. Does not move household cash.",
+      "Personal pool per half-month: transfers to your Personal account + side income.",
+    subtitleFunded:
+      "Funded by transfers into your private personal account + side income.",
     adminAllocation: "Admin allocation",
+    receivedTransfers: "Received (transfers)",
     sideIncome: "Side income",
     personalSpent: "Personal spent",
     available: "Available",
-    disclaimer: "Separate from household accounts and balances.",
+    accountBalance: "Personal account balance",
+    transfersIn: "Transfers received this period",
+    noTransfers: "No transfers into the personal account this period.",
+    fundingHint: "To fund this pool, transfer from a household account to",
+    fundingHint2:
+      "Admin: Accounts → Transfer to the member's Personal account. That amount shows up here for the half-month.",
+    disclaimer:
+      "Allocation is no longer editable: fund personal budgets with real transfers to each person's Personal account.",
     setAllocation: "Set allocation (admin)",
     addSideIncome: "Add side income",
     sideIncomePh: "Freelance, side gig…",

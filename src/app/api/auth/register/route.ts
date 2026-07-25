@@ -92,6 +92,13 @@ export async function POST(req: Request) {
         }),
       ]);
 
+      const { ensurePersonalAccount } = await import("@/lib/personal");
+      await ensurePersonalAccount({
+        householdId: invite.householdId,
+        userId: user.id,
+        displayName: user.displayName,
+      });
+
       const sessionToken = await createSessionToken({
         userId: user.id,
         email: user.email,

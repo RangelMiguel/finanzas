@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { requireSession, requireHouseholdAccess } from "@/lib/auth";
+import {
+  canAdmin,
+  ForbiddenError,
+  requireHouseholdAccess,
+  requireSession,
+} from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { accountBalance } from "@/lib/money";
@@ -12,7 +17,7 @@ import {
   filterAccountId,
   filterTransaction,
 } from "@/lib/visibility";
-import { ForbiddenError } from "@/lib/auth";
+import { ensureAllPersonalAccounts } from "@/lib/personal";
 
 export async function GET() {
   try {
@@ -22,11 +27,20 @@ export async function GET() {
     if (!canListAccounts(m.visibility)) {
       throw new ForbiddenError("No access to accounts");
     }
+    await ensureAllPersonalAccounts(m.householdId);
     const accounts = await prisma.account.findMany({
       where: { householdId: m.householdId },
       orderBy: { createdAt: "asc" },
     });
-    const visible = accounts.filter((a) => filterAccountId(m.visibility, a.id));
+    const isAdmin = canAdmin(m.realRole || m.role);
+    const visible = accounts.filter((a) => {
+      if (!filterAccountId(m.visibility, a.id)) return false;
+      // Private personal accounts: owner + admins only
+      if (a.ownerUserId) {
+        return a.ownerUserId === session.userId || isAdmin;
+      }
+      return true;
+    });
     const showBalances = canSeeAccountBalances(m.visibility);
 
     let visibleTxns: {
@@ -79,6 +93,8 @@ export async function GET() {
 
     const withBalances = visible.map((a) => ({
       ...a,
+      ownerUserId: a.ownerUserId,
+      isPersonal: a.type === "personal" || !!a.ownerUserId,
       // Never leak balances when the policy hides them (even if accounts module is on)
       balanceCents: showBalances
         ? accountBalance(a.initialBalanceCents, visibleTxns, a.id)
@@ -106,6 +122,11 @@ export async function POST(req: Request) {
         initialBalance: z.union([z.number(), z.string()]).default(0),
       })
       .parse(await req.json());
+    if (body.type === "personal") {
+      throw new Error(
+        "Las cuentas personales se crean automáticamente por miembro"
+      );
+    }
     const account = await prisma.account.create({
       data: {
         householdId: m.householdId,
@@ -146,11 +167,21 @@ export async function PATCH(req: Request) {
       where: { id: body.id, householdId: m.householdId },
     });
     if (!existing) throw new Error("Cuenta no encontrada");
+    if (existing.ownerUserId && existing.ownerUserId !== session.userId) {
+      if (!canAdmin(m.realRole || m.role)) {
+        throw new ForbiddenError("No puedes editar la cuenta personal de otro");
+      }
+    }
+    // Keep personal accounts marked as personal
+    const nextType =
+      existing.ownerUserId || existing.type === "personal"
+        ? "personal"
+        : body.type;
     const account = await prisma.account.update({
       where: { id: body.id },
       data: {
         name: body.name,
-        type: body.type,
+        type: nextType,
         icon: body.icon,
         initialBalanceCents:
           body.initialBalance !== undefined
@@ -175,6 +206,11 @@ export async function DELETE(req: Request) {
       where: { id, householdId: m.householdId },
     });
     if (!existing) throw new Error("Cuenta no encontrada");
+    if (existing.ownerUserId || existing.type === "personal") {
+      throw new Error(
+        "No se puede eliminar la cuenta personal. Se usa para presupuestos personales."
+      );
+    }
     await prisma.account.delete({ where: { id } });
     return jsonOk({ ok: true });
   } catch (e) {
