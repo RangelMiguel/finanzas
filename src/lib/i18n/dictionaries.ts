@@ -778,6 +778,10 @@ export const es = {
     wiped: "Datos borrados y semillas restauradas",
     typeDelete: "BORRAR",
     appearance: "Apariencia e idioma",
+    theme: "Tema visual",
+    themeHint: "10 paletas de color. El diseño general se mantiene; solo cambian los tonos.",
+    themeDefault: "Predeterminado",
+    themeSaved: "Tema actualizado",
   },
 
   catchup: {
@@ -1610,6 +1614,10 @@ export const en: Dictionary = {
     wiped: "Data wiped and defaults restored",
     typeDelete: "DELETE",
     appearance: "Appearance & language",
+    theme: "Visual theme",
+    themeHint: "10 color palettes. Layout stays the same; only the colors change.",
+    themeDefault: "Default",
+    themeSaved: "Theme updated",
   },
 
   catchup: {

@@ -14,6 +14,13 @@ import type { AppLocale } from "@/lib/currencies";
 import { api } from "@/lib/api-client";
 import type { MemberVisibility } from "@/lib/visibility";
 import { FULL_VISIBILITY } from "@/lib/visibility";
+import {
+  applyTheme,
+  DEFAULT_THEME,
+  normalizeThemeId,
+  THEME_KEY,
+  type ThemeId,
+} from "@/lib/themes";
 
 type Member = {
   id: string;
@@ -41,12 +48,14 @@ type AppContextValue = {
   visibility: MemberVisibility;
   ready: boolean;
   a11y: A11yPrefs;
+  theme: ThemeId;
   t: Dictionary;
   tr: (template: string, vars: Record<string, string | number>) => string;
   money: (cents: number) => string;
   setLocale: (locale: AppLocale) => Promise<void>;
   setCurrency: (currency: string) => Promise<void>;
   setA11y: (patch: Partial<A11yPrefs>) => void;
+  setTheme: (theme: ThemeId) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -81,6 +90,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [ready, setReady] = useState(false);
   const [a11y, setA11yState] = useState<A11yPrefs>(defaultA11y);
+  const [theme, setThemeState] = useState<ThemeId>(DEFAULT_THEME);
   const [visibility, setVisibility] = useState<MemberVisibility>(FULL_VISIBILITY);
 
   useEffect(() => {
@@ -99,8 +109,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       const stored = localStorage.getItem(LOCALE_KEY) as AppLocale | null;
       if (stored === "en" || stored === "es") setLocaleState(stored);
+      const storedTheme = normalizeThemeId(localStorage.getItem(THEME_KEY));
+      setThemeState(storedTheme);
+      applyTheme(storedTheme);
     } catch {
       applyA11y(defaultA11y);
+      applyTheme(DEFAULT_THEME);
     }
   }, []);
 
@@ -113,6 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         role: string | null;
         members: Member[];
         visibility?: MemberVisibility | null;
+        theme?: string | null;
       }>("/api/auth/me");
       const loc = (data.user.locale === "en" ? "en" : "es") as AppLocale;
       setLocaleState(loc);
@@ -124,6 +139,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setMembers(data.members || []);
       if (data.visibility) setVisibility(data.visibility);
       else setVisibility(FULL_VISIBILITY);
+      if (data.theme != null) {
+        const nextTheme = normalizeThemeId(data.theme);
+        setThemeState(nextTheme);
+        applyTheme(nextTheme);
+      }
       if (typeof document !== "undefined") {
         document.documentElement.lang = loc;
         localStorage.setItem(LOCALE_KEY, loc);
@@ -168,6 +188,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setTheme = useCallback(async (next: ThemeId) => {
+    const id = normalizeThemeId(next);
+    setThemeState(id);
+    applyTheme(id);
+    try {
+      await api("/api/preferences", { method: "PATCH", json: { theme: id } });
+    } catch {
+      /* auth pages / offline */
+    }
+  }, []);
+
   const t = dictionaries[locale] || dictionaries.es;
 
   const value = useMemo<AppContextValue>(
@@ -182,12 +213,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       visibility,
       ready,
       a11y,
+      theme,
       t,
       tr: (template, vars) => interpolate(template, vars),
       money: (cents) => formatMoneyBase(cents, currency, locale),
       setLocale,
       setCurrency,
       setA11y,
+      setTheme,
       refresh,
     }),
     [
@@ -201,10 +234,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       visibility,
       ready,
       a11y,
+      theme,
       t,
       setLocale,
       setCurrency,
       setA11y,
+      setTheme,
       refresh,
     ]
   );

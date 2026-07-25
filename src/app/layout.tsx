@@ -48,11 +48,27 @@ export const viewport = {
   viewportFit: "cover" as const,
 };
 
+const themeBootScript = `
+try {
+  var t = localStorage.getItem('mf_theme') || 'midnight';
+  if (t === 'dark' || t === 'default') t = 'midnight';
+  document.documentElement.dataset.theme = t;
+} catch (e) {}
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={`dark ${sans.variable} ${display.variable}`} suppressHydrationWarning>
+    <html
+      lang="es"
+      className={`dark ${sans.variable} ${display.variable}`}
+      data-theme="midnight"
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body className="antialiased">
         <AppProvider>
           <ConfirmProvider>

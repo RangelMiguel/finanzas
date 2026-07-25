@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
+import { normalizeThemeId, THEME_IDS } from "@/lib/themes";
 
 export async function GET() {
   try {
@@ -13,7 +14,12 @@ export async function GET() {
     const pref = await prisma.userPreference.findUnique({
       where: { userId: session.userId },
     });
-    return jsonOk({ user, preference: pref });
+    return jsonOk({
+      user,
+      preference: pref
+        ? { ...pref, theme: normalizeThemeId(pref.theme) }
+        : pref,
+    });
   } catch (e) {
     return jsonError(e);
   }
@@ -26,7 +32,7 @@ export async function PATCH(req: Request) {
       .object({
         locale: z.enum(["es", "en"]).optional(),
         displayName: z.string().min(1).max(80).optional(),
-        theme: z.string().optional(),
+        theme: z.enum(THEME_IDS).or(z.string()).optional(),
       })
       .parse(await req.json());
 
@@ -41,10 +47,11 @@ export async function PATCH(req: Request) {
     }
 
     if (body.theme !== undefined) {
+      const theme = normalizeThemeId(body.theme);
       await prisma.userPreference.upsert({
         where: { userId: session.userId },
-        create: { userId: session.userId, theme: body.theme },
-        update: { theme: body.theme },
+        create: { userId: session.userId, theme },
+        update: { theme },
       });
     }
 
@@ -52,7 +59,14 @@ export async function PATCH(req: Request) {
       where: { id: session.userId },
       select: { id: true, email: true, displayName: true, locale: true },
     });
-    return jsonOk({ user });
+    const pref = await prisma.userPreference.findUnique({
+      where: { userId: session.userId },
+      select: { theme: true },
+    });
+    return jsonOk({
+      user,
+      theme: normalizeThemeId(pref?.theme),
+    });
   } catch (e) {
     return jsonError(e);
   }

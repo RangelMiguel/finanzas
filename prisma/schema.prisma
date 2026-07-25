@@ -132,7 +132,7 @@ model UserPreference {
   userId               String    @unique
   householdId          String?
   lastVisitAt          DateTime?
-  theme                String    @default("dark")
+  theme                String    @default("midnight")
   /// Last time user opened / dismissed the security notification feed
   securityAlertsSeenAt DateTime?
 

@@ -13,6 +13,7 @@ import { useApp, type FontScale } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { CURRENCIES, LOCALES } from "@/lib/currencies";
 import type { AppLocale } from "@/lib/currencies";
+import { DEFAULT_THEME, THEMES, type ThemeId } from "@/lib/themes";
 
 type Cat = {
   id: string;
@@ -35,6 +36,8 @@ export default function SettingsPage() {
     refresh,
     a11y,
     setA11y,
+    theme,
+    setTheme,
   } = useApp();
   const { confirm } = useConfirm();
   const [categories, setCategories] = useState<Cat[]>([]);
@@ -201,6 +204,63 @@ export default function SettingsPage() {
               <Button onClick={saveHouseholdName}>{t.save}</Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card premium>
+        <CardHeader>
+          <CardTitle>{t.settings.theme}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-[var(--fg-muted)]">{t.settings.themeHint}</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {THEMES.map((th) => {
+              const active = theme === th.id;
+              const name = locale === "en" ? th.name.en : th.name.es;
+              const desc =
+                locale === "en" ? th.description.en : th.description.es;
+              return (
+                <button
+                  key={th.id}
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await setTheme(th.id as ThemeId);
+                      toast.success(t.settings.themeSaved);
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : t.error);
+                    }
+                  }}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    active
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]/40"
+                      : "border-[var(--line)] bg-black/20 hover:border-white/20"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="flex gap-1" aria-hidden>
+                      {th.swatches.map((c) => (
+                        <span
+                          key={c}
+                          className="h-4 w-4 rounded-full border border-white/15"
+                          style={{ background: c }}
+                        />
+                      ))}
+                    </span>
+                    <span className="font-medium text-[var(--fg)]">
+                      {name}
+                      {th.id === DEFAULT_THEME ? (
+                        <span className="ml-1 text-xs text-[var(--fg-faint)]">
+                          ({t.settings.themeDefault})
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--fg-faint)]">{desc}</p>
+                </button>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
 

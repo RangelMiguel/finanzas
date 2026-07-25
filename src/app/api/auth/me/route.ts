@@ -29,6 +29,11 @@ export async function GET() {
       )
     : null;
 
+  const pref = await prisma.userPreference.findUnique({
+    where: { userId: session.userId },
+    select: { theme: true },
+  });
+
   return jsonOk({
     user: {
       userId: user.id,
@@ -39,6 +44,7 @@ export async function GET() {
     household: membership?.household ?? null,
     role: membership?.role ?? null,
     currency: membership?.household.currency ?? "MXN",
+    theme: pref?.theme ?? "midnight",
     visibility,
     members: members.map((m) => ({
       id: m.id,
