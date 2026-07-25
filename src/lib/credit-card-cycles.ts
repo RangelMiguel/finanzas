@@ -19,6 +19,7 @@ export type BillingCycle = {
 };
 
 export type ChargeLike = {
+  id?: string;
   date: string;
   amountCents: number;
   creditCardId?: string | null;
@@ -50,6 +51,8 @@ export type LabeledCharge = {
   label: string;
   kind: "purchase" | "msi";
   planId?: string;
+  /** Source transaction id for non-MSI purchases (for edit/delete). */
+  transactionId?: string;
 };
 
 export type CardPaymentSummary = {
@@ -275,6 +278,7 @@ export function collectCardCharges(
             amountCents: f.amountCents,
             label,
             kind: "purchase",
+            transactionId: t.id,
           });
         }
       }
@@ -287,6 +291,7 @@ export function collectCardCharges(
       amountCents: t.amountCents,
       label,
       kind: "purchase",
+      transactionId: t.id,
     });
   }
   charges.push(...expandInstallmentCharges(installments, creditCardId));

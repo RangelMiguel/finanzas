@@ -286,6 +286,20 @@ export const es = {
     msiLeftLine: "{left} de {total} meses · {monthly}/mes",
     nextCharge: "próximo cargo {date}",
     noPending: "No hay pagos pendientes en esta tarjeta",
+    editMsi: "Editar MSI",
+    deleteMsi: "Eliminar MSI",
+    confirmDeleteMsi:
+      "¿Eliminar este plan MSI? Dejará de contar en pagos y en ¿Cuánto gastar?",
+    confirmDeletePurchase:
+      "¿Eliminar este cargo de la tarjeta? También se quitará del historial de movimientos.",
+    msiTotal: "Monto total",
+    msiMonths: "Meses",
+    msiMonthly: "Mensualidad",
+    msiStart: "Fecha inicio",
+    orphanHint:
+      "Si ves cargos fantasma de un gasto ya borrado, elimínalos aquí.",
+    deletePurchase: "Eliminar cargo",
+    editPurchase: "Editar cargo",
   },
 
   recurring: {
@@ -1096,6 +1110,20 @@ export const en: Dictionary = {
     msiLeftLine: "{left} of {total} months · {monthly}/mo",
     nextCharge: "next charge {date}",
     noPending: "No pending payments on this card",
+    editMsi: "Edit MSI",
+    deleteMsi: "Delete MSI",
+    confirmDeleteMsi:
+      "Delete this MSI plan? It will stop counting in payments and Safe to spend.",
+    confirmDeletePurchase:
+      "Delete this card charge? It will also be removed from transaction history.",
+    msiTotal: "Total amount",
+    msiMonths: "Months",
+    msiMonthly: "Monthly amount",
+    msiStart: "Start date",
+    orphanHint:
+      "If you see ghost charges from a deleted expense, remove them here.",
+    deletePurchase: "Delete charge",
+    editPurchase: "Edit charge",
   },
 
   recurring: {

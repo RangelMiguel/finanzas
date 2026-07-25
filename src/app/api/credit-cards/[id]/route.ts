@@ -42,6 +42,7 @@ export async function GET(
           ],
         },
         select: {
+          id: true,
           creditCardId: true,
           amountCents: true,
           date: true,
@@ -81,11 +82,23 @@ export async function GET(
       installments: plans,
     });
 
+    // Full plan rows for in-place editing (orphaned garbage from pre-fix deletes, etc.)
+    const msiPlans = plans.map((p) => {
+      const pending = schedule.msiPending.find((x) => x.id === p.id);
+      return {
+        ...p,
+        monthsLeft: pending?.monthsLeft ?? 0,
+        remainingCents: pending?.remainingCents ?? 0,
+        nextChargeDate: pending?.nextChargeDate ?? null,
+      };
+    });
+
     return jsonOk({
       creditCard: card,
       asOf,
       payments: schedule.payments,
       msiPending: schedule.msiPending,
+      msiPlans,
       totalPendingCents: schedule.totalPendingCents,
       totalMsiRemainingCents: schedule.msiPending.reduce(
         (s, p) => s + p.remainingCents,
