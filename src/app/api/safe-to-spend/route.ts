@@ -2,11 +2,12 @@ import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { projectSafeToSpend, type FutureItem } from "@/lib/safe-to-spend";
-import { monthKey, amountToCents, todayISO } from "@/lib/utils";
+import { amountToCents, todayISO } from "@/lib/utils";
 import {
   addDaysISO,
   listCardPayments,
 } from "@/lib/credit-card-cycles";
+import { buildBudgetReserveItems } from "@/lib/budget-defaults";
 import { addMonths, format, setDate, differenceInCalendarDays } from "date-fns";
 
 async function buildFutureItems(opts: {
@@ -163,23 +164,13 @@ async function buildFutureItems(opts: {
   }
 
   if (opts.reserveBudgets) {
-    const month = monthKey();
-    // Sum both half-month budgets for current month
-    const budgets = await prisma.budget.findMany({
-      where: {
-        householdId: opts.householdId,
-        OR: [{ period: `${month}-1` }, { period: `${month}-2` }],
-      },
+    // Ring-fence unutilized + future budgets (uses defaults when period empty)
+    const budgetReserves = await buildBudgetReserveItems({
+      householdId: opts.householdId,
+      asOf: todayStr,
+      untilDate,
     });
-    const totalBudget = budgets.reduce((s, b) => s + b.amountCents, 0);
-    if (totalBudget > 0) {
-      futureItems.push({
-        date: todayStr,
-        amountCents: totalBudget,
-        type: "expense",
-        label: "Budget reserve",
-      });
-    }
+    futureItems.push(...budgetReserves);
   }
 
   if (opts.whatIf?.length) {

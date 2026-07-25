@@ -271,13 +271,18 @@ export default function SafeToSpendPage() {
               />
               {t.safe.includeIncome}
             </label>
-            <label className="flex items-center gap-2 text-sm text-[var(--fg-muted)]">
-              <input
-                type="checkbox"
-                checked={reserveBudgets}
-                onChange={(e) => setReserveBudgets(e.target.checked)}
-              />
-              {t.safe.reserveBudgets}
+            <label className="flex flex-col gap-1 text-sm text-[var(--fg-muted)]">
+              <span className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={reserveBudgets}
+                  onChange={(e) => setReserveBudgets(e.target.checked)}
+                />
+                {t.safe.reserveBudgets}
+              </span>
+              <span className="pl-6 text-xs text-[var(--fg-faint)]">
+                {t.safe.reserveBudgetsHint}
+              </span>
             </label>
 
             <Button

@@ -463,6 +463,8 @@ export const es = {
     account: "Cuenta a analizar",
     includeIncome: "Incluir ingresos futuros",
     reserveBudgets: "Reservar presupuestos",
+    reserveBudgetsHint:
+      "Aparta lo no gastado del presupuesto actual y el de quincenas futuras, aunque aún no lo uses",
     balanceToday: "Saldo hoy",
     safeToSpend: "Seguro para gastar",
     minProjected: "Saldo mínimo proyectado",
@@ -1256,6 +1258,8 @@ export const en: Dictionary = {
     account: "Account to analyze",
     includeIncome: "Include future income",
     reserveBudgets: "Reserve budgets",
+    reserveBudgetsHint:
+      "Holds unspent budget for the current period and full budgets for future half-months, even if unused so far",
     balanceToday: "Balance today",
     safeToSpend: "Safe to spend",
     minProjected: "Minimum projected balance",

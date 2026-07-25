@@ -155,3 +155,28 @@ export function budgetPeriodBounds(period: string): {
 export function monthBudgetPeriods(monthKeyStr: string): [string, string] {
   return [`${monthKeyStr}-1`, `${monthKeyStr}-2`];
 }
+
+/** Next half-month period after `period`. */
+export function nextBudgetPeriod(period: string): string {
+  const { year, month, half } = parseBudgetPeriod(period);
+  if (half === 1) return makeBudgetPeriod(year, month, 2);
+  if (month === 12) return makeBudgetPeriod(year + 1, 1, 1);
+  return makeBudgetPeriod(year, month + 1, 1);
+}
+
+/**
+ * Half-month periods from the one containing `asOf` through the one that
+ * contains `until` (inclusive). Caps at 36 periods (~1.5 years).
+ */
+export function budgetPeriodsThrough(asOf: string, until: string): string[] {
+  const startKey = budgetPeriodKey(new Date(asOf + "T12:00:00"));
+  const endKey = budgetPeriodKey(new Date(until + "T12:00:00"));
+  const out: string[] = [];
+  let cur = startKey;
+  for (let i = 0; i < 36; i++) {
+    out.push(cur);
+    if (cur === endKey) break;
+    cur = nextBudgetPeriod(cur);
+  }
+  return out;
+}
