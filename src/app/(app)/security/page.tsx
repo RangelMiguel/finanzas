@@ -9,17 +9,20 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
 import {
   FULL_VISIBILITY,
   LIMITED_VISIBILITY,
+  isPrivilegedRole,
   type MemberVisibility,
 } from "@/lib/visibility";
-import { Shield, KeyRound, Radio, Trash2 } from "lucide-react";
+import { Shield, KeyRound, Radio, Trash2, Eye, BookmarkPlus } from "lucide-react";
 import {
   startRegistration,
   browserSupportsWebAuthn,
 } from "@simplewebauthn/browser";
+import { PolicyPreviewModal } from "@/components/security/policy-preview";
 
 type Member = {
   id: string;
@@ -36,6 +39,12 @@ type PendingInvite = {
   expiresAt: string;
   visibility: MemberVisibility;
   rawVisibility: MemberVisibility;
+};
+
+type VisibilityTemplate = {
+  id: string;
+  name: string;
+  visibility: MemberVisibility;
 };
 
 type Catalogs = {
@@ -98,6 +107,7 @@ const MODULE_KEYS: (keyof MemberVisibility["modules"])[] = [
 
 export default function SecurityPage() {
   const { t, tr, role, refresh } = useApp();
+  const { confirm } = useConfirm();
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
@@ -109,6 +119,11 @@ export default function SecurityPage() {
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [alerts, setAlerts] = useState<SecurityAlertRow[]>([]);
   const [alertSince, setAlertSince] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<VisibilityTemplate[]>([]);
+  const [templateName, setTemplateName] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [bulkIds, setBulkIds] = useState<string[]>([]);
+  const [bulkTemplateId, setBulkTemplateId] = useState("");
 
   const canAdmin = role === "owner" || role === "admin";
   const selectedInvite = isInviteTarget(selectedId)
@@ -117,6 +132,8 @@ export default function SecurityPage() {
   const selected = members.find((m) => m.id === selectedId);
   const isOwnerTarget = selected?.role === "owner";
   const isInviteSelected = !!selectedInvite;
+  const previewRole =
+    selectedInvite?.role || selected?.role || "member";
 
   async function load() {
     const [res, inv] = await Promise.all([
@@ -133,6 +150,17 @@ export default function SecurityPage() {
     setMembers(res.members);
     setInvites(inv.invites || []);
     setCatalogs(res.catalogs);
+
+    if (canAdmin) {
+      try {
+        const tpl = await api<{ templates: VisibilityTemplate[] }>(
+          "/api/security/templates"
+        );
+        setTemplates(tpl.templates || []);
+      } catch {
+        setTemplates([]);
+      }
+    }
 
     setSelectedId((prev) => {
       // Keep current selection if still valid
@@ -314,6 +342,30 @@ export default function SecurityPage() {
     }
   }
 
+  async function revokeSelectedInvite() {
+    if (!selectedInvite) return;
+    const ok = await confirm({
+      title: t.security.revokeInvite || t.family.revokeInvite,
+      description: tr(t.family.confirmRevokeInvite, {
+        email: selectedInvite.email,
+      }),
+      confirmLabel: t.security.revokeInvite || t.family.revokeInvite,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/invites?id=${encodeURIComponent(selectedInvite.id)}`, {
+        method: "DELETE",
+      });
+      toast.success(t.family.inviteRevoked);
+      setSelectedId("");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
   function applyPreset(kind: "full" | "limited" | "spend") {
     if (kind === "full") setPolicy({ ...FULL_VISIBILITY });
     else if (kind === "limited") setPolicy({ ...LIMITED_VISIBILITY });
@@ -336,6 +388,127 @@ export default function SecurityPage() {
           tickets: true,
         },
       });
+    }
+  }
+
+  function applyTemplate(tpl: VisibilityTemplate) {
+    setPolicy({
+      ...tpl.visibility,
+      modules: { ...tpl.visibility.modules },
+      hiddenAccountIds: [...tpl.visibility.hiddenAccountIds],
+      allowedAccountIds: [...tpl.visibility.allowedAccountIds],
+      hiddenCategoryIds: [...tpl.visibility.hiddenCategoryIds],
+      allowedCategoryIds: [...(tpl.visibility.allowedCategoryIds || [])],
+      hiddenCreditCardIds: [...tpl.visibility.hiddenCreditCardIds],
+      hiddenDebtIds: [...tpl.visibility.hiddenDebtIds],
+    });
+    toast.success(t.security.templateApplied);
+  }
+
+  async function saveAsTemplate() {
+    const name = templateName.trim();
+    if (!name) {
+      toast.error(t.security.templateName);
+      return;
+    }
+    try {
+      await api("/api/security/templates", {
+        method: "POST",
+        json: { name, visibility: policy },
+      });
+      setTemplateName("");
+      toast.success(t.security.templateSaved);
+      const tpl = await api<{ templates: VisibilityTemplate[] }>(
+        "/api/security/templates"
+      );
+      setTemplates(tpl.templates || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function updateTemplate(id: string) {
+    try {
+      await api("/api/security/templates", {
+        method: "PATCH",
+        json: { id, visibility: policy },
+      });
+      toast.success(t.security.templateUpdated);
+      const tpl = await api<{ templates: VisibilityTemplate[] }>(
+        "/api/security/templates"
+      );
+      setTemplates(tpl.templates || []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function deleteTemplate(tpl: VisibilityTemplate) {
+    const ok = await confirm({
+      title: t.delete,
+      description: tr(t.security.confirmDeleteTemplate, { name: tpl.name }),
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/security/templates?id=${encodeURIComponent(tpl.id)}`, {
+        method: "DELETE",
+      });
+      toast.success(t.security.templateDeleted);
+      setTemplates((list) => list.filter((x) => x.id !== tpl.id));
+      if (bulkTemplateId === tpl.id) setBulkTemplateId("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  function toggleBulk(id: string) {
+    setBulkIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  async function applyTemplateToMany() {
+    if (!bulkTemplateId) return;
+    const tpl = templates.find((x) => x.id === bulkTemplateId);
+    if (!tpl) return;
+    if (bulkIds.length === 0) {
+      toast.error(t.security.noneSelected);
+      return;
+    }
+    setLoading(true);
+    try {
+      let n = 0;
+      for (const id of bulkIds) {
+        if (isInviteTarget(id)) {
+          await api("/api/invites", {
+            method: "PATCH",
+            json: {
+              inviteId: inviteIdFromTarget(id),
+              visibility: tpl.visibility,
+            },
+          });
+          n++;
+        } else {
+          const mem = members.find((m) => m.id === id);
+          if (!mem || mem.role === "owner") continue;
+          await api("/api/members", {
+            method: "PATCH",
+            json: { membershipId: id, visibility: tpl.visibility },
+          });
+          n++;
+        }
+      }
+      toast.success(tr(t.security.applyToManyDone, { n }));
+      setBulkIds([]);
+      await load();
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -452,15 +625,220 @@ export default function SecurityPage() {
         title={t.security.title}
         subtitle={t.security.subtitle}
         actions={
-          <Button onClick={save} disabled={loading || isOwnerTarget}>
-            <Shield className="h-4 w-4" />
-            {t.security.savePolicy}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setPreviewOpen(true)}
+              disabled={isOwnerTarget}
+            >
+              <Eye className="h-4 w-4" />
+              {t.security.preview}
+            </Button>
+            {isInviteSelected && (
+              <Button
+                variant="secondary"
+                onClick={revokeSelectedInvite}
+                disabled={loading}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t.security.revokeInvite || t.family.revokeInvite}
+              </Button>
+            )}
+            <Button onClick={save} disabled={loading || isOwnerTarget}>
+              <Shield className="h-4 w-4" />
+              {t.security.savePolicy}
+            </Button>
+          </div>
         }
       />
       <p className="text-xs text-[var(--fg-faint)]">{t.security.hint}</p>
 
+      <PolicyPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        policy={policy}
+        role={previewRole}
+        catalogs={catalogs}
+        moduleLabels={moduleLabels}
+        isPrivilegedRole={isPrivilegedRole(previewRole)}
+        labels={{
+          title: t.security.previewTitle,
+          subtitle: tr(t.security.previewSubtitle, { role: previewRole }),
+          adminNote: t.security.previewAdminNote,
+          modules: t.security.previewModules,
+          modulesNone: t.security.previewModulesNone,
+          txn: t.security.previewTxn,
+          accounts: t.security.previewAccounts,
+          cards: t.security.previewCards,
+          debts: t.security.previewDebts,
+          flags: t.security.previewFlags,
+          balancesOn: t.security.previewBalancesOn,
+          balancesOff: t.security.previewBalancesOff,
+          onlyOwn: t.security.previewOnlyOwn,
+          allTxn: t.security.previewAllTxn,
+          namesOn: t.security.previewNamesOn,
+          namesOff: t.security.previewNamesOff,
+          showIncome: t.security.showIncome,
+          showExpense: t.security.showExpense,
+          showTransfers: t.security.showTransfers,
+          dashIncome: t.security.dashIncome,
+          dashExpense: t.security.dashExpense,
+          dashBalance: t.security.dashBalance,
+          close: t.security.closePreview,
+          visible: t.security.previewVisible,
+          hidden: t.security.previewHidden,
+        }}
+      />
+
       {passkeysBlock}
+
+      <Card premium>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookmarkPlus className="h-4 w-4" />
+            {t.security.templates}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-[var(--fg-muted)]">
+            {t.security.templatesHint}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <Label htmlFor="tpl-name">{t.security.templateName}</Label>
+              <Input
+                id="tpl-name"
+                className="mt-1"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder={t.security.templateNamePh}
+              />
+            </div>
+            <Button
+              onClick={saveAsTemplate}
+              disabled={isOwnerTarget}
+              variant="secondary"
+            >
+              {t.security.saveAsTemplate}
+            </Button>
+          </div>
+
+          {templates.length === 0 ? (
+            <p className="text-sm text-[var(--fg-faint)]">
+              {t.security.noTemplates}
+            </p>
+          ) : (
+            <ul className="divide-y divide-white/10 rounded-xl border border-white/10">
+              {templates.map((tpl) => (
+                <li
+                  key={tpl.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm"
+                >
+                  <span className="font-medium text-[var(--fg)]">{tpl.name}</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={isOwnerTarget}
+                      onClick={() => applyTemplate(tpl)}
+                    >
+                      {t.security.applyTemplate}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isOwnerTarget}
+                      onClick={() => updateTemplate(tpl.id)}
+                    >
+                      {t.security.updateTemplate}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteTemplate(tpl)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {templates.length > 0 && (
+            <div className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs text-[var(--fg-faint)]">
+                {t.security.applyToManyHint}
+              </p>
+              <div>
+                <Label>{t.security.templates}</Label>
+                <Select
+                  className="mt-1"
+                  value={bulkTemplateId}
+                  onChange={(e) => setBulkTemplateId(e.target.value)}
+                >
+                  <option value="">{t.select}</option>
+                  {templates.map((tpl) => (
+                    <option key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>{t.security.selectTargets}</Label>
+                <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-white/10 p-2">
+                  {invites.map((inv) => {
+                    const id = INVITE_PREFIX + inv.id;
+                    return (
+                      <label
+                        key={id}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={bulkIds.includes(id)}
+                          onChange={() => toggleBulk(id)}
+                        />
+                        <span>
+                          {inv.email}{" "}
+                          <span className="text-[var(--fg-faint)]">
+                            ({t.security.pendingBadge})
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                  {members
+                    .filter((m) => m.role !== "owner")
+                    .map((m) => (
+                      <label
+                        key={m.id}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={bulkIds.includes(m.id)}
+                          onChange={() => toggleBulk(m.id)}
+                        />
+                        <span>
+                          {m.user.displayName} ({m.role})
+                        </span>
+                      </label>
+                    ))}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                disabled={!bulkTemplateId || loading}
+                onClick={applyTemplateToMany}
+              >
+                {t.security.applyToMany}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card premium>
         <CardHeader>

@@ -91,6 +91,22 @@ model Household {
   goals              Goal[]
   goalReserves       GoalReserve[]
   retirementPlans    RetirementPlan[]
+  visibilityTemplates VisibilityTemplate[]
+}
+
+/// Reusable security / visibility policies for members and invites
+model VisibilityTemplate {
+  id          String   @id @default(cuid())
+  householdId String
+  name        String
+  /// JSON MemberVisibility
+  visibility  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
 }
 
 model Membership {

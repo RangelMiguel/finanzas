@@ -11,12 +11,19 @@ import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
-import { Copy, MessageCircle, Share2, UserMinus } from "lucide-react";
+import { Copy, MessageCircle, Share2, UserMinus, Trash2 } from "lucide-react";
 
 type Member = {
   id: string;
   role: string;
   user: { id: string; email: string; displayName: string };
+};
+
+type PendingInvite = {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
 };
 
 export default function FamilyPage() {
@@ -26,6 +33,7 @@ export default function FamilyPage() {
   const [role, setRole] = useState<string>("");
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [lastInvite, setLastInvite] = useState<{
     url: string;
     email: string;
@@ -43,6 +51,17 @@ export default function FamilyPage() {
     const m = await api<{ members: Member[]; role: string }>("/api/members");
     setMembers(m.members);
     setRole(m.role);
+    const isAdmin = m.role === "owner" || m.role === "admin";
+    if (isAdmin) {
+      try {
+        const inv = await api<{ invites: PendingInvite[] }>("/api/invites");
+        setPendingInvites(inv.invites || []);
+      } catch {
+        setPendingInvites([]);
+      }
+    } else {
+      setPendingInvites([]);
+    }
     const dash = await api<{
       activity: {
         id: string;
@@ -76,6 +95,30 @@ export default function FamilyPage() {
       setLastInvite({ url, email });
       toast.success(t.family.inviteCreated);
       setEmail("");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function revokeInvite(inv: PendingInvite) {
+    const ok = await confirm({
+      title: t.family.revokeInvite,
+      description: tr(t.family.confirmRevokeInvite, { email: inv.email }),
+      confirmLabel: t.family.revokeInvite,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/invites?id=${encodeURIComponent(inv.id)}`, {
+        method: "DELETE",
+      });
+      toast.success(t.family.inviteRevoked);
+      if (lastInvite?.email.toLowerCase() === inv.email.toLowerCase()) {
+        setLastInvite(null);
+      }
+      await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
     }
@@ -296,6 +339,47 @@ export default function FamilyPage() {
                 </div>
               </div>
             )}
+
+            <div className="space-y-2 border-t border-white/10 pt-4">
+              <p className="text-sm font-medium text-[var(--fg)]">
+                {t.family.pendingInvites}
+              </p>
+              {pendingInvites.length === 0 ? (
+                <p className="text-sm text-[var(--fg-faint)]">
+                  {t.family.pendingInvitesEmpty}
+                </p>
+              ) : (
+                <ul className="divide-y divide-white/10 rounded-xl border border-white/10">
+                  {pendingInvites.map((inv) => (
+                    <li
+                      key={inv.id}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--fg)]">
+                          {inv.email}
+                        </p>
+                        <p className="text-xs text-[var(--fg-faint)]">
+                          {t.roles[inv.role as keyof typeof t.roles] || inv.role}
+                          {" · "}
+                          {tr(t.family.expiresAt, {
+                            date: new Date(inv.expiresAt).toLocaleDateString(),
+                          })}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => revokeInvite(inv)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {t.family.revokeInvite}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
