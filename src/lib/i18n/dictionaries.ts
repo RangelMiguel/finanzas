@@ -808,8 +808,8 @@ export const es = {
     setupSubtitle:
       "Pon MisFinanzas en tu pantalla de inicio y activa notificaciones para no perder alertas importantes.",
     setupFooter:
-      "También puedes hacerlo más tarde en Ajustes. La campana de arriba muestra el historial de alertas.",
-    dismissSetup: "Cerrar por ahora",
+      "Si cierras esto, no volverá a aparecer aquí. Siempre puedes instalar y activar avisos en Ajustes.",
+    dismissSetup: "No mostrar de nuevo",
     installTitle: "Instalar en el teléfono",
     installHint: "Añade MisFinanzas a tu pantalla de inicio (funciona mejor y offline)",
     installCta: "Instalar app",
@@ -1766,8 +1766,8 @@ export const en: Dictionary = {
     setupSubtitle:
       "Add MyFinances to your home screen and turn on notifications so you don’t miss important alerts.",
     setupFooter:
-      "You can also do this later in Settings. The bell icon shows the in-app alert history.",
-    dismissSetup: "Dismiss for now",
+      "If you dismiss this, it won’t show here again. You can always install and enable alerts in Settings.",
+    dismissSetup: "Don’t show again",
     installTitle: "Install on your phone",
     installHint: "Add MyFinances to your home screen (better experience and offline)",
     installCta: "Install app",

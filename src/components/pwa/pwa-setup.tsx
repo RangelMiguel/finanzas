@@ -135,8 +135,9 @@ export function PwaSetup({
   }
 
   if (!mounted) return null;
-  if (!forceShow && dismissed && variant === "banner") return null;
-  if (!forceShow && allDone && variant === "banner") return null;
+  // Home banner only: permanent dismiss via localStorage (never show again there)
+  if (variant === "banner" && !forceShow && dismissed) return null;
+  if (variant === "banner" && !forceShow && allDone) return null;
 
   const installBlock = needsInstall && (
     <div

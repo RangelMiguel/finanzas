@@ -7,7 +7,6 @@ import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { PwaSetup } from "@/components/pwa/pwa-setup";
 
 type Alert = {
   id: string;
@@ -243,11 +242,6 @@ export function SecurityNotifications() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-
-        {/* Compact install/notifications still available, but primary is on Home/Settings */}
-        <div className="mb-3">
-          <PwaSetup variant="compact" forceShow />
         </div>
 
         <ul className="security-notif-list">
