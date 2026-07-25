@@ -77,6 +77,8 @@ export async function POST(req: Request) {
             householdId: invite.householdId,
             userId: user.id,
             role: invite.role,
+            // Pre-configured security policy from the invite
+            visibility: invite.visibility || "{}",
           },
         }),
         prisma.invite.update({

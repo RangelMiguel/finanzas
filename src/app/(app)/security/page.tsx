@@ -29,12 +29,31 @@ type Member = {
   rawVisibility: MemberVisibility;
 };
 
+type PendingInvite = {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+  visibility: MemberVisibility;
+  rawVisibility: MemberVisibility;
+};
+
 type Catalogs = {
   accounts: { id: string; name: string; icon: string }[];
   categories: { id: string; name: string; icon: string; type: string }[];
   creditCards: { id: string; name: string; lastFour: string }[];
   debts: { id: string; name: string }[];
 };
+
+const INVITE_PREFIX = "invite:";
+
+function isInviteTarget(id: string) {
+  return id.startsWith(INVITE_PREFIX);
+}
+
+function inviteIdFromTarget(id: string) {
+  return id.slice(INVITE_PREFIX.length);
+}
 
 type Passkey = {
   id: string;
@@ -78,8 +97,9 @@ const MODULE_KEYS: (keyof MemberVisibility["modules"])[] = [
 ];
 
 export default function SecurityPage() {
-  const { t, role, refresh } = useApp();
+  const { t, tr, role, refresh } = useApp();
   const [members, setMembers] = useState<Member[]>([]);
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [policy, setPolicy] = useState<MemberVisibility>(FULL_VISIBILITY);
@@ -91,30 +111,43 @@ export default function SecurityPage() {
   const [alertSince, setAlertSince] = useState<string | null>(null);
 
   const canAdmin = role === "owner" || role === "admin";
+  const selectedInvite = isInviteTarget(selectedId)
+    ? invites.find((i) => i.id === inviteIdFromTarget(selectedId))
+    : undefined;
   const selected = members.find((m) => m.id === selectedId);
   const isOwnerTarget = selected?.role === "owner";
+  const isInviteSelected = !!selectedInvite;
 
   async function load() {
-    const res = await api<{
-      members: Member[];
-      catalogs: Catalogs;
-    }>("/api/members");
+    const [res, inv] = await Promise.all([
+      api<{
+        members: Member[];
+        catalogs: Catalogs;
+      }>("/api/members"),
+      canAdmin
+        ? api<{ invites: PendingInvite[] }>("/api/invites").catch(() => ({
+            invites: [] as PendingInvite[],
+          }))
+        : Promise.resolve({ invites: [] as PendingInvite[] }),
+    ]);
     setMembers(res.members);
+    setInvites(inv.invites || []);
     setCatalogs(res.catalogs);
-    const first =
-      res.members.find((m) => m.role !== "owner") || res.members[0];
-    if (first) {
-      setSelectedId((prev) => {
-        const next = prev || first.id;
-        const cur = res.members.find((m) => m.id === next) || first;
-        setPolicy(
-          cur.role === "owner"
-            ? FULL_VISIBILITY
-            : cur.rawVisibility || cur.visibility
-        );
-        return next;
-      });
-    }
+
+    setSelectedId((prev) => {
+      // Keep current selection if still valid
+      if (prev && isInviteTarget(prev)) {
+        const id = inviteIdFromTarget(prev);
+        if (inv.invites.some((i) => i.id === id)) return prev;
+      }
+      if (prev && res.members.some((m) => m.id === prev)) return prev;
+
+      // Prefer first pending invite, then first non-owner member
+      if (inv.invites[0]) return INVITE_PREFIX + inv.invites[0].id;
+      const first =
+        res.members.find((m) => m.role !== "owner") || res.members[0];
+      return first?.id || "";
+    });
   }
 
   async function loadPasskeys() {
@@ -194,8 +227,9 @@ export default function SecurityPage() {
   useEffect(() => {
     load().catch((e) => toast.error(e.message));
     loadPasskeys().catch((e) => toast.error(e.message));
+    // re-run when role/admin status is known so pending invites load
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canAdmin]);
 
   const alertSinceRef = useRef<string | null>(null);
   useEffect(() => {
@@ -213,12 +247,19 @@ export default function SecurityPage() {
   }, [canAdmin]);
 
   useEffect(() => {
+    if (isInviteTarget(selectedId)) {
+      const inv = invites.find((i) => i.id === inviteIdFromTarget(selectedId));
+      if (inv) {
+        setPolicy(inv.rawVisibility || inv.visibility || { ...LIMITED_VISIBILITY });
+      }
+      return;
+    }
     const m = members.find((x) => x.id === selectedId);
     if (!m) return;
     setPolicy(
       m.role === "owner" ? FULL_VISIBILITY : m.rawVisibility || m.visibility
     );
-  }, [selectedId, members]);
+  }, [selectedId, members, invites]);
 
   function setModule(key: keyof MemberVisibility["modules"], value: boolean) {
     setPolicy((p) => ({
@@ -248,11 +289,22 @@ export default function SecurityPage() {
     if (!selectedId || isOwnerTarget) return;
     setLoading(true);
     try {
-      await api("/api/members", {
-        method: "PATCH",
-        json: { membershipId: selectedId, visibility: policy },
-      });
-      toast.success(t.security.saved);
+      if (isInviteTarget(selectedId)) {
+        await api("/api/invites", {
+          method: "PATCH",
+          json: {
+            inviteId: inviteIdFromTarget(selectedId),
+            visibility: policy,
+          },
+        });
+        toast.success(t.security.savedInvite || t.security.saved);
+      } else {
+        await api("/api/members", {
+          method: "PATCH",
+          json: { membershipId: selectedId, visibility: policy },
+        });
+        toast.success(t.security.saved);
+      }
       await load();
       await refresh();
     } catch (e) {
@@ -479,18 +531,40 @@ export default function SecurityPage() {
       <Card premium>
         <CardContent className="grid gap-4 py-5 sm:grid-cols-2">
           <div>
-            <Label>{t.security.selectMember}</Label>
+            <Label>{t.security.selectTarget || t.security.selectMember}</Label>
             <Select
               className="mt-1"
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
             >
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.user.displayName} ({m.role})
-                </option>
-              ))}
+              {invites.length > 0 && (
+                <optgroup label={t.security.pendingInvites}>
+                  {invites.map((inv) => (
+                    <option key={inv.id} value={INVITE_PREFIX + inv.id}>
+                      {tr(t.security.inviteTarget, {
+                        email: inv.email,
+                        role: inv.role,
+                      })}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label={t.security.selectMember}>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.user.displayName} ({m.role})
+                  </option>
+                ))}
+              </optgroup>
             </Select>
+            {isInviteSelected && (
+              <p className="mt-1 text-xs text-amber-200/90">
+                <span className="mr-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">
+                  {t.security.pendingBadge}
+                </span>
+                {t.security.pendingHint}
+              </p>
+            )}
           </div>
           <div>
             <Label>{t.security.presets}</Label>

@@ -118,6 +118,8 @@ model Invite {
   expiresAt   DateTime
   acceptedAt  DateTime?
   createdById String?
+  /// Pre-join security policy (JSON MemberVisibility) — applied when invite is accepted
+  visibility  String    @default("{}")
   createdAt   DateTime  @default(now())
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)

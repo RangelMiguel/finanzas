@@ -4,11 +4,35 @@ import {
   requireHouseholdAccess,
   generateInviteToken,
   hashToken,
-  canManageMembers,
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { logActivity } from "@/lib/household";
+import {
+  LIMITED_VISIBILITY,
+  parseVisibility,
+  serializeVisibility,
+  type MemberVisibility,
+} from "@/lib/visibility";
+
+function defaultVisibilityForRole(role: string): MemberVisibility {
+  if (role === "admin") {
+    // Admins always get full access at runtime; still store full for consistency
+    return parseVisibility({});
+  }
+  if (role === "viewer") {
+    return {
+      ...LIMITED_VISIBILITY,
+      modules: {
+        ...LIMITED_VISIBILITY.modules,
+        tickets: false,
+        safeToSpend: false,
+      },
+      onlyOwnTransactions: true,
+    };
+  }
+  return { ...LIMITED_VISIBILITY };
+}
 
 export async function GET() {
   try {
@@ -18,7 +42,13 @@ export async function GET() {
       where: { householdId: m.householdId, acceptedAt: null },
       orderBy: { createdAt: "desc" },
     });
-    return jsonOk({ invites: invites.map(({ tokenHash, ...rest }) => rest) });
+    return jsonOk({
+      invites: invites.map(({ tokenHash, ...rest }) => ({
+        ...rest,
+        visibility: parseVisibility(rest.visibility),
+        rawVisibility: parseVisibility(rest.visibility),
+      })),
+    });
   } catch (e) {
     return jsonError(e);
   }
@@ -32,12 +62,25 @@ export async function POST(req: Request) {
       .object({
         email: z.string().email(),
         role: z.enum(["admin", "member", "viewer"]).default("member"),
+        visibility: z.record(z.string(), z.unknown()).optional(),
       })
       .parse(await req.json());
 
     const token = generateInviteToken();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const base = defaultVisibilityForRole(body.role);
+    const visibility = body.visibility
+      ? parseVisibility({
+          ...base,
+          ...body.visibility,
+          modules: {
+            ...base.modules,
+            ...((body.visibility.modules as object) || {}),
+          },
+        })
+      : base;
 
     const invite = await prisma.invite.create({
       data: {
@@ -47,6 +90,7 @@ export async function POST(req: Request) {
         tokenHash: hashToken(token),
         expiresAt,
         createdById: session.userId,
+        visibility: serializeVisibility(visibility),
       },
     });
 
@@ -59,7 +103,6 @@ export async function POST(req: Request) {
       summary: `Invitó a ${body.email} como ${body.role}`,
     });
 
-    // Return raw token once (for shareable link)
     return jsonOk(
       {
         invite: {
@@ -67,12 +110,79 @@ export async function POST(req: Request) {
           email: invite.email,
           role: invite.role,
           expiresAt: invite.expiresAt,
+          visibility,
         },
         token,
         inviteUrl: `/invite/${token}`,
       },
       201
     );
+  } catch (e) {
+    return jsonError(e);
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const session = await requireSession();
+    const m = await requireHouseholdAccess(session.userId, { admin: true });
+    const body = z
+      .object({
+        inviteId: z.string(),
+        role: z.enum(["admin", "member", "viewer"]).optional(),
+        visibility: z.record(z.string(), z.unknown()).optional(),
+      })
+      .parse(await req.json());
+
+    const existing = await prisma.invite.findFirst({
+      where: {
+        id: body.inviteId,
+        householdId: m.householdId,
+        acceptedAt: null,
+      },
+    });
+    if (!existing) throw new Error("Invitación no encontrada");
+
+    const data: { role?: string; visibility?: string } = {};
+    if (body.role) data.role = body.role;
+
+    if (body.visibility) {
+      const current = parseVisibility(existing.visibility);
+      const merged = parseVisibility({
+        ...current,
+        ...body.visibility,
+        modules: {
+          ...current.modules,
+          ...((body.visibility.modules as object) || {}),
+        },
+      });
+      data.visibility = serializeVisibility(merged);
+    }
+
+    const updated = await prisma.invite.update({
+      where: { id: existing.id },
+      data,
+    });
+
+    await logActivity({
+      householdId: m.householdId,
+      userId: session.userId,
+      action: "update",
+      entityType: "invite",
+      entityId: updated.id,
+      summary: `Actualizó permisos de invitación ${updated.email}`,
+    });
+
+    return jsonOk({
+      invite: {
+        id: updated.id,
+        email: updated.email,
+        role: updated.role,
+        expiresAt: updated.expiresAt,
+        visibility: parseVisibility(updated.visibility),
+        rawVisibility: parseVisibility(updated.visibility),
+      },
+    });
   } catch (e) {
     return jsonError(e);
   }
