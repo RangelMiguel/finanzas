@@ -804,17 +804,36 @@ export const es = {
   },
 
   pwa: {
+    setupTitle: "Instalar app y avisos",
+    setupSubtitle:
+      "Pon MisFinanzas en tu pantalla de inicio y activa notificaciones para no perder alertas importantes.",
+    setupFooter:
+      "También puedes hacerlo más tarde en Ajustes. La campana de arriba muestra el historial de alertas.",
+    dismissSetup: "Cerrar por ahora",
     installTitle: "Instalar en el teléfono",
-    installHint: "Añade MisFinanzas a tu pantalla de inicio",
+    installHint: "Añade MisFinanzas a tu pantalla de inicio (funciona mejor y offline)",
+    installCta: "Instalar app",
+    howToInstall: "Cómo instalar",
     installManual:
-      "En Android: menú del navegador → Instalar app. En iPhone: Compartir → Añadir a pantalla de inicio.",
+      "Android: menú ⋮ del navegador → Instalar app / Añadir a pantalla de inicio.",
+    installIos:
+      "En iPhone/iPad usa Safari: toca Compartir y luego «Añadir a pantalla de inicio».",
+    installIosStep: "Safari → Compartir → Añadir a pantalla de inicio",
     installed: "App instalada",
     installedLabel: "App instalada en este dispositivo",
+    pushTitle: "Activar notificaciones",
     pushOn: "Avisos del sistema: activados",
     pushOff: "Activar avisos en la bandeja del teléfono",
-    pushHint: "Solo alertas importantes (avisos y críticos), aunque la app esté cerrada",
+    pushHint:
+      "Solo alertas importantes (avisos y críticos), aunque la app esté cerrada",
+    pushHintOn: "Recibirás avisos importantes en la bandeja del sistema",
+    pushEnableCta: "Activar avisos",
+    pushDisableCta: "Desactivar",
     pushEnabled: "Notificaciones del sistema activadas",
-    pushDenied: "Permiso de notificaciones denegado",
+    pushDisabled: "Notificaciones del sistema desactivadas",
+    pushDenied:
+      "Permiso denegado. Actívalo en Ajustes del teléfono → Notificaciones → MisFinanzas / el navegador.",
+    pushUnsupported: "Este navegador no soporta notificaciones push",
     pushNotConfigured:
       "Las notificaciones push no están configuradas en el servidor (faltan claves VAPID).",
   },
@@ -1743,17 +1762,36 @@ export const en: Dictionary = {
   },
 
   pwa: {
+    setupTitle: "Install app & alerts",
+    setupSubtitle:
+      "Add MyFinances to your home screen and turn on notifications so you don’t miss important alerts.",
+    setupFooter:
+      "You can also do this later in Settings. The bell icon shows the in-app alert history.",
+    dismissSetup: "Dismiss for now",
     installTitle: "Install on your phone",
-    installHint: "Add MisFinanzas to your home screen",
+    installHint: "Add MyFinances to your home screen (better experience and offline)",
+    installCta: "Install app",
+    howToInstall: "How to install",
     installManual:
-      "Android: browser menu → Install app. iPhone: Share → Add to Home Screen.",
+      "Android: browser ⋮ menu → Install app / Add to Home screen.",
+    installIos:
+      "On iPhone/iPad use Safari: tap Share, then “Add to Home Screen”.",
+    installIosStep: "Safari → Share → Add to Home Screen",
     installed: "App installed",
     installedLabel: "App installed on this device",
+    pushTitle: "Enable notifications",
     pushOn: "System alerts: on",
     pushOff: "Enable phone notification tray alerts",
-    pushHint: "Important alerts only (warnings & critical), even when the app is closed",
+    pushHint:
+      "Important alerts only (warnings & critical), even when the app is closed",
+    pushHintOn: "You’ll get important alerts in the system notification tray",
+    pushEnableCta: "Enable alerts",
+    pushDisableCta: "Turn off",
     pushEnabled: "System notifications enabled",
-    pushDenied: "Notification permission denied",
+    pushDisabled: "System notifications turned off",
+    pushDenied:
+      "Permission denied. Enable it in phone Settings → Notifications → MyFinances / your browser.",
+    pushUnsupported: "This browser does not support push notifications",
     pushNotConfigured:
       "Push is not configured on the server (missing VAPID keys).",
   },

@@ -14,6 +14,7 @@ import { useConfirm } from "@/components/providers/confirm-provider";
 import { CURRENCIES, LOCALES } from "@/lib/currencies";
 import type { AppLocale } from "@/lib/currencies";
 import { DEFAULT_THEME, THEMES, type ThemeId } from "@/lib/themes";
+import { PwaSetup } from "@/components/pwa/pwa-setup";
 
 type Cat = {
   id: string;
@@ -147,6 +148,8 @@ export default function SettingsPage() {
         title={t.settings.title}
         subtitle={t.settings.subtitle}
       />
+
+      <PwaSetup variant="card" forceShow />
 
       <Card premium>
         <CardHeader>

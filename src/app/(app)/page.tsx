@@ -12,6 +12,7 @@ import { es, enUS } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Suspense } from "react";
 import { useApp } from "@/components/providers/app-provider";
+import { PwaSetup } from "@/components/pwa/pwa-setup";
 
 type Dash = {
   month: string;
@@ -122,6 +123,9 @@ function DashboardInner() {
           {t.nav.catchUp}
         </Button>
       </div>
+
+      {/* Install app + enable notifications — outside the alerts tray */}
+      <PwaSetup variant="banner" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="bento-stat">

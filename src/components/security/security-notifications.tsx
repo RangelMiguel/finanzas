@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell, X, Trash2, Download, Smartphone } from "lucide-react";
+import { Bell, X, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
-import { usePwa } from "@/components/pwa/pwa-provider";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { PwaSetup } from "@/components/pwa/pwa-setup";
 
 type Alert = {
   id: string;
@@ -23,7 +23,6 @@ const POLL_MS = 20_000;
 
 export function SecurityNotifications() {
   const { t, ready } = useApp();
-  const pwa = usePwa();
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [unread, setUnread] = useState(0);
@@ -31,6 +30,9 @@ export function SecurityNotifications() {
   const sinceRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
+  /** Ignore outside-close for a tick after opening (mobile ghost events). */
+  const ignoreOutsideUntil = useRef(0);
 
   useEffect(() => {
     setMounted(true);
@@ -39,7 +41,10 @@ export function SecurityNotifications() {
   const load = useCallback(
     async (since?: string | null) => {
       if (loadingRef.current) return;
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
         return;
       }
       loadingRef.current = true;
@@ -58,7 +63,6 @@ export function SecurityNotifications() {
             setAlerts((prev) => {
               const ids = new Set(prev.map((a) => a.id));
               const fresh = res.alerts.filter((a) => !ids.has(a.id));
-              // Toast only for warning/critical
               const important = fresh.find(
                 (a) => a.severity === "warning" || a.severity === "critical"
               );
@@ -101,24 +105,39 @@ export function SecurityNotifications() {
 
   useEffect(() => {
     if (!open) return;
+
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    function onDoc(e: MouseEvent | TouchEvent) {
-      const target = e.target as Node;
-      if (panelRef.current && !panelRef.current.contains(target)) {
-        const bell = (e.target as HTMLElement)?.closest?.("[data-sec-bell]");
-        if (bell) return;
-        setOpen(false);
-      }
+
+    function isOutside(target: EventTarget | null) {
+      if (!(target instanceof Node)) return true;
+      if (panelRef.current?.contains(target)) return false;
+      if (bellRef.current?.contains(target)) return false;
+      return true;
     }
+
+    function onPointerDown(e: Event) {
+      if (Date.now() < ignoreOutsideUntil.current) return;
+      if (isOutside(e.target)) setOpen(false);
+    }
+
     document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("touchstart", onDoc, { passive: true });
+    // pointerdown covers mouse + touch without racing the open click
+    document.addEventListener("pointerdown", onPointerDown, true);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("touchstart", onDoc);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [open]);
+
+  // Lock body scroll while tray is open (mobile)
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
     };
   }, [open]);
 
@@ -161,36 +180,20 @@ export function SecurityNotifications() {
     }
   }
 
-  async function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next) {
-      await load(null);
-      await markSeen();
-    }
+  function openTray() {
+    ignoreOutsideUntil.current = Date.now() + 400;
+    setOpen(true);
+    // Fire-and-forget refresh; do not block UI open
+    void load(null).then(() => markSeen());
   }
 
-  async function onEnablePush() {
-    try {
-      const ok = await pwa.enablePush();
-      if (ok) toast.success(t.pwa.pushEnabled);
-      else toast.error(t.pwa.pushDenied);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t.error);
-    }
+  function closeTray() {
+    setOpen(false);
   }
 
-  async function onInstall() {
-    try {
-      if (pwa.canInstall) {
-        await pwa.install();
-        toast.success(t.pwa.installed);
-      } else {
-        toast.message(t.pwa.installManual);
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t.error);
-    }
+  function toggle() {
+    if (open) closeTray();
+    else openTray();
   }
 
   const panel = open && (
@@ -199,7 +202,7 @@ export function SecurityNotifications() {
         type="button"
         className="security-notif-scrim"
         aria-label={t.close}
-        onClick={() => setOpen(false)}
+        onClick={closeTray}
       />
       <div
         ref={panelRef}
@@ -235,60 +238,16 @@ export function SecurityNotifications() {
               variant="ghost"
               size="icon"
               aria-label={t.close}
-              onClick={() => setOpen(false)}
+              onClick={closeTray}
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* PWA / system notifications */}
-        <div className="mb-3 space-y-2 rounded-xl border border-white/10 bg-[#0a0f1c] p-2.5">
-          {!pwa.installed && (
-            <button
-              type="button"
-              onClick={onInstall}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-[var(--fg)] hover:bg-white/5"
-            >
-              <Download className="h-4 w-4 shrink-0 text-teal-300" />
-              <span>
-                <span className="font-medium">{t.pwa.installTitle}</span>
-                <span className="mt-0.5 block text-[10px] text-[var(--fg-faint)]">
-                  {pwa.canInstall ? t.pwa.installHint : t.pwa.installManual}
-                </span>
-              </span>
-            </button>
-          )}
-          {pwa.installed && (
-            <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-emerald-300/90">
-              <Smartphone className="h-3.5 w-3.5" />
-              {t.pwa.installedLabel}
-            </div>
-          )}
-          {pwa.pushSupported && pwa.pushConfigured && (
-            <button
-              type="button"
-              onClick={() =>
-                pwa.pushEnabled ? pwa.disablePush() : onEnablePush()
-              }
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-[var(--fg)] hover:bg-white/5"
-            >
-              <Bell className="h-4 w-4 shrink-0 text-sky-300" />
-              <span>
-                <span className="font-medium">
-                  {pwa.pushEnabled ? t.pwa.pushOn : t.pwa.pushOff}
-                </span>
-                <span className="mt-0.5 block text-[10px] text-[var(--fg-faint)]">
-                  {t.pwa.pushHint}
-                </span>
-              </span>
-            </button>
-          )}
-          {pwa.pushSupported && !pwa.pushConfigured && (
-            <p className="px-2 text-[10px] text-[var(--fg-faint)]">
-              {t.pwa.pushNotConfigured}
-            </p>
-          )}
+        {/* Compact install/notifications still available, but primary is on Home/Settings */}
+        <div className="mb-3">
+          <PwaSetup variant="compact" forceShow />
         </div>
 
         <ul className="security-notif-list">
@@ -350,7 +309,7 @@ export function SecurityNotifications() {
   );
 
   return (
-    <div className="relative" data-sec-bell>
+    <div className="relative" data-sec-bell ref={bellRef}>
       <Button
         type="button"
         variant="ghost"
@@ -358,7 +317,11 @@ export function SecurityNotifications() {
         className="relative"
         aria-label={t.security.monitoringTitle}
         aria-expanded={open}
-        onClick={toggle}
+        aria-haspopup="dialog"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggle();
+        }}
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (

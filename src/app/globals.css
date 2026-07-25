@@ -908,3 +908,66 @@ html[data-reduced-motion="true"] .ambient-orb {
     backdrop-filter: blur(12px);
   }
 }
+
+/* —— Security / in-app notification tray (portaled to body) —— */
+.security-notif-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.72);
+}
+.security-notif-panel {
+  position: fixed;
+  z-index: 90;
+  left: 0.75rem;
+  right: 0.75rem;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  max-height: min(70vh, 32rem);
+  display: flex;
+  flex-direction: column;
+  padding: 0.9rem;
+  color: var(--fg);
+  background: #12182b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.1rem;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 24px 64px rgba(0, 0, 0, 0.75);
+}
+@media (min-width: 768px) {
+  .security-notif-panel {
+    top: 3.75rem;
+    left: auto;
+    right: 1.5rem;
+    width: 22rem;
+    max-height: min(70vh, 28rem);
+    background: #141b32;
+  }
+  .security-notif-scrim {
+    background: rgba(0, 0, 0, 0.45);
+  }
+}
+.security-notif-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.security-notif-item {
+  background: #0a0f1c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.875rem;
+}
