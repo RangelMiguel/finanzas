@@ -74,7 +74,7 @@ export async function GET(req: Request) {
       ]);
 
     const visibleTxns = transactions.filter((t) =>
-      filterTransaction(vis, t, session.userId)
+      filterTransaction(vis, t, m.subjectUserId)
     );
 
     let income = 0;
@@ -120,7 +120,7 @@ export async function GET(req: Request) {
       .slice(0, 6);
 
     const recentVisible = recent
-      .filter((t) => filterTransaction(vis, t, session.userId))
+      .filter((t) => filterTransaction(vis, t, m.subjectUserId))
       .slice(0, 8)
       .map((t) => ({
         ...t,

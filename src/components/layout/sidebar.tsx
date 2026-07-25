@@ -44,8 +44,17 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { t, locale, setLocale, currency, visibility, ready } = useApp();
-  const isAdmin = role === "owner" || role === "admin";
+  const {
+    t,
+    locale,
+    setLocale,
+    currency,
+    visibility,
+    ready,
+    role: realRole,
+  } = useApp();
+  // Admin chrome (Security) uses the real signed-in role, not the simulated one
+  const isAdmin = realRole === "owner" || realRole === "admin";
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Sidebar } from "./sidebar";
 import { useApp } from "@/components/providers/app-provider";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SecurityNotifications } from "@/components/security/security-notifications";
 import { OfflineBanner } from "@/components/offline/offline-banner";
@@ -19,8 +19,18 @@ export function AppShell({
   userName?: string;
   role?: string;
 }) {
-  const { t } = useApp();
+  const { t, tr, impersonating, stopImpersonation, viewRole } = useApp();
   const [open, setOpen] = useState(false);
+  const [exiting, setExiting] = useState(false);
+
+  async function exitViewAs() {
+    setExiting(true);
+    try {
+      await stopImpersonation();
+    } finally {
+      setExiting(false);
+    }
+  }
 
   return (
     <div className="flex min-h-screen text-[var(--fg)]">
@@ -32,7 +42,7 @@ export function AppShell({
         <Sidebar
           householdName={householdName}
           userName={userName}
-          role={role}
+          role={viewRole || role}
         />
       </div>
 
@@ -48,7 +58,7 @@ export function AppShell({
             <Sidebar
               householdName={householdName}
               userName={userName}
-              role={role}
+              role={viewRole || role}
               onNavigate={() => setOpen(false)}
             />
           </div>
@@ -56,6 +66,27 @@ export function AppShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {impersonating && (
+          <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 border-b border-amber-400/30 bg-amber-500/15 px-4 py-2 text-sm text-amber-50 md:px-8">
+            <span className="flex min-w-0 items-center gap-2">
+              <Eye className="h-4 w-4 shrink-0" />
+              <span className="truncate">
+                {tr(t.security.viewingAs, {
+                  name: impersonating.label,
+                  role: impersonating.role,
+                })}
+              </span>
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={exiting}
+              onClick={exitViewAs}
+            >
+              {t.security.exitViewAs}
+            </Button>
+          </div>
+        )}
         <OfflineBanner />
         <header className="app-topbar sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3 md:px-8">
           <div className="flex min-w-0 items-center gap-2">

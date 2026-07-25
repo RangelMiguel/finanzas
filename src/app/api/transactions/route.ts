@@ -123,15 +123,15 @@ export async function GET(req: Request) {
     });
 
     const filtered = transactions
-      .filter((txn) => filterTransaction(m.visibility, txn, session.userId))
+      .filter((txn) => filterTransaction(m.visibility, txn, m.subjectUserId))
       .slice(0, limit)
       .map((txn) => {
         if (!m.visibility.showOtherMembers) {
           return {
             ...txn,
             createdBy:
-              txn.createdById === session.userId ? txn.createdBy : null,
-            spentBy: txn.spentById === session.userId ? txn.spentBy : null,
+              txn.createdById === m.subjectUserId ? txn.createdBy : null,
+            spentBy: txn.spentById === m.subjectUserId ? txn.spentBy : null,
           };
         }
         return txn;

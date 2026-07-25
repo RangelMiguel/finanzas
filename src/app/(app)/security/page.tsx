@@ -14,7 +14,6 @@ import { toast } from "sonner";
 import {
   FULL_VISIBILITY,
   LIMITED_VISIBILITY,
-  isPrivilegedRole,
   type MemberVisibility,
 } from "@/lib/visibility";
 import { Shield, KeyRound, Radio, Trash2, Eye, BookmarkPlus } from "lucide-react";
@@ -22,7 +21,6 @@ import {
   startRegistration,
   browserSupportsWebAuthn,
 } from "@simplewebauthn/browser";
-import { PolicyPreviewModal } from "@/components/security/policy-preview";
 
 type Member = {
   id: string;
@@ -120,7 +118,7 @@ const MODULE_KEYS: (keyof MemberVisibility["modules"])[] = [
 ];
 
 export default function SecurityPage() {
-  const { t, tr, role, refresh, money } = useApp();
+  const { t, tr, role, refresh } = useApp();
   const { confirm } = useConfirm();
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
@@ -135,7 +133,6 @@ export default function SecurityPage() {
   const [alertSince, setAlertSince] = useState<string | null>(null);
   const [templates, setTemplates] = useState<VisibilityTemplate[]>([]);
   const [templateName, setTemplateName] = useState("");
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [bulkIds, setBulkIds] = useState<string[]>([]);
   const [bulkTemplateId, setBulkTemplateId] = useState("");
 
@@ -355,6 +352,23 @@ export default function SecurityPage() {
       toast.error(e instanceof Error ? e.message : t.error);
     } finally {
       setLoading(false);
+    }
+  }
+
+
+  async function startViewAs() {
+    if (!selectedId || isOwnerTarget) return;
+    try {
+      const body = isInviteTarget(selectedId)
+        ? { inviteId: inviteIdFromTarget(selectedId) }
+        : { membershipId: selectedId };
+      await api("/api/security/impersonate", { method: "POST", json: body });
+      toast.success(t.security.viewAsStarted);
+      await refresh();
+      // Navigate home so the member experience is obvious
+      window.location.href = "/";
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
     }
   }
 
@@ -646,11 +660,13 @@ export default function SecurityPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
-              onClick={() => setPreviewOpen(true)}
-              disabled={isOwnerTarget}
+              onClick={startViewAs}
+              disabled={loading || isOwnerTarget || !selectedId}
             >
               <Eye className="h-4 w-4" />
-              {t.security.preview}
+              {isInviteSelected
+                ? t.security.viewAsInvite
+                : t.security.viewAs}
             </Button>
             {isInviteSelected && (
               <Button
@@ -670,43 +686,6 @@ export default function SecurityPage() {
         }
       />
       <p className="text-xs text-[var(--fg-faint)]">{t.security.hint}</p>
-
-      <PolicyPreviewModal
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        policy={policy}
-        role={previewRole}
-        catalogs={catalogs}
-        moduleLabels={moduleLabels}
-        isPrivilegedRole={isPrivilegedRole(previewRole)}
-        labels={{
-          title: t.security.previewTitle,
-          subtitle: tr(t.security.previewSubtitle, { role: previewRole }),
-          adminNote: t.security.previewAdminNote,
-          modules: t.security.previewModules,
-          modulesNone: t.security.previewModulesNone,
-          txn: t.security.previewTxn,
-          accounts: t.security.previewAccounts,
-          cards: t.security.previewCards,
-          debts: t.security.previewDebts,
-          flags: t.security.previewFlags,
-          balancesOn: t.security.previewBalancesOn,
-          balancesOff: t.security.previewBalancesOff,
-          onlyOwn: t.security.previewOnlyOwn,
-          allTxn: t.security.previewAllTxn,
-          namesOn: t.security.previewNamesOn,
-          namesOff: t.security.previewNamesOff,
-          showIncome: t.security.showIncome,
-          showExpense: t.security.showExpense,
-          showTransfers: t.security.showTransfers,
-          dashIncome: t.security.dashIncome,
-          dashExpense: t.security.dashExpense,
-          dashBalance: t.security.dashBalance,
-          close: t.security.closePreview,
-          visible: t.security.previewVisible,
-          hidden: t.security.previewHidden,
-        }}
-      />
 
       {passkeysBlock}
 
@@ -961,6 +940,11 @@ export default function SecurityPage() {
                 {t.security.pendingHint}
               </p>
             )}
+            {!isOwnerTarget && selectedId && (
+              <p className="mt-1 text-xs text-[var(--fg-faint)]">
+                {t.security.viewAsHint}
+              </p>
+            )}
           </div>
           <div>
             <Label>{t.security.presets}</Label>
@@ -1147,7 +1131,8 @@ export default function SecurityPage() {
               onToggle={(id) => toggleInList("allowedAccountIds", id)}
             />
             <MultiPick
-              title={t.security.categories}
+              title={t.security.categoriesHide || t.security.categories}
+              hint={t.security.categoriesHideHint}
               items={catalogs.categories.map((c) => ({
                 id: c.id,
                 label: `${c.icon} ${c.name} (${c.type})`,
@@ -1173,27 +1158,7 @@ export default function SecurityPage() {
               selected={policy.hiddenDebtIds}
               onToggle={(id) => toggleInList("hiddenDebtIds", id)}
             />
-            <MultiPick
-              title={t.security.hideTransactions}
-              hint={t.security.hideTransactionsHint}
-              items={(catalogs.transactions || []).map((tx) => ({
-                id: tx.id,
-                label: `${tx.date} · ${tx.category?.icon || "•"} ${tx.description} · ${money(tx.amountCents)} (${tx.type})`,
-              }))}
-              selected={policy.hiddenTransactionIds || []}
-              onToggle={(id) => toggleInList("hiddenTransactionIds", id)}
-            />
-            <MultiPick
-              title={t.security.hideBudgets}
-              hint={t.security.hideBudgetsHint}
-              items={(catalogs.budgets || []).map((b) => ({
-                id: b.id,
-                label: `${b.category.icon} ${b.category.name} · ${b.period} · ${money(b.amountCents)}`,
-              }))}
-              selected={policy.hiddenBudgetIds || []}
-              onToggle={(id) => toggleInList("hiddenBudgetIds", id)}
-            />
-          </>
+</>
         )}
       </fieldset>
     </div>

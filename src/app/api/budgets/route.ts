@@ -75,7 +75,7 @@ export async function GET(req: Request) {
     const spentByCat: Record<string, number> = {};
     for (const e of expenses) {
       if (!e.categoryId) continue;
-      if (!filterTransaction(m.visibility, e, session.userId)) continue;
+      if (!filterTransaction(m.visibility, e, m.subjectUserId)) continue;
       spentByCat[e.categoryId] =
         (spentByCat[e.categoryId] || 0) + e.amountCents;
     }

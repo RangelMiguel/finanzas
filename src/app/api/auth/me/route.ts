@@ -1,4 +1,8 @@
-import { getSession, getActiveMembership } from "@/lib/auth";
+import {
+  getSession,
+  getActiveMembership,
+  requireHouseholdAccess,
+} from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonOk } from "@/lib/access";
 import { NextResponse } from "next/server";
@@ -22,12 +26,38 @@ export async function GET() {
       })
     : [];
 
-  const visibility = membership
+  // Apply impersonation for visibility / view-as mode
+  let visibility = membership
     ? effectiveVisibility(
         membership.role,
         (membership as { visibility?: string }).visibility
       )
     : null;
+  let impersonating: {
+    kind: "membership" | "invite";
+    id: string;
+    role: string;
+    label: string;
+  } | null = null;
+  let viewRole = membership?.role ?? null;
+
+  if (membership) {
+    try {
+      const access = await requireHouseholdAccess(session.userId);
+      visibility = access.visibility;
+      viewRole = access.impersonating?.role ?? membership.role;
+      if (access.impersonating) {
+        impersonating = {
+          kind: access.impersonating.kind,
+          id: access.impersonating.id,
+          role: access.impersonating.role,
+          label: access.impersonating.label,
+        };
+      }
+    } catch {
+      /* no household access */
+    }
+  }
 
   const pref = await prisma.userPreference.findUnique({
     where: { userId: session.userId },
@@ -42,10 +72,14 @@ export async function GET() {
       locale: user.locale || "es",
     },
     household: membership?.household ?? null,
+    /** Real role of the signed-in user (admin checks) */
     role: membership?.role ?? null,
+    /** Role of the view being simulated (if any) */
+    viewRole,
     currency: membership?.household.currency ?? "MXN",
     theme: pref?.theme ?? "midnight",
     visibility,
+    impersonating,
     members: members.map((m) => ({
       id: m.id,
       role: m.role,

@@ -49,7 +49,7 @@ export async function GET() {
     });
     // Exclude transactions this member is not allowed to see (so balances don't leak them)
     const visibleTxns = txns.filter((t) =>
-      filterTransaction(m.visibility, t, session.userId)
+      filterTransaction(m.visibility, t, m.subjectUserId)
     );
     const withBalances = visible.map((a) => ({
       ...a,

@@ -1,12 +1,18 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
-import { effectiveVisibility, type MemberVisibility } from "./visibility";
+import {
+  effectiveVisibility,
+  parseVisibility,
+  type MemberVisibility,
+} from "./visibility";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "crypto";
 
 const COOKIE = "mf_session";
+const IMPERSONATE_COOKIE = "mf_impersonate";
 const MAX_AGE = 60 * 60 * 24 * 14; // 14 days
+const IMPERSONATE_MAX_AGE = 60 * 60 * 8; // 8 hours
 
 function secret() {
   const s = process.env.AUTH_SECRET;
@@ -169,25 +175,172 @@ export async function getActiveMembership(userId: string, householdId?: string) 
   });
 }
 
+export type ImpersonationState = {
+  kind: "membership" | "invite";
+  id: string;
+  householdId: string;
+  role: string;
+  /** User id for onlyOwn filters; null when previewing an invite */
+  subjectUserId: string | null;
+  label: string;
+  visibilityRaw: string;
+};
+
+export type HouseholdAccess = NonNullable<
+  Awaited<ReturnType<typeof getActiveMembership>>
+> & {
+  visibility: MemberVisibility;
+  /** Real admin/owner role of the signed-in user */
+  realRole: string;
+  /** User id used for visibility filters (impersonated member when active) */
+  subjectUserId: string;
+  impersonating: ImpersonationState | null;
+};
+
+/** Read active impersonation cookie (if any). */
+export async function readImpersonationCookie(): Promise<{
+  kind: "membership" | "invite";
+  id: string;
+} | null> {
+  const jar = await cookies();
+  const raw = jar.get(IMPERSONATE_COOKIE)?.value;
+  if (!raw) return null;
+  if (raw.startsWith("m:")) return { kind: "membership", id: raw.slice(2) };
+  if (raw.startsWith("i:")) return { kind: "invite", id: raw.slice(2) };
+  return null;
+}
+
+export async function setImpersonationCookie(
+  kind: "membership" | "invite",
+  id: string
+) {
+  const jar = await cookies();
+  jar.set(IMPERSONATE_COOKIE, `${kind === "membership" ? "m" : "i"}:${id}`, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: IMPERSONATE_MAX_AGE,
+  });
+}
+
+export async function clearImpersonationCookie() {
+  const jar = await cookies();
+  jar.delete(IMPERSONATE_COOKIE);
+}
+
+async function resolveImpersonation(
+  householdId: string
+): Promise<ImpersonationState | null> {
+  const cookie = await readImpersonationCookie();
+  if (!cookie) return null;
+
+  if (cookie.kind === "membership") {
+    const target = await prisma.membership.findFirst({
+      where: { id: cookie.id, householdId },
+      include: {
+        user: { select: { id: true, displayName: true, email: true } },
+      },
+    });
+    if (!target) {
+      await clearImpersonationCookie();
+      return null;
+    }
+    return {
+      kind: "membership",
+      id: target.id,
+      householdId,
+      role: target.role,
+      subjectUserId: target.userId,
+      label: target.user.displayName || target.user.email,
+      visibilityRaw: target.visibility || "{}",
+    };
+  }
+
+  const invite = await prisma.invite.findFirst({
+    where: { id: cookie.id, householdId, acceptedAt: null },
+  });
+  if (!invite) {
+    await clearImpersonationCookie();
+    return null;
+  }
+  return {
+    kind: "invite",
+    id: invite.id,
+    householdId,
+    role: invite.role,
+    subjectUserId: null,
+    label: invite.email,
+    visibilityRaw: invite.visibility || "{}",
+  };
+}
+
 export async function requireHouseholdAccess(
   userId: string,
   opts?: { write?: boolean; admin?: boolean; householdId?: string }
-) {
+): Promise<HouseholdAccess> {
   const m = await getActiveMembership(userId, opts?.householdId);
   if (!m) throw new ForbiddenError("No perteneces a un hogar");
+
+  // Privilege checks always use the real membership
   if (opts?.write && !canWrite(m.role)) {
     throw new ForbiddenError("Solo lectura: no puedes modificar datos");
   }
   if (opts?.admin && !canAdmin(m.role)) {
     throw new ForbiddenError("Se requieren permisos de administrador");
   }
+
+  // Only real admins/owners may hold an active impersonation session
+  const activeImp = canAdmin(m.role)
+    ? await resolveImpersonation(m.householdId)
+    : null;
+
+  // Block mutations while impersonating (view-only walkthrough)
+  if (opts?.write && activeImp) {
+    throw new ForbiddenError(
+      "Estás en vista de miembro. Sal de la simulación para modificar datos."
+    );
+  }
+
+  // Admin-only routes always use real full admin access (security UI stays usable)
+  if (opts?.admin) {
+    const visibility = effectiveVisibility(
+      m.role,
+      (m as { visibility?: string }).visibility
+    );
+    return Object.assign(m, {
+      visibility,
+      realRole: m.role,
+      subjectUserId: userId,
+      impersonating: activeImp,
+    }) as HouseholdAccess;
+  }
+
+  if (activeImp) {
+    // What that member actually experiences:
+    // owner/admin → full; member/viewer → stored policy
+    const visibility = effectiveVisibility(
+      activeImp.role,
+      activeImp.visibilityRaw
+    );
+    return Object.assign(m, {
+      visibility,
+      realRole: m.role,
+      subjectUserId: activeImp.subjectUserId || "__invite_preview__",
+      impersonating: activeImp,
+    }) as HouseholdAccess;
+  }
+
   const visibility = effectiveVisibility(
     m.role,
     (m as { visibility?: string }).visibility
   );
-  return Object.assign(m, { visibility }) as typeof m & {
-    visibility: MemberVisibility;
-  };
+  return Object.assign(m, {
+    visibility,
+    realRole: m.role,
+    subjectUserId: userId,
+    impersonating: null,
+  }) as HouseholdAccess;
 }
 
 export function hashToken(token: string) {
@@ -198,4 +351,5 @@ export function generateInviteToken() {
   return randomBytes(32).toString("hex");
 }
 
-export { COOKIE as SESSION_COOKIE };
+export { COOKIE as SESSION_COOKIE, IMPERSONATE_COOKIE };
+

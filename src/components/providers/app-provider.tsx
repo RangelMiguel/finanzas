@@ -37,15 +37,26 @@ export type A11yPrefs = {
   underlineLinks: boolean;
 };
 
+export type ImpersonationInfo = {
+  kind: "membership" | "invite";
+  id: string;
+  role: string;
+  label: string;
+};
+
 type AppContextValue = {
   locale: AppLocale;
   currency: string;
+  /** Real signed-in role (owner/admin checks) */
   role: string | null;
+  /** Role of the simulated view when impersonating */
+  viewRole: string | null;
   householdName: string | null;
   displayName: string | null;
   userId: string | null;
   members: Member[];
   visibility: MemberVisibility;
+  impersonating: ImpersonationInfo | null;
   ready: boolean;
   a11y: A11yPrefs;
   theme: ThemeId;
@@ -56,6 +67,7 @@ type AppContextValue = {
   setCurrency: (currency: string) => Promise<void>;
   setA11y: (patch: Partial<A11yPrefs>) => void;
   setTheme: (theme: ThemeId) => Promise<void>;
+  stopImpersonation: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -84,6 +96,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<AppLocale>("es");
   const [currency, setCurrencyState] = useState("MXN");
   const [role, setRole] = useState<string | null>(null);
+  const [viewRole, setViewRole] = useState<string | null>(null);
   const [householdName, setHouseholdName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -92,6 +105,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [a11y, setA11yState] = useState<A11yPrefs>(defaultA11y);
   const [theme, setThemeState] = useState<ThemeId>(DEFAULT_THEME);
   const [visibility, setVisibility] = useState<MemberVisibility>(FULL_VISIBILITY);
+  const [impersonating, setImpersonating] =
+    useState<ImpersonationInfo | null>(null);
 
   useEffect(() => {
     try {
@@ -125,18 +140,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         household: { name: string; currency: string } | null;
         currency?: string;
         role: string | null;
+        viewRole?: string | null;
         members: Member[];
         visibility?: MemberVisibility | null;
         theme?: string | null;
+        impersonating?: ImpersonationInfo | null;
       }>("/api/auth/me");
       const loc = (data.user.locale === "en" ? "en" : "es") as AppLocale;
       setLocaleState(loc);
       setCurrencyState(data.currency || data.household?.currency || "MXN");
       setRole(data.role);
+      setViewRole(data.viewRole ?? data.role);
       setHouseholdName(data.household?.name ?? null);
       setDisplayName(data.user.displayName);
       setUserId(data.user.userId ?? null);
       setMembers(data.members || []);
+      setImpersonating(data.impersonating ?? null);
       if (data.visibility) setVisibility(data.visibility);
       else setVisibility(FULL_VISIBILITY);
       if (data.theme != null) {
@@ -199,6 +218,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const stopImpersonation = useCallback(async () => {
+    try {
+      await api("/api/security/impersonate", { method: "DELETE" });
+    } catch {
+      /* ignore */
+    }
+    await refresh();
+  }, [refresh]);
+
   const t = dictionaries[locale] || dictionaries.es;
 
   const value = useMemo<AppContextValue>(
@@ -206,11 +234,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       locale,
       currency,
       role,
+      viewRole,
       householdName,
       displayName,
       userId,
       members,
       visibility,
+      impersonating,
       ready,
       a11y,
       theme,
@@ -221,17 +251,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrency,
       setA11y,
       setTheme,
+      stopImpersonation,
       refresh,
     }),
     [
       locale,
       currency,
       role,
+      viewRole,
       householdName,
       displayName,
       userId,
       members,
       visibility,
+      impersonating,
       ready,
       a11y,
       theme,
@@ -240,6 +273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrency,
       setA11y,
       setTheme,
+      stopImpersonation,
       refresh,
     ]
   );
