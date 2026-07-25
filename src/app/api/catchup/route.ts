@@ -102,6 +102,14 @@ export async function POST(req: Request) {
         toAccountId: true,
         date: true,
         deletedAt: true,
+        creditCardId: true,
+        fundings: {
+          select: {
+            amountCents: true,
+            accountId: true,
+            creditCardId: true,
+          },
+        },
       },
     });
 

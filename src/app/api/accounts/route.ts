@@ -29,6 +29,14 @@ export async function GET() {
         toAccountId: true,
         date: true,
         deletedAt: true,
+        creditCardId: true,
+        fundings: {
+          select: {
+            amountCents: true,
+            accountId: true,
+            creditCardId: true,
+          },
+        },
       },
     });
     const withBalances = visible.map((a) => ({

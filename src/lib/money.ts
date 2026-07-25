@@ -1,3 +1,9 @@
+export type FundingLike = {
+  amountCents: number;
+  accountId?: string | null;
+  creditCardId?: string | null;
+};
+
 export type TxnLike = {
   type: string;
   amountCents: number;
@@ -5,6 +11,9 @@ export type TxnLike = {
   toAccountId?: string | null;
   date: string;
   deletedAt?: Date | null;
+  /** Split payment sources; when present, expense bank impact uses these. */
+  fundings?: FundingLike[] | null;
+  creditCardId?: string | null;
 };
 
 export function signedAmountForAccount(
@@ -13,7 +22,16 @@ export function signedAmountForAccount(
 ): number {
   if (txn.deletedAt) return 0;
   if (txn.type === "income" && txn.accountId === accountId) return txn.amountCents;
-  if (txn.type === "expense" && txn.accountId === accountId) return -txn.amountCents;
+  if (txn.type === "expense") {
+    if (txn.fundings && txn.fundings.length > 0) {
+      return -txn.fundings
+        .filter((f) => f.accountId === accountId)
+        .reduce((s, f) => s + f.amountCents, 0);
+    }
+    // Legacy: CC charges should not drain the bank (paid on statement due date)
+    if (txn.creditCardId) return 0;
+    if (txn.accountId === accountId) return -txn.amountCents;
+  }
   if (txn.type === "transfer") {
     if (txn.accountId === accountId) return -txn.amountCents;
     if (txn.toAccountId === accountId) return txn.amountCents;

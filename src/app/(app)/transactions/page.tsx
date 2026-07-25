@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
-import { monthKey, todayISO, centsToInput } from "@/lib/utils";
+import { monthKey, todayISO, centsToInput, amountToCents } from "@/lib/utils";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
+import { sourceKey } from "@/lib/transaction-funding";
+
+type FundingRow = {
+  id: string;
+  amountCents: number;
+  accountId?: string | null;
+  creditCardId?: string | null;
+  account?: { id: string; name: string } | null;
+  creditCard?: { id: string; name: string; lastFour?: string } | null;
+};
 
 type Txn = {
   id: string;
@@ -25,6 +35,7 @@ type Txn = {
   category?: { name: string; icon: string } | null;
   account?: { name: string } | null;
   creditCard?: { name: string } | null;
+  fundings?: FundingRow[];
   createdBy?: { displayName: string } | null;
   spentBy?: { displayName: string } | null;
 };
@@ -33,20 +44,61 @@ type Acc = { id: string; name: string };
 type CardT = { id: string; name: string };
 type Member = { user: { id: string; displayName: string } };
 
-const emptyForm = {
-  date: todayISO(),
-  description: "",
-  amount: "",
-  type: "expense",
-  categoryId: "",
-  accountId: "",
-  creditCardId: "",
-  msiMonths: "",
-  spentById: "",
-};
+type PayLine = { source: string; amount: string };
+
+function defaultSource(accounts: Acc[], cards: CardT[]): string {
+  if (accounts[0]) return sourceKey("account", accounts[0].id);
+  if (cards[0]) return sourceKey("card", cards[0].id);
+  return "";
+}
+
+function fundingsToPayLines(txn: Txn): PayLine[] {
+  if (txn.fundings && txn.fundings.length > 0) {
+    return txn.fundings.map((f) => ({
+      source: f.creditCardId
+        ? sourceKey("card", f.creditCardId)
+        : f.accountId
+          ? sourceKey("account", f.accountId)
+          : "",
+      amount: centsToInput(f.amountCents),
+    }));
+  }
+  if (txn.creditCardId) {
+    return [
+      {
+        source: sourceKey("card", txn.creditCardId),
+        amount: centsToInput(txn.amountCents),
+      },
+    ];
+  }
+  if (txn.accountId) {
+    return [
+      {
+        source: sourceKey("account", txn.accountId),
+        amount: centsToInput(txn.amountCents),
+      },
+    ];
+  }
+  return [{ source: "", amount: centsToInput(txn.amountCents) }];
+}
+
+function fundingLabel(txn: Txn): string {
+  if (txn.fundings && txn.fundings.length > 0) {
+    return txn.fundings
+      .map((f) => {
+        if (f.creditCard) return f.creditCard.name;
+        if (f.account) return f.account.name;
+        return "?";
+      })
+      .join(" + ");
+  }
+  if (txn.creditCard) return txn.creditCard.name;
+  if (txn.account) return txn.account.name;
+  return "";
+}
 
 export default function TransactionsPage() {
-  const { t, money, members } = useApp();
+  const { t, money, members, tr } = useApp();
   const [month, setMonth] = useState(monthKey());
   const [txns, setTxns] = useState<Txn[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
@@ -54,7 +106,19 @@ export default function TransactionsPage() {
   const [cards, setCards] = useState<CardT[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState({
+    date: todayISO(),
+    description: "",
+    amount: "",
+    type: "expense",
+    categoryId: "",
+    msiMonths: "",
+    spentById: "",
+    incomeAccountId: "",
+  });
+  const [payLines, setPayLines] = useState<PayLine[]>([
+    { source: "", amount: "" },
+  ]);
 
   async function load() {
     const [txnRes, c, a, cc] = await Promise.all([
@@ -67,15 +131,32 @@ export default function TransactionsPage() {
     setCategories(c.categories);
     setAccounts(a.accounts);
     setCards(cc.creditCards);
-    if (a.accounts[0] && !form.accountId) {
-      setForm((f) => ({ ...f, accountId: a.accounts[0].id }));
-    }
+    setForm((f) => ({
+      ...f,
+      incomeAccountId: f.incomeAccountId || a.accounts[0]?.id || "",
+    }));
+    setPayLines((lines) =>
+      lines[0]?.source
+        ? lines
+        : [{ source: defaultSource(a.accounts, cc.creditCards), amount: "" }]
+    );
   }
 
   useEffect(() => {
     load().catch((e) => toast.error(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
+
+  const totalCents = amountToCents(form.amount || 0);
+  const paySumCents = useMemo(
+    () => payLines.reduce((s, p) => s + amountToCents(p.amount || 0), 0),
+    [payLines]
+  );
+
+  const singleCardSource =
+    form.type === "expense" &&
+    payLines.length === 1 &&
+    payLines[0]?.source.startsWith("card:");
 
   function openEdit(txn: Txn) {
     setEditId(txn.id);
@@ -85,50 +166,139 @@ export default function TransactionsPage() {
       amount: centsToInput(txn.amountCents),
       type: txn.type === "transfer" ? "expense" : txn.type,
       categoryId: txn.categoryId || "",
-      accountId: txn.accountId || "",
-      creditCardId: txn.creditCardId || "",
       msiMonths: "",
       spentById: txn.spentById || "",
+      incomeAccountId: txn.accountId || accounts[0]?.id || "",
     });
+    setPayLines(
+      txn.type === "expense"
+        ? fundingsToPayLines(txn)
+        : [{ source: defaultSource(accounts, cards), amount: "" }]
+    );
     setMode("edit");
+  }
+
+  function openNew() {
+    setMode("new");
+    setEditId(null);
+    const src = defaultSource(accounts, cards);
+    setForm({
+      date: todayISO(),
+      description: "",
+      amount: "",
+      type: "expense",
+      categoryId: "",
+      msiMonths: "",
+      spentById: "",
+      incomeAccountId: accounts[0]?.id || "",
+    });
+    setPayLines([{ source: src, amount: "" }]);
+  }
+
+  function setPayLine(i: number, patch: Partial<PayLine>) {
+    setPayLines((rows) =>
+      rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r))
+    );
+  }
+
+  function addPayLine() {
+    setPayLines((rows) => [
+      ...rows,
+      { source: defaultSource(accounts, cards), amount: "" },
+    ]);
+  }
+
+  function removePayLine(i: number) {
+    setPayLines((rows) => (rows.length <= 1 ? rows : rows.filter((_, idx) => idx !== i)));
+  }
+
+  /** When total changes and only one pay line, keep its amount in sync. */
+  function onAmountChange(value: string) {
+    setForm((f) => ({ ...f, amount: value }));
+    setPayLines((rows) => {
+      if (rows.length === 1) return [{ ...rows[0], amount: value }];
+      return rows;
+    });
   }
 
   async function save() {
     try {
-      if (mode === "edit" && editId) {
-        await api("/api/transactions", {
-          method: "PATCH",
-          json: {
-            id: editId,
-            date: form.date,
-            description: form.description,
-            amount: form.amount,
-            type: form.type as "income" | "expense",
-            categoryId: form.categoryId || null,
-            accountId: form.accountId || null,
-            creditCardId: form.creditCardId || null,
-            spentById: form.spentById || null,
-          },
-        });
-        toast.success(t.transactions.updated || t.success);
+      if (form.type === "expense") {
+        const fundings = payLines.map((p) => ({
+          source: p.source,
+          amount: p.amount || "0",
+        }));
+        if (mode === "edit" && editId) {
+          await api("/api/transactions", {
+            method: "PATCH",
+            json: {
+              id: editId,
+              date: form.date,
+              description: form.description,
+              amount: form.amount,
+              type: "expense",
+              categoryId: form.categoryId || null,
+              fundings,
+              spentById: form.spentById || null,
+            },
+          });
+          toast.success(t.transactions.updated || t.success);
+        } else {
+          await api("/api/transactions", {
+            method: "POST",
+            json: {
+              date: form.date,
+              description: form.description,
+              amount: form.amount,
+              type: "expense",
+              categoryId: form.categoryId || null,
+              fundings,
+              spentById: form.spentById || null,
+              msiMonths: form.msiMonths
+                ? parseInt(form.msiMonths, 10)
+                : undefined,
+              autoCategory: !form.categoryId,
+            },
+          });
+          toast.success(t.transactions.created);
+        }
       } else {
-        await api("/api/transactions", {
-          method: "POST",
-          json: {
-            ...form,
-            categoryId: form.categoryId || null,
-            accountId: form.accountId || null,
-            creditCardId: form.creditCardId || null,
-            spentById: form.spentById || null,
-            msiMonths: form.msiMonths ? parseInt(form.msiMonths, 10) : undefined,
-            autoCategory: !form.categoryId,
-          },
-        });
-        toast.success(t.transactions.created);
+        // income: single account
+        if (mode === "edit" && editId) {
+          await api("/api/transactions", {
+            method: "PATCH",
+            json: {
+              id: editId,
+              date: form.date,
+              description: form.description,
+              amount: form.amount,
+              type: "income",
+              categoryId: form.categoryId || null,
+              accountId: form.incomeAccountId || null,
+              creditCardId: null,
+              spentById: form.spentById || null,
+            },
+          });
+          toast.success(t.transactions.updated || t.success);
+        } else {
+          await api("/api/transactions", {
+            method: "POST",
+            json: {
+              date: form.date,
+              description: form.description,
+              amount: form.amount,
+              type: "income",
+              categoryId: form.categoryId || null,
+              accountId: form.incomeAccountId || null,
+              spentById: form.spentById || null,
+              autoCategory: !form.categoryId,
+            },
+          });
+          toast.success(t.transactions.created);
+        }
       }
       setMode("none");
       setEditId(null);
-      setForm((f) => ({ ...emptyForm, accountId: f.accountId }));
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
@@ -163,19 +333,7 @@ export default function TransactionsPage() {
               className="w-auto"
               aria-label={t.period}
             />
-            <Button
-              onClick={() => {
-                setMode("new");
-                setEditId(null);
-                setForm((f) => ({
-                  ...emptyForm,
-                  accountId: f.accountId || accounts[0]?.id || "",
-                  date: todayISO(),
-                }));
-              }}
-            >
-              {t.transactions.new}
-            </Button>
+            <Button onClick={openNew}>{t.transactions.new}</Button>
           </>
         }
       />
@@ -225,7 +383,7 @@ export default function TransactionsPage() {
               <Input
                 className="mt-1"
                 value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                onChange={(e) => onAmountChange(e.target.value)}
               />
             </div>
             <div>
@@ -245,23 +403,107 @@ export default function TransactionsPage() {
                 ))}
               </Select>
             </div>
-            <div>
-              <Label>{t.account}</Label>
-              <Select
-                className="mt-1"
-                value={form.accountId}
-                onChange={(e) =>
-                  setForm({ ...form, accountId: e.target.value })
-                }
-              >
-                <option value="">{t.none}</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
+
+            {form.type === "income" ? (
+              <div className="sm:col-span-2">
+                <Label>{t.transactions.paidWithIncome}</Label>
+                <Select
+                  className="mt-1"
+                  value={form.incomeAccountId}
+                  onChange={(e) =>
+                    setForm({ ...form, incomeAccountId: e.target.value })
+                  }
+                >
+                  <option value="">{t.none}</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : (
+              <div className="sm:col-span-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>{t.transactions.paidWith}</Label>
+                  <Button type="button" variant="secondary" size="sm" onClick={addPayLine}>
+                    {t.transactions.addPayment}
+                  </Button>
+                </div>
+                <p className="text-xs text-[var(--fg-faint)]">
+                  {t.transactions.paymentSplitHint}
+                </p>
+                {payLines.map((line, i) => (
+                  <div
+                    key={i}
+                    className="grid gap-2 rounded-xl border border-[var(--border)] p-3 sm:grid-cols-[1fr_8rem_auto]"
+                  >
+                    <div>
+                      <Label className="text-xs">{t.transactions.paymentSource}</Label>
+                      <Select
+                        className="mt-1"
+                        value={line.source}
+                        onChange={(e) => setPayLine(i, { source: e.target.value })}
+                      >
+                        <option value="">{t.select}</option>
+                        {accounts.length > 0 && (
+                          <optgroup label={t.transactions.sourceAccounts}>
+                            {accounts.map((a) => (
+                              <option key={a.id} value={sourceKey("account", a.id)}>
+                                {a.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {cards.length > 0 && (
+                          <optgroup label={t.transactions.sourceCards}>
+                            {cards.map((c) => (
+                              <option key={c.id} value={sourceKey("card", c.id)}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">{t.transactions.paymentAmount}</Label>
+                      <Input
+                        className="mt-1"
+                        value={line.amount}
+                        onChange={(e) => setPayLine(i, { amount: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={payLines.length <= 1}
+                        onClick={() => removePayLine(i)}
+                      >
+                        {t.transactions.removePayment}
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </Select>
-            </div>
+                {totalCents > 0 && (
+                  <p
+                    className={
+                      paySumCents === totalCents
+                        ? "text-xs text-[var(--fg-faint)]"
+                        : "text-xs text-amber-400"
+                    }
+                  >
+                    {tr(t.transactions.paymentSum, {
+                      sum: money(paySumCents),
+                      total: money(totalCents),
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
+
             {form.type === "expense" && (
               <>
                 <div>
@@ -281,24 +523,7 @@ export default function TransactionsPage() {
                     ))}
                   </Select>
                 </div>
-                <div>
-                  <Label>{t.transactions.creditCard}</Label>
-                  <Select
-                    className="mt-1"
-                    value={form.creditCardId}
-                    onChange={(e) =>
-                      setForm({ ...form, creditCardId: e.target.value })
-                    }
-                  >
-                    <option value="">{t.transactions.cashDebit}</option>
-                    {cards.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                {mode === "new" && form.creditCardId && (
+                {mode === "new" && singleCardSource && (
                   <div>
                     <Label>{t.transactions.msi}</Label>
                     <Input
@@ -329,52 +554,55 @@ export default function TransactionsPage() {
               {t.transactions.empty}
             </p>
           )}
-          {txns.map((txn) => (
-            <div
-              key={txn.id}
-              className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
-            >
-              <div className="min-w-0">
-                <div className="truncate font-medium">
-                  {txn.category?.icon || "•"} {txn.description}
+          {txns.map((txn) => {
+            const paid = fundingLabel(txn);
+            return (
+              <div
+                key={txn.id}
+                className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">
+                    {txn.category?.icon || "•"} {txn.description}
+                  </div>
+                  <div className="text-xs text-[var(--fg-faint)]">
+                    {txn.date}
+                    {paid ? ` · ${paid}` : ""}
+                    {txn.spentBy ? ` · ${txn.spentBy.displayName}` : ""}
+                  </div>
                 </div>
-                <div className="text-xs text-[var(--fg-faint)]">
-                  {txn.date}
-                  {txn.account ? ` · ${txn.account.name}` : ""}
-                  {txn.spentBy ? ` · ${txn.spentBy.displayName}` : ""}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={
-                    txn.type === "income"
-                      ? "money-income"
-                      : txn.type === "transfer"
-                        ? "text-[var(--fg-muted)]"
-                        : "money-expense"
-                  }
-                >
-                  {money(txn.amountCents)}
-                </span>
-                {txn.type !== "transfer" && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => openEdit(txn)}
+                <div className="flex items-center gap-2">
+                  <span
+                    className={
+                      txn.type === "income"
+                        ? "money-income"
+                        : txn.type === "transfer"
+                          ? "text-[var(--fg-muted)]"
+                          : "money-expense"
+                    }
                   >
-                    {t.edit}
+                    {money(txn.amountCents)}
+                  </span>
+                  {txn.type !== "transfer" && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openEdit(txn)}
+                    >
+                      {t.edit}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => remove(txn.id)}
+                  >
+                    {t.delete}
                   </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => remove(txn.id)}
-                >
-                  {t.delete}
-                </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
     </div>

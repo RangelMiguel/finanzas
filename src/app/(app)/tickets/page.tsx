@@ -12,6 +12,7 @@ import { useApp } from "@/components/providers/app-provider";
 import { toast } from "sonner";
 import { ocrTicketImage } from "@/lib/ticket-parse";
 import { todayISO } from "@/lib/utils";
+import { sourceKey } from "@/lib/transaction-funding";
 import { Receipt, ScanLine, CheckSquare, Square } from "lucide-react";
 
 type Item = {
@@ -50,8 +51,7 @@ export default function TicketsPage() {
   const [merchant, setMerchant] = useState("");
   const [ticketTotal, setTicketTotal] = useState<number | null>(null);
   const [date, setDate] = useState(todayISO());
-  const [accountId, setAccountId] = useState("");
-  const [creditCardId, setCreditCardId] = useState("");
+  const [paymentSource, setPaymentSource] = useState("");
   const [ocrPct, setOcrPct] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [engineInfo, setEngineInfo] = useState<{
@@ -70,7 +70,9 @@ export default function TicketsPage() {
       setCategories(c.categories.filter((x) => x.type === "expense"));
       setAccounts(a.accounts);
       setCards(cc.creditCards);
-      if (a.accounts[0]) setAccountId(a.accounts[0].id);
+      if (a.accounts[0]) setPaymentSource(sourceKey("account", a.accounts[0].id));
+      else if (cc.creditCards[0])
+        setPaymentSource(sourceKey("card", cc.creditCards[0].id));
     });
   }, []);
 
@@ -144,8 +146,7 @@ export default function TicketsPage() {
       const res = await api<{ created: number }>("/api/tickets/import", {
         method: "POST",
         json: {
-          accountId: accountId || null,
-          creditCardId: creditCardId || null,
+          paymentSource: paymentSource || null,
           date,
           merchant: merchant || null,
           items: selected.map((i) => ({
@@ -266,34 +267,32 @@ export default function TicketsPage() {
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
-            <div>
-              <Label>{t.account}</Label>
+            <div className="sm:col-span-2">
+              <Label>{t.transactions.paidWith}</Label>
               <Select
                 className="mt-1"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
+                value={paymentSource}
+                onChange={(e) => setPaymentSource(e.target.value)}
               >
-                <option value="">{t.none}</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>{t.transactions.creditCard}</Label>
-              <Select
-                className="mt-1"
-                value={creditCardId}
-                onChange={(e) => setCreditCardId(e.target.value)}
-              >
-                <option value="">{t.transactions.cashDebit}</option>
-                {cards.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                <option value="">{t.select}</option>
+                {accounts.length > 0 && (
+                  <optgroup label={t.transactions.sourceAccounts}>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={sourceKey("account", a.id)}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {cards.length > 0 && (
+                  <optgroup label={t.transactions.sourceCards}>
+                    {cards.map((c) => (
+                      <option key={c.id} value={sourceKey("card", c.id)}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </Select>
             </div>
             {ticketTotal != null && (

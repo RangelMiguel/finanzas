@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       prisma.category.findMany({ where: { householdId: m.householdId } }),
       prisma.transaction.findMany({
         where: { householdId: m.householdId, deletedAt: null },
+        include: { fundings: true },
       }),
       prisma.budget.findMany({ where: { householdId: m.householdId } }),
       prisma.creditCard.findMany({ where: { householdId: m.householdId } }),

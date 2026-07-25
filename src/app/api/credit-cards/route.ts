@@ -2,10 +2,14 @@ import { z } from "zod";
 import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
-import { monthKey } from "@/lib/utils";
+import { monthKey, todayISO } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import { monthBounds } from "@/lib/money";
+import {
+  addDaysISO,
+  summarizeCardPayments,
+} from "@/lib/credit-card-cycles";
 
 export async function GET() {
   try {
@@ -18,31 +22,77 @@ export async function GET() {
       where: { householdId: m.householdId },
       orderBy: { name: "asc" },
     });
+    const asOf = todayISO();
     const month = monthKey();
-    const { start, end } = monthBounds(month);
-    const spend = await prisma.transaction.findMany({
-      where: {
-        householdId: m.householdId,
-        type: "expense",
-        deletedAt: null,
-        creditCardId: { not: null },
-        date: { gte: start, lte: end },
-      },
-      select: { creditCardId: true, amountCents: true },
-    });
-    const byCard: Record<string, number> = {};
-    for (const s of spend) {
-      if (!s.creditCardId) continue;
-      byCard[s.creditCardId] = (byCard[s.creditCardId] || 0) + s.amountCents;
-    }
+    const { start: monthStart, end: monthEnd } = monthBounds(month);
+
+    // Look back far enough for closed cycles + MSI months (≈ 2 years of MSI)
+    const lookbackStart = addDaysISO(asOf, -750);
+
+    const [spend, installments] = await Promise.all([
+      prisma.transaction.findMany({
+        where: {
+          householdId: m.householdId,
+          type: "expense",
+          deletedAt: null,
+          date: { gte: lookbackStart },
+          OR: [
+            { creditCardId: { not: null } },
+            { fundings: { some: { creditCardId: { not: null } } } },
+          ],
+        },
+        select: {
+          creditCardId: true,
+          amountCents: true,
+          date: true,
+          installmentPlanId: true,
+          type: true,
+          deletedAt: true,
+          fundings: {
+            select: {
+              amountCents: true,
+              accountId: true,
+              creditCardId: true,
+            },
+          },
+        },
+      }),
+      prisma.installmentPlan.findMany({
+        where: {
+          householdId: m.householdId,
+          creditCardId: { not: null },
+        },
+        select: {
+          creditCardId: true,
+          monthlyAmountCents: true,
+          months: true,
+          startDate: true,
+        },
+      }),
+    ]);
+
     const visible = cards.filter(
       (c) => !m.visibility.hiddenCreditCardIds.includes(c.id)
     );
     return jsonOk({
-      creditCards: visible.map((c) => ({
-        ...c,
-        monthSpendCents: byCard[c.id] || 0,
-      })),
+      creditCards: visible.map((c) => {
+        const summary = summarizeCardPayments({
+          creditCardId: c.id,
+          cutoffDay: c.cutoffDay,
+          graceDays: c.graceDays,
+          asOf,
+          monthStart,
+          monthEnd,
+          transactions: spend,
+          installments,
+        });
+        return {
+          ...c,
+          monthSpendCents: summary.monthSpendCents,
+          nextPayment: summary.nextPayment,
+          followingPayment: summary.followingPayment,
+        };
+      }),
     });
   } catch (e) {
     return jsonError(e);

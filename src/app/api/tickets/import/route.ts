@@ -5,6 +5,11 @@ import { jsonError, jsonOk } from "@/lib/access";
 import { amountToCents, todayISO } from "@/lib/utils";
 import { logActivity } from "@/lib/household";
 import { resolveCategoryId } from "@/lib/categorize";
+import {
+  legacyFieldsFromFundings,
+  normalizeExpenseFundings,
+  parseSourceKey,
+} from "@/lib/transaction-funding";
 
 export async function POST(req: Request) {
   try {
@@ -14,6 +19,8 @@ export async function POST(req: Request) {
       .object({
         accountId: z.string().optional().nullable(),
         creditCardId: z.string().optional().nullable(),
+        /** Unified payment source: "account:<id>" | "card:<id>" */
+        paymentSource: z.string().optional().nullable(),
         date: z.string().optional(),
         merchant: z.string().optional().nullable(),
         items: z
@@ -28,6 +35,21 @@ export async function POST(req: Request) {
           .min(1),
       })
       .parse(await req.json());
+
+    let accountId = body.accountId || null;
+    let creditCardId = body.creditCardId || null;
+    if (body.paymentSource) {
+      const parsed = parseSourceKey(body.paymentSource);
+      if (parsed?.kind === "account") {
+        accountId = parsed.id;
+        creditCardId = null;
+      } else if (parsed?.kind === "card") {
+        creditCardId = parsed.id;
+        accountId = null;
+      }
+    }
+    // Prefer card when both legacy fields set
+    if (creditCardId) accountId = null;
 
     const categories = await prisma.category.findMany({
       where: { householdId: m.householdId },
@@ -47,18 +69,44 @@ export async function POST(req: Request) {
           ? `${item.description}`
           : item.description;
 
+      const amountCents = amountToCents(item.amount);
+      const fundings =
+        accountId || creditCardId
+          ? normalizeExpenseFundings(
+              [
+                {
+                  amountCents,
+                  accountId,
+                  creditCardId,
+                },
+              ],
+              amountCents
+            )
+          : [];
+      const legacy = legacyFieldsFromFundings(fundings);
+
       const txn = await prisma.transaction.create({
         data: {
           householdId: m.householdId,
           date,
-          amountCents: amountToCents(item.amount),
+          amountCents,
           description: desc,
           type: "expense",
           categoryId,
-          accountId: body.accountId || null,
-          creditCardId: body.creditCardId || null,
+          accountId: legacy.accountId,
+          creditCardId: legacy.creditCardId,
           createdById: session.userId,
           spentById: session.userId,
+          fundings:
+            fundings.length > 0
+              ? {
+                  create: fundings.map((f) => ({
+                    amountCents: f.amountCents,
+                    accountId: f.accountId || null,
+                    creditCardId: f.creditCardId || null,
+                  })),
+                }
+              : undefined,
         },
       });
       created.push(txn);

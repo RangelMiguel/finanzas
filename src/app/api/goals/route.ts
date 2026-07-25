@@ -75,6 +75,14 @@ export async function GET(req: Request) {
         toAccountId: true,
         date: true,
         deletedAt: true,
+        creditCardId: true,
+        fundings: {
+          select: {
+            amountCents: true,
+            accountId: true,
+            creditCardId: true,
+          },
+        },
       },
     });
     const accountsWithBal = accounts.map((a) => ({
@@ -218,6 +226,14 @@ export async function PATCH(req: Request) {
           toAccountId: true,
           date: true,
           deletedAt: true,
+          creditCardId: true,
+          fundings: {
+            select: {
+              amountCents: true,
+              accountId: true,
+              creditCardId: true,
+            },
+          },
         },
       });
       const bal = accountBalance(account.initialBalanceCents, txns, account.id);

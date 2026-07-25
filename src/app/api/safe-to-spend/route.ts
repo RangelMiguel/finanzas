@@ -2,7 +2,11 @@ import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { projectSafeToSpend, type FutureItem } from "@/lib/safe-to-spend";
-import { monthKey, amountToCents } from "@/lib/utils";
+import { monthKey, amountToCents, todayISO } from "@/lib/utils";
+import {
+  addDaysISO,
+  listCardPayments,
+} from "@/lib/credit-card-cycles";
 import { addMonths, format, setDate, differenceInCalendarDays } from "date-fns";
 
 async function buildFutureItems(opts: {
@@ -19,6 +23,8 @@ async function buildFutureItems(opts: {
 }): Promise<FutureItem[]> {
   const futureItems: FutureItem[] = [];
   const now = new Date();
+  const todayStr = todayISO();
+  const untilDate = addDaysISO(todayStr, Math.max(0, opts.horizonDays));
   const monthsAhead = Math.max(3, Math.ceil(opts.horizonDays / 28) + 1);
 
   if (opts.includeIncome) {
@@ -49,16 +55,79 @@ async function buildFutureItems(opts: {
     }
   }
 
-  const plans = await prisma.installmentPlan.findMany({
-    where: { householdId: opts.householdId },
-  });
-  const todayStr = format(now, "yyyy-MM-dd");
+  // Credit-card statement payments (cut day + grace). Includes MSI linked to a card.
+  // Recomputed from purchases whenever this endpoint runs — no stored payment rows.
+  const [cards, cardTxns, plans] = await Promise.all([
+    prisma.creditCard.findMany({
+      where: { householdId: opts.householdId },
+      select: {
+        id: true,
+        name: true,
+        cutoffDay: true,
+        graceDays: true,
+      },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        householdId: opts.householdId,
+        type: "expense",
+        deletedAt: null,
+        date: { gte: addDaysISO(todayStr, -750) },
+        OR: [
+          { creditCardId: { not: null } },
+          { fundings: { some: { creditCardId: { not: null } } } },
+        ],
+      },
+      select: {
+        creditCardId: true,
+        amountCents: true,
+        date: true,
+        installmentPlanId: true,
+        type: true,
+        deletedAt: true,
+        fundings: {
+          select: {
+            amountCents: true,
+            accountId: true,
+            creditCardId: true,
+          },
+        },
+      },
+    }),
+    prisma.installmentPlan.findMany({
+      where: { householdId: opts.householdId },
+    }),
+  ]);
+
+  for (const card of cards) {
+    const payments = listCardPayments({
+      creditCardId: card.id,
+      creditCardName: card.name,
+      cutoffDay: card.cutoffDay,
+      graceDays: card.graceDays,
+      asOf: todayStr,
+      untilDate,
+      transactions: cardTxns,
+      installments: plans,
+    });
+    for (const p of payments) {
+      futureItems.push({
+        date: p.paymentDue,
+        amountCents: p.amountCents,
+        type: "expense",
+        label: `CC: ${card.name}`,
+      });
+    }
+  }
+
+  // MSI without a card still project on installment anniversary dates
   for (const p of plans) {
+    if (p.creditCardId) continue; // already inside CC payment cycles
     const start = new Date(p.startDate + "T12:00:00");
     for (let i = 0; i < p.months; i++) {
       const d = addMonths(start, i);
       const ds = format(d, "yyyy-MM-dd");
-      if (ds >= todayStr) {
+      if (ds >= todayStr && ds <= untilDate) {
         futureItems.push({
           date: ds,
           amountCents: p.monthlyAmountCents,
@@ -160,17 +229,7 @@ export async function GET(req: Request) {
       : accounts[0];
     if (!acc) return jsonOk({ empty: true });
 
-    const transactions = await prisma.transaction.findMany({
-      where: { householdId: m.householdId, deletedAt: null },
-      select: {
-        type: true,
-        amountCents: true,
-        accountId: true,
-        toAccountId: true,
-        date: true,
-        deletedAt: true,
-      },
-    });
+    const transactions = await loadBankTxnsForProjection(m.householdId);
 
     // whatIf as JSON query param
     let whatIf: {
@@ -254,17 +313,7 @@ export async function POST(req: Request) {
       : accounts[0];
     if (!acc) return jsonOk({ empty: true });
 
-    const transactions = await prisma.transaction.findMany({
-      where: { householdId: m.householdId, deletedAt: null },
-      select: {
-        type: true,
-        amountCents: true,
-        accountId: true,
-        toAccountId: true,
-        date: true,
-        deletedAt: true,
-      },
-    });
+    const transactions = await loadBankTxnsForProjection(m.householdId);
 
     const futureItems = await buildFutureItems({
       householdId: m.householdId,
@@ -295,4 +344,30 @@ export async function POST(req: Request) {
   } catch (e) {
     return jsonError(e);
   }
+}
+
+/**
+ * Bank cash projection: only account fundings (or legacy non-CC accountId)
+ * reduce the bank balance. Card charges leave on the payment due date.
+ */
+async function loadBankTxnsForProjection(householdId: string) {
+  return prisma.transaction.findMany({
+    where: { householdId, deletedAt: null },
+    select: {
+      type: true,
+      amountCents: true,
+      accountId: true,
+      toAccountId: true,
+      date: true,
+      deletedAt: true,
+      creditCardId: true,
+      fundings: {
+        select: {
+          amountCents: true,
+          accountId: true,
+          creditCardId: true,
+        },
+      },
+    },
+  });
 }

@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   requireSession,
   requireHouseholdAccess,
-  BadRequestError,
   ForbiddenError,
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -11,6 +10,77 @@ import { pesosToCents, todayISO } from "@/lib/utils";
 import { logActivity } from "@/lib/household";
 import { suggestCategoryName } from "@/lib/categorize";
 import { canSeeModule, filterTransaction } from "@/lib/visibility";
+import {
+  legacyFieldsFromFundings,
+  normalizeExpenseFundings,
+  type FundingInput,
+} from "@/lib/transaction-funding";
+
+const fundingInclude = {
+  fundings: {
+    include: {
+      account: { select: { id: true, name: true, icon: true } },
+      creditCard: { select: { id: true, name: true, lastFour: true } },
+    },
+  },
+};
+
+const fundingBodySchema = z.array(
+  z.object({
+    source: z.string().optional(),
+    amount: z.union([z.number(), z.string()]).optional(),
+    amountCents: z.number().optional(),
+    accountId: z.string().nullable().optional(),
+    creditCardId: z.string().nullable().optional(),
+  })
+);
+
+async function replaceFundings(transactionId: string, fundings: FundingInput[]) {
+  await prisma.transactionFunding.deleteMany({ where: { transactionId } });
+  if (fundings.length === 0) return;
+  await prisma.transactionFunding.createMany({
+    data: fundings.map((f) => ({
+      transactionId,
+      amountCents: f.amountCents,
+      accountId: f.accountId || null,
+      creditCardId: f.creditCardId || null,
+    })),
+  });
+}
+
+function resolveExpenseFundings(
+  body: {
+    fundings?: z.infer<typeof fundingBodySchema>;
+    accountId?: string | null;
+    creditCardId?: string | null;
+    amount: number | string;
+  },
+  amountCents: number
+): FundingInput[] {
+  if (body.fundings && body.fundings.length > 0) {
+    return normalizeExpenseFundings(body.fundings, amountCents);
+  }
+  // Legacy single fields
+  if (body.creditCardId) {
+    return [
+      {
+        amountCents,
+        accountId: null,
+        creditCardId: body.creditCardId,
+      },
+    ];
+  }
+  if (body.accountId) {
+    return [
+      {
+        amountCents,
+        accountId: body.accountId,
+        creditCardId: null,
+      },
+    ];
+  }
+  return [];
+}
 
 export async function GET(req: Request) {
   try {
@@ -46,6 +116,7 @@ export async function GET(req: Request) {
         creditCard: true,
         createdBy: { select: { id: true, displayName: true } },
         spentBy: { select: { id: true, displayName: true } },
+        ...fundingInclude,
       },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: Math.min(limit * 3, 500),
@@ -95,10 +166,10 @@ export async function POST(req: Request) {
             categoryId: z.string().optional().nullable(),
             accountId: z.string().optional().nullable(),
             creditCardId: z.string().optional().nullable(),
+            fundings: fundingBodySchema.optional(),
             spentById: z.string().optional().nullable(),
             autoCategory: z.boolean().optional(),
             clientMutationId: z.string().optional(),
-            // MSI
             msiMonths: z.number().int().min(2).max(48).optional(),
           })
           .parse(raw);
@@ -106,14 +177,15 @@ export async function POST(req: Request) {
         const amountCents = pesosToCents(body.amount);
         if (amountCents <= 0) throw new Error("Monto inválido");
 
-        // If client sent a stable id that already exists, return it (offline replay)
         if (body.id) {
           const existing = await prisma.transaction.findFirst({
             where: { id: body.id, householdId: m.householdId },
             include: {
               category: true,
               account: true,
+              creditCard: true,
               createdBy: { select: { id: true, displayName: true } },
+              ...fundingInclude,
             },
           });
           if (existing) return jsonOk({ transaction: existing });
@@ -134,17 +206,35 @@ export async function POST(req: Request) {
           }
         }
 
+        let fundings: FundingInput[] = [];
+        let accountId: string | null = body.accountId || null;
+        let creditCardId: string | null = body.creditCardId || null;
+
+        if (body.type === "expense") {
+          fundings = resolveExpenseFundings(body, amountCents);
+          const legacy = legacyFieldsFromFundings(fundings);
+          accountId = legacy.accountId;
+          creditCardId = legacy.creditCardId;
+        }
+
+        const cardFundings = fundings.filter((f) => f.creditCardId);
         let installmentPlanId: string | null = null;
-        if (body.msiMonths && body.type === "expense" && body.creditCardId) {
-          const monthly = Math.round(amountCents / body.msiMonths);
+        if (body.msiMonths && body.type === "expense") {
+          if (cardFundings.length !== 1 || fundings.length !== 1) {
+            throw new Error(
+              "MSI solo aplica cuando pagas el total con una sola tarjeta"
+            );
+          }
+          const msiAmount = cardFundings[0].amountCents;
+          const monthly = Math.round(msiAmount / body.msiMonths);
           const plan = await prisma.installmentPlan.create({
             data: {
               householdId: m.householdId,
               description: body.description,
-              totalAmountCents: amountCents,
+              totalAmountCents: msiAmount,
               months: body.msiMonths,
               monthlyAmountCents: monthly,
-              creditCardId: body.creditCardId,
+              creditCardId: cardFundings[0].creditCardId!,
               categoryId,
               startDate: body.date || todayISO(),
             },
@@ -162,16 +252,26 @@ export async function POST(req: Request) {
             description: body.description,
             type: body.type,
             categoryId,
-            accountId: body.accountId || null,
-            creditCardId: body.creditCardId || null,
+            accountId: body.type === "income" ? accountId : accountId,
+            creditCardId: body.type === "expense" ? creditCardId : null,
             installmentPlanId,
             createdById: session.userId,
             spentById,
           },
+        });
+
+        if (body.type === "expense" && fundings.length > 0) {
+          await replaceFundings(txn.id, fundings);
+        }
+
+        const full = await prisma.transaction.findFirst({
+          where: { id: txn.id },
           include: {
             category: true,
             account: true,
+            creditCard: true,
             createdBy: { select: { id: true, displayName: true } },
+            ...fundingInclude,
           },
         });
 
@@ -184,7 +284,7 @@ export async function POST(req: Request) {
           summary: `${body.type === "income" ? "Ingreso" : "Gasto"}: ${body.description}`,
         });
 
-        return jsonOk({ transaction: txn }, 201);
+        return jsonOk({ transaction: full }, 201);
       }
     );
   } catch (e) {
@@ -206,26 +306,110 @@ export async function PATCH(req: Request) {
         categoryId: z.string().nullable().optional(),
         accountId: z.string().nullable().optional(),
         creditCardId: z.string().nullable().optional(),
+        fundings: fundingBodySchema.optional(),
         spentById: z.string().nullable().optional(),
       })
       .parse(await req.json());
 
     const existing = await prisma.transaction.findFirst({
       where: { id: body.id, householdId: m.householdId, deletedAt: null },
+      include: { fundings: true },
     });
     if (!existing) throw new Error("Transacción no encontrada");
+
+    const nextType = body.type || existing.type;
+    const amountCents =
+      body.amount !== undefined
+        ? pesosToCents(body.amount)
+        : existing.amountCents;
+
+    let accountId =
+      body.accountId !== undefined ? body.accountId : existing.accountId;
+    let creditCardId =
+      body.creditCardId !== undefined
+        ? body.creditCardId
+        : existing.creditCardId;
+
+    if (nextType === "expense") {
+      let finalFundings: FundingInput[];
+
+      if (body.fundings && body.fundings.length > 0) {
+        finalFundings = normalizeExpenseFundings(body.fundings, amountCents);
+      } else if (
+        body.accountId !== undefined ||
+        body.creditCardId !== undefined
+      ) {
+        finalFundings = resolveExpenseFundings(
+          {
+            accountId:
+              body.accountId !== undefined
+                ? body.accountId
+                : existing.accountId,
+            creditCardId:
+              body.creditCardId !== undefined
+                ? body.creditCardId
+                : existing.creditCardId,
+            amount: amountCents / 100,
+          },
+          amountCents
+        );
+      } else if (existing.fundings.length === 1) {
+        finalFundings = [
+          {
+            amountCents,
+            accountId: existing.fundings[0].accountId,
+            creditCardId: existing.fundings[0].creditCardId,
+          },
+        ];
+      } else if (existing.fundings.length > 1) {
+        if (body.amount !== undefined && amountCents !== existing.amountCents) {
+          throw new Error(
+            "Al cambiar el monto de un pago dividido, reasigna las formas de pago"
+          );
+        }
+        finalFundings = existing.fundings.map((f) => ({
+          amountCents: f.amountCents,
+          accountId: f.accountId,
+          creditCardId: f.creditCardId,
+        }));
+      } else {
+        finalFundings = resolveExpenseFundings(
+          {
+            accountId: existing.accountId,
+            creditCardId: existing.creditCardId,
+            amount: amountCents / 100,
+          },
+          amountCents
+        );
+      }
+
+      const legacy = legacyFieldsFromFundings(finalFundings);
+      accountId = legacy.accountId;
+      creditCardId = legacy.creditCardId;
+      await replaceFundings(existing.id, finalFundings);
+    } else if (nextType === "income") {
+      await replaceFundings(existing.id, []);
+      creditCardId = null;
+    }
 
     const txn = await prisma.transaction.update({
       where: { id: body.id },
       data: {
         date: body.date,
-        amountCents: body.amount !== undefined ? pesosToCents(body.amount) : undefined,
+        amountCents: body.amount !== undefined ? amountCents : undefined,
         description: body.description,
         type: body.type,
         categoryId: body.categoryId,
-        accountId: body.accountId,
-        creditCardId: body.creditCardId,
+        accountId,
+        creditCardId,
         spentById: body.spentById,
+      },
+      include: {
+        category: true,
+        account: true,
+        creditCard: true,
+        createdBy: { select: { id: true, displayName: true } },
+        ...fundingInclude,
       },
     });
     return jsonOk({ transaction: txn });

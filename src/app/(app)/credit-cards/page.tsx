@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { format, parseISO } from "date-fns";
+import { es as esLocale, enUS } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +12,13 @@ import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { toast } from "sonner";
 
+type PaymentBucket = {
+  start: string;
+  end: string;
+  paymentDue: string;
+  amountCents: number;
+};
+
 type CC = {
   id: string;
   name: string;
@@ -17,10 +26,12 @@ type CC = {
   cutoffDay: number;
   graceDays: number;
   monthSpendCents: number;
+  nextPayment: PaymentBucket;
+  followingPayment: PaymentBucket;
 };
 
 export default function CreditCardsPage() {
-  const { money, t, tr } = useApp();
+  const { money, t, tr, locale } = useApp();
   const [cards, setCards] = useState<CC[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
@@ -30,6 +41,16 @@ export default function CreditCardsPage() {
     cutoffDay: "15",
     graceDays: "20",
   });
+
+  const dateLocale = locale === "en" ? enUS : esLocale;
+
+  function fmtDate(iso: string) {
+    try {
+      return format(parseISO(iso), "d MMM yyyy", { locale: dateLocale });
+    } catch {
+      return iso;
+    }
+  }
 
   async function load() {
     const res = await api<{ creditCards: CC[] }>("/api/credit-cards");
@@ -81,6 +102,55 @@ export default function CreditCardsPage() {
     if (!confirm(t.cards.confirmDelete)) return;
     await api(`/api/credit-cards?id=${id}`, { method: "DELETE" });
     await load();
+  }
+
+  function PaymentBlock({
+    label,
+    amountLabel,
+    bucket,
+    emphasize,
+    inProgress,
+  }: {
+    label: string;
+    amountLabel: string;
+    bucket: PaymentBucket;
+    emphasize?: boolean;
+    inProgress?: boolean;
+  }) {
+    return (
+      <div
+        className={
+          emphasize
+            ? "rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3"
+            : "rounded-xl border border-dashed border-[var(--border)] p-3"
+        }
+      >
+        <p className="text-xs font-medium uppercase tracking-wide text-[var(--fg-faint)]">
+          {label}
+        </p>
+        <p className="mt-0.5 text-sm text-[var(--fg-muted)]">
+          {tr(t.cards.payOn, { date: fmtDate(bucket.paymentDue) })}
+        </p>
+        <p
+          className={
+            emphasize
+              ? "mt-1 font-display text-2xl text-[var(--fg)]"
+              : "mt-1 font-display text-xl text-[var(--fg)]"
+          }
+        >
+          {money(bucket.amountCents)}
+        </p>
+        <p className="mt-1 text-xs text-[var(--fg-faint)]">
+          {amountLabel}
+          {" · "}
+          {tr(t.cards.cycleRange, {
+            start: fmtDate(bucket.start),
+            end: fmtDate(bucket.end),
+          })}
+          {inProgress ? ` (${t.cards.inProgress})` : ""}
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -170,14 +240,32 @@ export default function CreditCardsPage() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-1 text-sm text-[var(--fg-muted)]">
+            <CardContent className="space-y-3 text-sm text-[var(--fg-muted)]">
               <p>
                 {tr(t.cards.cutoffGrace, {
                   cutoff: c.cutoffDay,
                   grace: c.graceDays,
                 })}
               </p>
-              <p className="font-display text-xl text-[var(--fg)]">
+
+              {c.nextPayment && c.followingPayment ? (
+                <div className="grid gap-2">
+                  <PaymentBlock
+                    label={t.cards.nextPayment}
+                    amountLabel={t.cards.dueAmount}
+                    bucket={c.nextPayment}
+                    emphasize
+                  />
+                  <PaymentBlock
+                    label={t.cards.followingPayment}
+                    amountLabel={t.cards.accumulated}
+                    bucket={c.followingPayment}
+                    inProgress
+                  />
+                </div>
+              ) : null}
+
+              <p className="text-xs text-[var(--fg-faint)]">
                 {t.cards.monthSpend}: {money(c.monthSpendCents)}
               </p>
             </CardContent>

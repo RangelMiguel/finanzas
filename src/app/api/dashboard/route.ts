@@ -40,6 +40,13 @@ export async function GET(req: Request) {
             creditCardId: true,
             createdById: true,
             spentById: true,
+            fundings: {
+              select: {
+                amountCents: true,
+                accountId: true,
+                creditCardId: true,
+              },
+            },
           },
         }),
         prisma.creditCard.findMany({ where: { householdId: m.householdId } }),
