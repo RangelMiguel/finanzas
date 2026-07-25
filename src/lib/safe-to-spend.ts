@@ -7,9 +7,14 @@ export type FutureItem = {
   label: string;
 };
 
-export type ProjectionInput = {
+export type AccountForProjection = {
+  id: string;
   initialBalanceCents: number;
-  accountId: string;
+};
+
+export type ProjectionInput = {
+  /** All household accounts to include in the combined cash position. */
+  accounts: AccountForProjection[];
   transactions: TxnLike[];
   futureItems: FutureItem[];
   horizonDays?: number;
@@ -30,18 +35,35 @@ function addDaysISO(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function daysBetween(a: string, b: string): number {
+function daysBetweenDates(a: string, b: string): number {
   const da = new Date(a + "T12:00:00").getTime();
   const db = new Date(b + "T12:00:00").getTime();
   return Math.round((db - da) / 86400000);
 }
 
+/** Combined balance across accounts (internal transfers cancel out). */
+export function totalAccountsBalance(
+  accounts: AccountForProjection[],
+  transactions: TxnLike[],
+  asOfDate?: string
+): number {
+  let total = 0;
+  for (const acc of accounts) {
+    total += accountBalance(
+      acc.initialBalanceCents,
+      transactions,
+      acc.id,
+      asOfDate
+    );
+  }
+  return total;
+}
+
 export function projectSafeToSpend(input: ProjectionInput) {
   const today = new Date().toISOString().slice(0, 10);
-  const currentBalance = accountBalance(
-    input.initialBalanceCents,
+  const currentBalance = totalAccountsBalance(
+    input.accounts,
     input.transactions,
-    input.accountId,
     today
   );
 
@@ -83,7 +105,7 @@ export function projectSafeToSpend(input: ProjectionInput) {
   const dailySeries: DayPoint[] = [{ date: today, balance: bal, delta: 0 }];
 
   // Walk day by day for smooth chart + goal detection
-  const totalDays = Math.max(0, daysBetween(today, endStr));
+  const totalDays = Math.max(0, daysBetweenDates(today, endStr));
   let goalDate: string | null = null;
   let goalBalance: number | null = null;
   const goal = input.targetAmountCents;
@@ -125,12 +147,7 @@ export function projectSafeToSpend(input: ProjectionInput) {
       maxBalance = bal;
       maxDate = date;
     }
-    if (
-      goal != null &&
-      goal > 0 &&
-      goalDate == null &&
-      bal >= goal
-    ) {
+    if (goal != null && goal > 0 && goalDate == null && bal >= goal) {
       goalDate = date;
       goalBalance = bal;
     }
@@ -154,14 +171,7 @@ export function projectSafeToSpend(input: ProjectionInput) {
 
   // How much can I spend today and still hit goal on targetDate?
   let spendAndStillHitGoal: number | null = null;
-  if (
-    input.targetDate &&
-    goal != null &&
-    balanceOnTargetDate != null
-  ) {
-    // If we spend X today, all future balances drop by X
-    // We need balanceOnTargetDate - X >= goal  =>  X <= balanceOnTargetDate - goal
-    // Also X <= currentBalance and X >= 0
+  if (input.targetDate && goal != null && balanceOnTargetDate != null) {
     spendAndStillHitGoal = Math.max(
       0,
       Math.min(currentBalance, balanceOnTargetDate - goal)
@@ -191,5 +201,6 @@ export function projectSafeToSpend(input: ProjectionInput) {
       .filter((e) => e.type === "expense")
       .reduce((s, e) => s + e.amountCents, 0),
     daysProjected: totalDays,
+    accountCount: input.accounts.length,
   };
 }

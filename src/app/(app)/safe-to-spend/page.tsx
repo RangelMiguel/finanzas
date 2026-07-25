@@ -16,7 +16,6 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import { Target, CalendarRange, Sparkles, Trash2, Plus } from "lucide-react";
 
-type Acc = { id: string; name: string };
 type WhatIf = {
   id: string;
   date: string;
@@ -43,6 +42,8 @@ type Result = {
   spendAndStillHitGoal: number | null;
   daysProjected: number;
   endDate: string;
+  accountCount?: number;
+  accounts?: { id: string; name: string }[];
   futureItems?: { date: string; amountCents: number; type: string; label: string }[];
 };
 
@@ -51,8 +52,6 @@ type Mode = "overview" | "date" | "goal";
 export default function SafeToSpendPage() {
   const { money, t, tr, locale } = useApp();
   const dateLocale = locale === "en" ? enUS : es;
-  const [accounts, setAccounts] = useState<Acc[]>([]);
-  const [accountId, setAccountId] = useState("");
   const [includeIncome, setIncludeIncome] = useState(true);
   const [reserveBudgets, setReserveBudgets] = useState(false);
   const [horizon, setHorizon] = useState("120");
@@ -67,19 +66,11 @@ export default function SafeToSpendPage() {
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    api<{ accounts: Acc[] }>("/api/accounts").then((r) => {
-      setAccounts(r.accounts);
-      if (r.accounts[0]) setAccountId(r.accounts[0].id);
-    });
-  }, []);
-
   const calculate = useCallback(async () => {
-    if (!accountId) return;
     setLoading(true);
     try {
       const body: Record<string, unknown> = {
-        accountId,
+        // No accountId → all household accounts combined
         includeIncome,
         reserveBudgets,
         horizon: parseInt(horizon, 10) || 90,
@@ -97,9 +88,6 @@ export default function SafeToSpendPage() {
         body.targetAmount = goalAmount;
         body.horizon = 365;
       }
-      if (mode === "overview" && targetDate) {
-        // still useful to show target marker optionally — skip
-      }
       const res = await api<Result>("/api/safe-to-spend", {
         method: "POST",
         json: body,
@@ -111,7 +99,6 @@ export default function SafeToSpendPage() {
       setLoading(false);
     }
   }, [
-    accountId,
     includeIncome,
     reserveBudgets,
     horizon,
@@ -204,20 +191,16 @@ export default function SafeToSpendPage() {
             <CardTitle className="text-base">{t.safe.account}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="safe-acc">{t.safe.account}</Label>
-              <Select
-                id="safe-acc"
-                className="mt-1"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-              >
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </Select>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm">
+              <p className="font-medium text-[var(--fg)]">{t.safe.allAccounts}</p>
+              <p className="mt-0.5 text-xs text-[var(--fg-faint)]">
+                {t.safe.allAccountsHint}
+                {result?.accountCount
+                  ? ` · ${result.accountCount}`
+                  : result?.accounts
+                    ? ` · ${result.accounts.length}`
+                    : ""}
+              </p>
             </div>
 
             {mode === "date" && (

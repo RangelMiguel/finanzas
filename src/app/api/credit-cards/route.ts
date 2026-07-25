@@ -63,10 +63,13 @@ export async function GET() {
           creditCardId: { not: null },
         },
         select: {
+          id: true,
           creditCardId: true,
           monthlyAmountCents: true,
           months: true,
           startDate: true,
+          description: true,
+          totalAmountCents: true,
         },
       }),
     ]);

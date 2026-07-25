@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { es as esLocale, enUS } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,7 @@ type CC = {
 
 export default function CreditCardsPage() {
   const { money, t, tr, locale } = useApp();
+  const router = useRouter();
   const [cards, setCards] = useState<CC[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
@@ -226,12 +228,25 @@ export default function CreditCardsPage() {
           <p className="text-sm text-[var(--fg-faint)]">{t.cards.empty}</p>
         )}
         {cards.map((c) => (
-          <Card key={c.id} premium>
+          <Card
+            key={c.id}
+            premium
+            className="cursor-pointer transition hover:border-teal-400/40"
+            onClick={() => router.push(`/credit-cards/${c.id}`)}
+            role="link"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                router.push(`/credit-cards/${c.id}`);
+              }
+            }}
+          >
             <CardHeader className="flex flex-row justify-between gap-2">
               <CardTitle>
                 {c.name} {c.lastFour ? `•••• ${c.lastFour}` : ""}
               </CardTitle>
-              <div className="flex gap-1">
+              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                 <Button variant="secondary" size="sm" onClick={() => openEdit(c)}>
                   {t.edit}
                 </Button>
@@ -267,6 +282,9 @@ export default function CreditCardsPage() {
 
               <p className="text-xs text-[var(--fg-faint)]">
                 {t.cards.monthSpend}: {money(c.monthSpendCents)}
+              </p>
+              <p className="text-xs font-medium text-teal-300/90">
+                {t.cards.tapForPending} →
               </p>
             </CardContent>
           </Card>

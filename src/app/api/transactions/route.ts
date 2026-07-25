@@ -392,6 +392,58 @@ export async function PATCH(req: Request) {
       creditCardId = null;
     }
 
+    // Keep linked MSI plan in sync (or drop it if no longer a single-card purchase)
+    let clearInstallment = false;
+    if (existing.installmentPlanId) {
+      const fundingsNow =
+        nextType === "expense"
+          ? await prisma.transactionFunding.findMany({
+              where: { transactionId: existing.id },
+            })
+          : [];
+      const cardOnly =
+        fundingsNow.length === 1 &&
+        !!fundingsNow[0].creditCardId &&
+        !fundingsNow[0].accountId;
+
+      if (nextType !== "expense" || !cardOnly || !creditCardId) {
+        clearInstallment = true;
+      } else {
+        const plan = await prisma.installmentPlan.findFirst({
+          where: {
+            id: existing.installmentPlanId,
+            householdId: m.householdId,
+          },
+        });
+        if (plan) {
+          const nextDesc = body.description ?? existing.description;
+          const nextDate = body.date ?? existing.date;
+          const monthly = Math.round(amountCents / plan.months);
+          await prisma.installmentPlan.update({
+            where: { id: plan.id },
+            data: {
+              description: nextDesc,
+              startDate: nextDate,
+              totalAmountCents: amountCents,
+              monthlyAmountCents: monthly,
+              creditCardId,
+            },
+          });
+        }
+      }
+    }
+
+    if (clearInstallment && existing.installmentPlanId) {
+      const planId = existing.installmentPlanId;
+      await prisma.transaction.update({
+        where: { id: existing.id },
+        data: { installmentPlanId: null },
+      });
+      await prisma.installmentPlan.deleteMany({
+        where: { id: planId, householdId: m.householdId },
+      });
+    }
+
     const txn = await prisma.transaction.update({
       where: { id: body.id },
       data: {
@@ -430,14 +482,25 @@ export async function DELETE(req: Request) {
       where: { id, householdId: m.householdId },
     });
     if (!existing) throw new Error("Transacción no encontrada");
+
+    const planId = existing.installmentPlanId;
+
     if (hard) {
       await prisma.transaction.delete({ where: { id } });
     } else {
       await prisma.transaction.update({
         where: { id },
-        data: { deletedAt: new Date() },
+        data: { deletedAt: new Date(), installmentPlanId: null },
       });
     }
+
+    // Drop MSI plan so safe-to-spend / card schedules stop counting installments
+    if (planId) {
+      await prisma.installmentPlan.deleteMany({
+        where: { id: planId, householdId: m.householdId },
+      });
+    }
+
     return jsonOk({ ok: true });
   } catch (e) {
     return jsonError(e);

@@ -5,6 +5,7 @@ export const APP_ROUTES_TO_WARM = [
   "/transactions",
   "/budgets",
   "/credit-cards",
+  // detail routes are dynamic; list still warms shell
   "/recurring",
   "/debts",
   "/goals",

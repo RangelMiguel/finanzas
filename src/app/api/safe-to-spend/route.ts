@@ -97,6 +97,15 @@ async function buildFutureItems(opts: {
     }),
     prisma.installmentPlan.findMany({
       where: { householdId: opts.householdId },
+      select: {
+        id: true,
+        creditCardId: true,
+        monthlyAmountCents: true,
+        months: true,
+        startDate: true,
+        description: true,
+        totalAmountCents: true,
+      },
     }),
   ]);
 
@@ -214,11 +223,15 @@ export async function GET(req: Request) {
 
     const accounts = await prisma.account.findMany({
       where: { householdId: m.householdId },
+      orderBy: { createdAt: "asc" },
     });
-    const acc = accountId
-      ? accounts.find((a) => a.id === accountId)
-      : accounts[0];
-    if (!acc) return jsonOk({ empty: true });
+    if (!accounts.length) return jsonOk({ empty: true });
+
+    // Optional filter (legacy); default = all household accounts combined
+    const selected = accountId
+      ? accounts.filter((a) => a.id === accountId)
+      : accounts;
+    if (!selected.length) return jsonOk({ empty: true });
 
     const transactions = await loadBankTxnsForProjection(m.householdId);
 
@@ -247,8 +260,10 @@ export async function GET(req: Request) {
     });
 
     const result = projectSafeToSpend({
-      initialBalanceCents: acc.initialBalanceCents,
-      accountId: acc.id,
+      accounts: selected.map((a) => ({
+        id: a.id,
+        initialBalanceCents: a.initialBalanceCents,
+      })),
       transactions,
       futureItems,
       horizonDays,
@@ -259,7 +274,7 @@ export async function GET(req: Request) {
     });
 
     return jsonOk({
-      account: acc,
+      accounts: selected.map((a) => ({ id: a.id, name: a.name })),
       currency: m.household.currency,
       ...result,
       futureItems,
@@ -298,11 +313,14 @@ export async function POST(req: Request) {
 
     const accounts = await prisma.account.findMany({
       where: { householdId: m.householdId },
+      orderBy: { createdAt: "asc" },
     });
-    const acc = accountId
-      ? accounts.find((a) => a.id === accountId)
-      : accounts[0];
-    if (!acc) return jsonOk({ empty: true });
+    if (!accounts.length) return jsonOk({ empty: true });
+
+    const selected = accountId
+      ? accounts.filter((a) => a.id === accountId)
+      : accounts;
+    if (!selected.length) return jsonOk({ empty: true });
 
     const transactions = await loadBankTxnsForProjection(m.householdId);
 
@@ -315,8 +333,10 @@ export async function POST(req: Request) {
     });
 
     const result = projectSafeToSpend({
-      initialBalanceCents: acc.initialBalanceCents,
-      accountId: acc.id,
+      accounts: selected.map((a) => ({
+        id: a.id,
+        initialBalanceCents: a.initialBalanceCents,
+      })),
       transactions,
       futureItems,
       horizonDays,
@@ -327,7 +347,7 @@ export async function POST(req: Request) {
     });
 
     return jsonOk({
-      account: acc,
+      accounts: selected.map((a) => ({ id: a.id, name: a.name })),
       currency: m.household.currency,
       ...result,
       futureItems,

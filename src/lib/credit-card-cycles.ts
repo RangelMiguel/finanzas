@@ -24,6 +24,7 @@ export type ChargeLike = {
   creditCardId?: string | null;
   installmentPlanId?: string | null;
   type?: string;
+  description?: string | null;
   deletedAt?: Date | string | null;
   /** Split payment rows; card portions count toward this card. */
   fundings?: {
@@ -34,10 +35,21 @@ export type ChargeLike = {
 };
 
 export type InstallmentLike = {
+  id?: string;
   creditCardId?: string | null;
   monthlyAmountCents: number;
   months: number;
   startDate: string;
+  description?: string | null;
+  totalAmountCents?: number;
+};
+
+export type LabeledCharge = {
+  date: string;
+  amountCents: number;
+  label: string;
+  kind: "purchase" | "msi";
+  planId?: string;
 };
 
 export type CardPaymentSummary = {
@@ -207,8 +219,8 @@ export function billingCyclesThrough(
 export function expandInstallmentCharges(
   plans: InstallmentLike[],
   creditCardId: string
-): { date: string; amountCents: number }[] {
-  const out: { date: string; amountCents: number }[] = [];
+): LabeledCharge[] {
+  const out: LabeledCharge[] = [];
   for (const p of plans) {
     if (p.creditCardId !== creditCardId) continue;
     if (p.monthlyAmountCents <= 0 || p.months <= 0) continue;
@@ -216,6 +228,11 @@ export function expandInstallmentCharges(
       out.push({
         date: addMonthsISO(p.startDate, i),
         amountCents: p.monthlyAmountCents,
+        label: p.description
+          ? `MSI: ${p.description} (${i + 1}/${p.months})`
+          : `MSI (${i + 1}/${p.months})`,
+        kind: "msi",
+        planId: p.id,
       });
     }
   }
@@ -240,28 +257,177 @@ export function collectCardCharges(
   creditCardId: string,
   transactions: ChargeLike[],
   installments: InstallmentLike[]
-): { date: string; amountCents: number }[] {
-  const charges: { date: string; amountCents: number }[] = [];
+): LabeledCharge[] {
+  const charges: LabeledCharge[] = [];
   for (const t of transactions) {
     if (t.deletedAt) continue;
     if (t.type && t.type !== "expense") continue;
     // MSI principal is replaced by monthly installments
     if (t.installmentPlanId) continue;
 
+    const label = t.description?.trim() || "Purchase";
+
     if (t.fundings && t.fundings.length > 0) {
       for (const f of t.fundings) {
         if (f.creditCardId === creditCardId && f.amountCents > 0) {
-          charges.push({ date: t.date, amountCents: f.amountCents });
+          charges.push({
+            date: t.date,
+            amountCents: f.amountCents,
+            label,
+            kind: "purchase",
+          });
         }
       }
       continue;
     }
 
     if (t.creditCardId !== creditCardId) continue;
-    charges.push({ date: t.date, amountCents: t.amountCents });
+    charges.push({
+      date: t.date,
+      amountCents: t.amountCents,
+      label,
+      kind: "purchase",
+    });
   }
   charges.push(...expandInstallmentCharges(installments, creditCardId));
   return charges;
+}
+
+/** Last charge date among plans for a card (for schedule horizon). */
+export function lastInstallmentChargeDate(
+  plans: InstallmentLike[],
+  creditCardId: string
+): string | null {
+  let last: string | null = null;
+  for (const p of plans) {
+    if (p.creditCardId !== creditCardId || p.months <= 0) continue;
+    const end = addMonthsISO(p.startDate, p.months - 1);
+    if (!last || end > last) last = end;
+  }
+  return last;
+}
+
+export type PendingMsiSummary = {
+  id: string;
+  description: string;
+  monthlyAmountCents: number;
+  months: number;
+  monthsLeft: number;
+  remainingCents: number;
+  startDate: string;
+  nextChargeDate: string | null;
+};
+
+/** MSI installments still owed (charge date on/after asOf). */
+export function pendingMsiForCard(
+  plans: InstallmentLike[],
+  creditCardId: string,
+  asOf: string
+): PendingMsiSummary[] {
+  const out: PendingMsiSummary[] = [];
+  for (const p of plans) {
+    if (p.creditCardId !== creditCardId) continue;
+    if (!p.id || p.months <= 0 || p.monthlyAmountCents <= 0) continue;
+    let monthsLeft = 0;
+    let nextChargeDate: string | null = null;
+    for (let i = 0; i < p.months; i++) {
+      const d = addMonthsISO(p.startDate, i);
+      if (d >= asOf) {
+        monthsLeft++;
+        if (!nextChargeDate) nextChargeDate = d;
+      }
+    }
+    if (monthsLeft <= 0) continue;
+    out.push({
+      id: p.id,
+      description: p.description || "MSI",
+      monthlyAmountCents: p.monthlyAmountCents,
+      months: p.months,
+      monthsLeft,
+      remainingCents: monthsLeft * p.monthlyAmountCents,
+      startDate: p.startDate,
+      nextChargeDate,
+    });
+  }
+  return out.sort((a, b) =>
+    (a.nextChargeDate || "").localeCompare(b.nextChargeDate || "")
+  );
+}
+
+export type PaymentLine = LabeledCharge & {
+  /** Statement payment due that this charge lands on. */
+  paymentDue: string;
+};
+
+export type DetailedCardPayment = BillingCycle & {
+  amountCents: number;
+  lines: PaymentLine[];
+};
+
+/**
+ * Full pending payment schedule with line items (purchases + remaining MSI).
+ * Horizon extends through the last MSI charge when needed.
+ */
+export function detailedCardPaymentSchedule(opts: {
+  creditCardId: string;
+  cutoffDay: number;
+  graceDays: number;
+  asOf: string;
+  untilDate?: string;
+  transactions: ChargeLike[];
+  installments: InstallmentLike[];
+}): {
+  payments: DetailedCardPayment[];
+  msiPending: PendingMsiSummary[];
+  totalPendingCents: number;
+} {
+  const lastMsi = lastInstallmentChargeDate(
+    opts.installments,
+    opts.creditCardId
+  );
+  let until = opts.untilDate || addDaysISO(opts.asOf, 400);
+  if (lastMsi) {
+    const lastPay = paymentDueForCutoff(
+      cutoffForPurchase(lastMsi, opts.cutoffDay),
+      opts.graceDays
+    );
+    if (lastPay > until) until = lastPay;
+  }
+
+  const charges = collectCardCharges(
+    opts.creditCardId,
+    opts.transactions,
+    opts.installments
+  );
+  const cycles = billingCyclesThrough(
+    opts.asOf,
+    until,
+    opts.cutoffDay,
+    opts.graceDays
+  );
+
+  const payments: DetailedCardPayment[] = [];
+  for (const cycle of cycles) {
+    const lines: PaymentLine[] = charges
+      .filter((c) => c.date >= cycle.start && c.date <= cycle.end)
+      .map((c) => ({ ...c, paymentDue: cycle.paymentDue }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const amountCents = lines.reduce((s, l) => s + l.amountCents, 0);
+    if (amountCents <= 0) continue;
+    payments.push({ ...cycle, amountCents, lines });
+  }
+
+  const msiPending = pendingMsiForCard(
+    opts.installments,
+    opts.creditCardId,
+    opts.asOf
+  );
+
+  return {
+    payments,
+    msiPending,
+    totalPendingCents: payments.reduce((s, p) => s + p.amountCents, 0),
+  };
 }
 
 export type ScheduledCardPayment = BillingCycle & {

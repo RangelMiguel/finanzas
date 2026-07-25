@@ -63,9 +63,10 @@ export async function DELETE(req: Request) {
       where: { id, householdId: m.householdId },
     });
     if (!existing) throw new Error("Plan no encontrado");
+    // Detach + soft-delete principal transactions, then remove plan (stops projections)
     await prisma.transaction.updateMany({
       where: { installmentPlanId: id },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), installmentPlanId: null },
     });
     await prisma.installmentPlan.delete({ where: { id } });
     return jsonOk({ ok: true });
