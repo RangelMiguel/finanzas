@@ -123,24 +123,32 @@ export default function TransactionsPage() {
   ]);
 
   async function load() {
+    // Load each resource independently so missing accounts/cards modules
+    // (or hidden balances) never break the movements list.
+    const emptyAcc = { accounts: [] as Acc[] };
+    const emptyCc = { creditCards: [] as CardT[] };
     const [txnRes, c, a, cc] = await Promise.all([
       api<{ transactions: Txn[] }>(`/api/transactions?month=${month}`),
-      api<{ categories: Cat[] }>("/api/categories"),
-      api<{ accounts: Acc[] }>("/api/accounts"),
-      api<{ creditCards: CardT[] }>("/api/credit-cards"),
+      api<{ categories: Cat[] }>("/api/categories").catch(() => ({
+        categories: [] as Cat[],
+      })),
+      api<{ accounts: Acc[] }>("/api/accounts").catch(() => emptyAcc),
+      api<{ creditCards: CardT[] }>("/api/credit-cards").catch(() => emptyCc),
     ]);
+    const accList = a.accounts || [];
+    const cardList = cc.creditCards || [];
     setTxns(txnRes.transactions);
-    setCategories(c.categories);
-    setAccounts(a.accounts);
-    setCards(cc.creditCards);
+    setCategories(c.categories || []);
+    setAccounts(accList);
+    setCards(cardList);
     setForm((f) => ({
       ...f,
-      incomeAccountId: f.incomeAccountId || a.accounts[0]?.id || "",
+      incomeAccountId: f.incomeAccountId || accList[0]?.id || "",
     }));
     setPayLines((lines) =>
       lines[0]?.source
         ? lines
-        : [{ source: defaultSource(a.accounts, cc.creditCards), amount: "" }]
+        : [{ source: defaultSource(accList, cardList), amount: "" }]
     );
   }
 

@@ -6,6 +6,8 @@ import { accountBalance } from "@/lib/money";
 import { logActivity } from "@/lib/household";
 import { pesosToCents } from "@/lib/utils";
 import {
+  canListAccounts,
+  canSeeAccountBalances,
   canSeeModule,
   filterAccountId,
   filterTransaction,
@@ -16,7 +18,8 @@ export async function GET() {
   try {
     const session = await requireSession();
     const m = await requireHouseholdAccess(session.userId);
-    if (!canSeeModule(m.visibility, "accounts")) {
+    // Names for pickers (movements, etc.) even if Accounts page is off
+    if (!canListAccounts(m.visibility)) {
       throw new ForbiddenError("No access to accounts");
     }
     const accounts = await prisma.account.findMany({
@@ -24,42 +27,66 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
     const visible = accounts.filter((a) => filterAccountId(m.visibility, a.id));
-    const txns = await prisma.transaction.findMany({
-      where: { householdId: m.householdId, deletedAt: null },
-      select: {
-        id: true,
-        type: true,
-        amountCents: true,
-        accountId: true,
-        toAccountId: true,
-        date: true,
-        deletedAt: true,
-        creditCardId: true,
-        categoryId: true,
-        createdById: true,
-        spentById: true,
-        fundings: {
-          select: {
-            amountCents: true,
-            accountId: true,
-            creditCardId: true,
+    const showBalances = canSeeAccountBalances(m.visibility);
+
+    let visibleTxns: {
+      id: string;
+      type: string;
+      amountCents: number;
+      accountId: string | null;
+      toAccountId: string | null;
+      date: string;
+      deletedAt: Date | null;
+      creditCardId: string | null;
+      categoryId: string | null;
+      createdById: string | null;
+      spentById: string | null;
+      fundings: {
+        amountCents: number;
+        accountId: string | null;
+        creditCardId: string | null;
+      }[];
+    }[] = [];
+
+    if (showBalances) {
+      const txns = await prisma.transaction.findMany({
+        where: { householdId: m.householdId, deletedAt: null },
+        select: {
+          id: true,
+          type: true,
+          amountCents: true,
+          accountId: true,
+          toAccountId: true,
+          date: true,
+          deletedAt: true,
+          creditCardId: true,
+          categoryId: true,
+          createdById: true,
+          spentById: true,
+          fundings: {
+            select: {
+              amountCents: true,
+              accountId: true,
+              creditCardId: true,
+            },
           },
         },
-      },
-    });
-    // Exclude transactions this member is not allowed to see (so balances don't leak them)
-    const visibleTxns = txns.filter((t) =>
-      filterTransaction(m.visibility, t, m.subjectUserId)
-    );
+      });
+      visibleTxns = txns.filter((t) =>
+        filterTransaction(m.visibility, t, m.subjectUserId)
+      );
+    }
+
     const withBalances = visible.map((a) => ({
       ...a,
-      balanceCents: m.visibility.showAccountBalances
+      // Never leak balances when the policy hides them (even if accounts module is on)
+      balanceCents: showBalances
         ? accountBalance(a.initialBalanceCents, visibleTxns, a.id)
         : null,
-      initialBalanceCents: m.visibility.showAccountBalances
-        ? a.initialBalanceCents
-        : null,
-      balancesHidden: !m.visibility.showAccountBalances,
+      initialBalanceCents: showBalances ? a.initialBalanceCents : null,
+      balancesHidden: !showBalances,
+      // Soft flag for clients that only need names (movements form)
+      namesOnly: !canSeeModule(m.visibility, "accounts"),
     }));
     return jsonOk({ accounts: withBalances });
   } catch (e) {

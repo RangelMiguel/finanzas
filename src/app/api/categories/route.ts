@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
+import { filterCategoryId } from "@/lib/visibility";
 
 export async function GET() {
   try {
@@ -11,7 +12,11 @@ export async function GET() {
       where: { householdId: m.householdId },
       orderBy: [{ type: "asc" }, { name: "asc" }],
     });
-    return jsonOk({ categories });
+    // Don't offer categories this member is not allowed to see
+    const visible = categories.filter((c) =>
+      filterCategoryId(m.visibility, c.id)
+    );
+    return jsonOk({ categories: visible });
   } catch (e) {
     return jsonError(e);
   }

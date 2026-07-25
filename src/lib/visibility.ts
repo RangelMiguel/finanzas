@@ -133,6 +133,56 @@ export const LIMITED_VISIBILITY: MemberVisibility = {
   showOtherMembers: false,
 };
 
+/** Kids / allowance: expenses only, mostly own activity */
+export const SPEND_ONLY_VISIBILITY: MemberVisibility = {
+  ...LIMITED_VISIBILITY,
+  showIncome: false,
+  showExpense: true,
+  showTransfers: false,
+  onlyOwnTransactions: true,
+  showDashboardIncome: false,
+  showDashboardExpense: true,
+  showDashboardBalance: false,
+  modules: {
+    ...LIMITED_VISIBILITY.modules,
+    accounts: true,
+    transactions: true,
+    budgets: true,
+    safeToSpend: false,
+    tickets: true,
+    creditCards: false,
+    goals: false,
+    retirement: false,
+  },
+};
+
+/** Compare policy shape ignoring hide-lists (categories etc. are extras on top of a level). */
+export function accessLevelOf(
+  p: MemberVisibility
+): "full" | "limited" | "spend" | "custom" {
+  const strip = (v: MemberVisibility) => ({
+    modules: v.modules,
+    showIncome: v.showIncome,
+    showExpense: v.showExpense,
+    showTransfers: v.showTransfers,
+    showAccountBalances: v.showAccountBalances,
+    onlyOwnTransactions: v.onlyOwnTransactions,
+    showOtherMembers: v.showOtherMembers,
+    showDashboardIncome: v.showDashboardIncome,
+    showDashboardExpense: v.showDashboardExpense,
+    showDashboardBalance: v.showDashboardBalance,
+    showBudgets: v.showBudgets,
+    showRecurringIncomes: v.showRecurringIncomes,
+    showDebtBalances: v.showDebtBalances,
+    showExport: v.showExport,
+  });
+  const a = JSON.stringify(strip(p));
+  if (a === JSON.stringify(strip(FULL_VISIBILITY))) return "full";
+  if (a === JSON.stringify(strip(SPEND_ONLY_VISIBILITY))) return "spend";
+  if (a === JSON.stringify(strip(LIMITED_VISIBILITY))) return "limited";
+  return "custom";
+}
+
 export function parseVisibility(raw: unknown): MemberVisibility {
   let obj: Partial<MemberVisibility> = {};
   if (typeof raw === "string") {
@@ -191,6 +241,33 @@ export function canSeeModule(
   module: keyof MemberVisibility["modules"]
 ): boolean {
   return !!vis.modules[module];
+}
+
+/**
+ * Account *names* are needed for movements, budgets, goals pickers, etc.
+ * Balances only when the accounts module is on AND showAccountBalances.
+ */
+export function canListAccounts(vis: MemberVisibility): boolean {
+  return (
+    canSeeModule(vis, "accounts") ||
+    canSeeModule(vis, "transactions") ||
+    canSeeModule(vis, "budgets") ||
+    canSeeModule(vis, "goals") ||
+    canSeeModule(vis, "safeToSpend") ||
+    canSeeModule(vis, "recurring") ||
+    canSeeModule(vis, "allowances")
+  );
+}
+
+/** Card names for expense "paid with" pickers even without the credit-cards module. */
+export function canListCreditCards(vis: MemberVisibility): boolean {
+  return (
+    canSeeModule(vis, "creditCards") || canSeeModule(vis, "transactions")
+  );
+}
+
+export function canSeeAccountBalances(vis: MemberVisibility): boolean {
+  return canSeeModule(vis, "accounts") && !!vis.showAccountBalances;
 }
 
 export function filterAccountId(

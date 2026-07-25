@@ -3,7 +3,7 @@ import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { monthKey, todayISO } from "@/lib/utils";
-import { canSeeModule } from "@/lib/visibility";
+import { canListCreditCards, canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import { monthBounds } from "@/lib/money";
 import {
@@ -15,13 +15,32 @@ export async function GET() {
   try {
     const session = await requireSession();
     const m = await requireHouseholdAccess(session.userId);
-    if (!canSeeModule(m.visibility, "creditCards")) {
+    // Names for "paid with" on movements even without full cards module
+    if (!canListCreditCards(m.visibility)) {
       throw new ForbiddenError("No access to credit cards");
     }
+    const fullCardsModule = canSeeModule(m.visibility, "creditCards");
     const cards = await prisma.creditCard.findMany({
       where: { householdId: m.householdId },
       orderBy: { name: "asc" },
     });
+    const visible = cards.filter(
+      (c) => !m.visibility.hiddenCreditCardIds.includes(c.id)
+    );
+
+    // Picker-only: names without payment cycle totals
+    if (!fullCardsModule) {
+      return jsonOk({
+        creditCards: visible.map((c) => ({
+          ...c,
+          monthSpendCents: 0,
+          nextPayment: null,
+          followingPayment: null,
+          namesOnly: true,
+        })),
+      });
+    }
+
     const asOf = todayISO();
     const month = monthKey();
     const { start: monthStart, end: monthEnd } = monthBounds(month);
@@ -75,9 +94,6 @@ export async function GET() {
       }),
     ]);
 
-    const visible = cards.filter(
-      (c) => !m.visibility.hiddenCreditCardIds.includes(c.id)
-    );
     return jsonOk({
       creditCards: visible.map((c) => {
         const summary = summarizeCardPayments({

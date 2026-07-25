@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import {
   FULL_VISIBILITY,
   LIMITED_VISIBILITY,
+  SPEND_ONLY_VISIBILITY,
+  accessLevelOf,
   type MemberVisibility,
 } from "@/lib/visibility";
 import { Shield, KeyRound, Radio, Trash2, Eye, BookmarkPlus } from "lucide-react";
@@ -135,6 +137,10 @@ export default function SecurityPage() {
   const [templateName, setTemplateName] = useState("");
   const [bulkIds, setBulkIds] = useState<string[]>([]);
   const [bulkTemplateId, setBulkTemplateId] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [showPasskeys, setShowPasskeys] = useState(false);
 
   const canAdmin = role === "owner" || role === "admin";
   const selectedInvite = isInviteTarget(selectedId)
@@ -145,6 +151,7 @@ export default function SecurityPage() {
   const isInviteSelected = !!selectedInvite;
   const previewRole =
     selectedInvite?.role || selected?.role || "member";
+  const accessLevel = accessLevelOf(policy);
 
   async function load() {
     const [res, inv] = await Promise.all([
@@ -397,28 +404,27 @@ export default function SecurityPage() {
   }
 
   function applyPreset(kind: "full" | "limited" | "spend") {
-    if (kind === "full") setPolicy({ ...FULL_VISIBILITY });
-    else if (kind === "limited") setPolicy({ ...LIMITED_VISIBILITY });
-    else {
-      setPolicy({
-        ...LIMITED_VISIBILITY,
-        showIncome: false,
-        showExpense: true,
-        showTransfers: false,
-        onlyOwnTransactions: true,
-        showDashboardIncome: false,
-        showDashboardExpense: true,
-        showDashboardBalance: false,
-        modules: {
-          ...LIMITED_VISIBILITY.modules,
-          accounts: true,
-          transactions: true,
-          budgets: true,
-          safeToSpend: false,
-          tickets: true,
-        },
-      });
-    }
+    // Keep category / account hide lists when switching level
+    const keep = {
+      hiddenCategoryIds: policy.hiddenCategoryIds,
+      hiddenAccountIds: policy.hiddenAccountIds,
+      allowedAccountIds: policy.allowedAccountIds,
+      hiddenCreditCardIds: policy.hiddenCreditCardIds,
+      hiddenDebtIds: policy.hiddenDebtIds,
+      hiddenTransactionIds: policy.hiddenTransactionIds || [],
+      hiddenBudgetIds: policy.hiddenBudgetIds || [],
+    };
+    const base =
+      kind === "full"
+        ? FULL_VISIBILITY
+        : kind === "limited"
+          ? LIMITED_VISIBILITY
+          : SPEND_ONLY_VISIBILITY;
+    setPolicy({
+      ...base,
+      modules: { ...base.modules },
+      ...keep,
+    });
   }
 
   function applyTemplate(tpl: VisibilityTemplate) {
@@ -636,6 +642,7 @@ export default function SecurityPage() {
     </>
   );
 
+
   if (!canAdmin) {
     return (
       <div className="space-y-6">
@@ -645,525 +652,517 @@ export default function SecurityPage() {
           subtitle={t.security.passkeysSubtitle}
         />
         {passkeysBlock}
-        <p className="text-sm text-[var(--fg-muted)]">{t.security.hint}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
         kicker={t.nav.security}
-        title={t.security.title}
-        subtitle={t.security.subtitle}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              onClick={startViewAs}
-              disabled={loading || isOwnerTarget || !selectedId}
-            >
-              <Eye className="h-4 w-4" />
-              {isInviteSelected
-                ? t.security.viewAsInvite
-                : t.security.viewAs}
-            </Button>
-            {isInviteSelected && (
-              <Button
-                variant="secondary"
-                onClick={revokeSelectedInvite}
-                disabled={loading}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t.security.revokeInvite || t.family.revokeInvite}
-              </Button>
-            )}
-            <Button onClick={save} disabled={loading || isOwnerTarget}>
-              <Shield className="h-4 w-4" />
-              {t.security.savePolicy}
-            </Button>
-          </div>
-        }
+        title={t.security.titleSimple}
+        subtitle={t.security.subtitleSimple}
       />
-      <p className="text-xs text-[var(--fg-faint)]">{t.security.hint}</p>
 
-      {passkeysBlock}
-
+      {/* Step 1: who */}
       <Card premium>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BookmarkPlus className="h-4 w-4" />
-            {t.security.templates}
+          <CardTitle className="text-base">
+            1. {t.security.stepWho}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-[var(--fg-muted)]">
-            {t.security.templatesHint}
-          </p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <Label htmlFor="tpl-name">{t.security.templateName}</Label>
-              <Input
-                id="tpl-name"
-                className="mt-1"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                placeholder={t.security.templateNamePh}
-              />
-            </div>
-            <Button
-              onClick={saveAsTemplate}
-              disabled={isOwnerTarget}
-              variant="secondary"
-            >
-              {t.security.saveAsTemplate}
-            </Button>
-          </div>
-
-          {templates.length === 0 ? (
-            <p className="text-sm text-[var(--fg-faint)]">
-              {t.security.noTemplates}
-            </p>
-          ) : (
-            <ul className="divide-y divide-white/10 rounded-xl border border-white/10">
-              {templates.map((tpl) => (
-                <li
-                  key={tpl.id}
-                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm"
-                >
-                  <span className="font-medium text-[var(--fg)]">{tpl.name}</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={isOwnerTarget}
-                      onClick={() => applyTemplate(tpl)}
-                    >
-                      {t.security.applyTemplate}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isOwnerTarget}
-                      onClick={() => updateTemplate(tpl.id)}
-                    >
-                      {t.security.updateTemplate}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteTemplate(tpl)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {templates.length > 0 && (
-            <div className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-[var(--fg-faint)]">
-                {t.security.applyToManyHint}
-              </p>
-              <div>
-                <Label>{t.security.templates}</Label>
-                <Select
-                  className="mt-1"
-                  value={bulkTemplateId}
-                  onChange={(e) => setBulkTemplateId(e.target.value)}
-                >
-                  <option value="">{t.select}</option>
-                  {templates.map((tpl) => (
-                    <option key={tpl.id} value={tpl.id}>
-                      {tpl.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label>{t.security.selectTargets}</Label>
-                <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-white/10 p-2">
-                  {invites.map((inv) => {
-                    const id = INVITE_PREFIX + inv.id;
-                    return (
-                      <label
-                        key={id}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={bulkIds.includes(id)}
-                          onChange={() => toggleBulk(id)}
-                        />
-                        <span>
-                          {inv.email}{" "}
-                          <span className="text-[var(--fg-faint)]">
-                            ({t.security.pendingBadge})
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                  {members
-                    .filter((m) => m.role !== "owner")
-                    .map((m) => (
-                      <label
-                        key={m.id}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={bulkIds.includes(m.id)}
-                          onChange={() => toggleBulk(m.id)}
-                        />
-                        <span>
-                          {m.user.displayName} ({m.role})
-                        </span>
-                      </label>
-                    ))}
-                </div>
-              </div>
-              <Button
-                size="sm"
-                disabled={!bulkTemplateId || loading}
-                onClick={applyTemplateToMany}
-              >
-                {t.security.applyToMany}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card premium>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Radio className="h-4 w-4 text-emerald-400" />
-            {t.security.monitoringTitle}
-            <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-300">
-              {t.security.monitoringLive}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-[var(--fg-muted)]">
-            {t.security.monitoringSubtitle}
-          </p>
-          <p className="text-[11px] text-[var(--fg-faint)]">
-            {t.security.monitoringEmailHint}
-          </p>
-          {alerts.length === 0 ? (
-            <p className="text-sm text-[var(--fg-faint)]">
-              {t.security.monitoringEmpty}
-            </p>
-          ) : (
-            <ul className="max-h-80 space-y-2 overflow-y-auto">
-              {alerts.map((a) => (
-                <li
-                  key={a.id}
-                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={
-                        a.severity === "critical"
-                          ? "text-red-300"
-                          : a.severity === "warning"
-                            ? "text-amber-200"
-                            : "text-sky-200"
-                      }
-                    >
-                      {a.severity}
-                    </span>
-                    <span className="text-[var(--fg-faint)]">{a.type}</span>
-                    <span className="text-[11px] text-[var(--fg-faint)]">
-                      {new Date(a.createdAt).toLocaleString()}
-                    </span>
-                    <span className="text-[11px] text-[var(--fg-faint)]">
-                      {a.emailedAt ? t.security.emailed : t.security.notEmailed}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 font-medium">{a.summary}</div>
-                  {a.detail && (
-                    <div className="text-[12px] text-[var(--fg-muted)]">
-                      {a.detail}
-                    </div>
-                  )}
-                  {a.ip && (
-                    <div className="text-[11px] text-[var(--fg-faint)]">
-                      IP {a.ip}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card premium>
-        <CardContent className="grid gap-4 py-5 sm:grid-cols-2">
-          <div>
-            <Label>{t.security.selectTarget || t.security.selectMember}</Label>
-            <Select
-              className="mt-1"
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-            >
-              {invites.length > 0 && (
-                <optgroup label={t.security.pendingInvites}>
-                  {invites.map((inv) => (
-                    <option key={inv.id} value={INVITE_PREFIX + inv.id}>
-                      {tr(t.security.inviteTarget, {
-                        email: inv.email,
-                        role: inv.role,
-                      })}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              <optgroup label={t.security.selectMember}>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.user.displayName} ({m.role})
+        <CardContent className="space-y-2">
+          <Select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+          >
+            {invites.length > 0 && (
+              <optgroup label={t.security.pendingInvites}>
+                {invites.map((inv) => (
+                  <option key={inv.id} value={INVITE_PREFIX + inv.id}>
+                    {tr(t.security.inviteTarget, {
+                      email: inv.email,
+                      role: inv.role,
+                    })}
                   </option>
                 ))}
               </optgroup>
-            </Select>
-            {isInviteSelected && (
-              <p className="mt-1 text-xs text-amber-200/90">
-                <span className="mr-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">
-                  {t.security.pendingBadge}
-                </span>
-                {t.security.pendingHint}
-              </p>
             )}
-            {!isOwnerTarget && selectedId && (
-              <p className="mt-1 text-xs text-[var(--fg-faint)]">
-                {t.security.viewAsHint}
-              </p>
-            )}
-          </div>
-          <div>
-            <Label>{t.security.presets}</Label>
-            <div className="mt-1 flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={isOwnerTarget}
-                onClick={() => applyPreset("full")}
-              >
-                {t.security.presetFull}
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={isOwnerTarget}
-                onClick={() => applyPreset("limited")}
-              >
-                {t.security.presetLimited}
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={isOwnerTarget}
-                onClick={() => applyPreset("spend")}
-              >
-                {t.security.presetSpendOnly}
-              </Button>
-            </div>
-          </div>
-          {isOwnerTarget && (
-            <p className="sm:col-span-2 text-sm text-amber-200/90">
-              {t.security.ownerLocked}
+            <optgroup label={t.security.selectMember}>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.user.displayName} ({m.role})
+                </option>
+              ))}
+            </optgroup>
+          </Select>
+          {isInviteSelected && (
+            <p className="text-xs text-amber-200/90">
+              <span className="mr-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] uppercase text-amber-200">
+                {t.security.pendingBadge}
+              </span>
+              {t.security.pendingHint}
             </p>
+          )}
+          {isOwnerTarget && (
+            <p className="text-sm text-amber-200/90">{t.security.ownerLocked}</p>
           )}
         </CardContent>
       </Card>
 
-      <fieldset disabled={isOwnerTarget} className="space-y-4 disabled:opacity-60">
+      <fieldset disabled={isOwnerTarget || !selectedId} className="space-y-5 disabled:opacity-50">
+        {/* Step 2: access level */}
         <Card premium>
           <CardHeader>
-            <CardTitle>{t.security.modules}</CardTitle>
+            <CardTitle className="text-base">
+              2. {t.security.stepLevel}
+            </CardTitle>
+            <p className="mt-1 text-xs text-[var(--fg-faint)]">
+              {t.security.stepLevelHint}
+            </p>
           </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {MODULE_KEYS.map((key) => (
-              <label
-                key={key}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={policy.modules[key]}
-                  onChange={(e) => setModule(key, e.target.checked)}
-                />
-                {moduleLabels[key]}
-              </label>
-            ))}
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            {(
+              [
+                {
+                  id: "full" as const,
+                  title: t.security.levelFull,
+                  desc: t.security.levelFullDesc,
+                },
+                {
+                  id: "limited" as const,
+                  title: t.security.levelLimited,
+                  desc: t.security.levelLimitedDesc,
+                },
+                {
+                  id: "spend" as const,
+                  title: t.security.levelSpend,
+                  desc: t.security.levelSpendDesc,
+                },
+              ] as const
+            ).map((lvl) => {
+              const active = accessLevel === lvl.id;
+              return (
+                <button
+                  key={lvl.id}
+                  type="button"
+                  onClick={() => applyPreset(lvl.id)}
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    active
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]/40"
+                      : "border-white/10 bg-black/20 hover:border-white/20"
+                  }`}
+                >
+                  <div className="font-medium text-[var(--fg)]">{lvl.title}</div>
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--fg-faint)]">
+                    {lvl.desc}
+                  </p>
+                </button>
+              );
+            })}
           </CardContent>
+          {accessLevel === "custom" && (
+            <p className="px-5 pb-4 text-xs text-amber-200/80">
+              {t.security.levelCustomHint}
+            </p>
+          )}
         </Card>
 
-        <Card premium>
-          <CardHeader>
-            <CardTitle>{t.security.txnTypes}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-3">
-            <Toggle
-              label={t.security.showIncome}
-              checked={policy.showIncome}
-              onChange={(v) => setPolicy((p) => ({ ...p, showIncome: v }))}
-            />
-            <Toggle
-              label={t.security.showExpense}
-              checked={policy.showExpense}
-              onChange={(v) => setPolicy((p) => ({ ...p, showExpense: v }))}
-            />
-            <Toggle
-              label={t.security.showTransfers}
-              checked={policy.showTransfers}
-              onChange={(v) => setPolicy((p) => ({ ...p, showTransfers: v }))}
-            />
-          </CardContent>
-        </Card>
-
-        <Card premium>
-          <CardHeader>
-            <CardTitle>{t.security.dashboard}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2">
-            <Toggle
-              label={t.security.dashIncome}
-              checked={policy.showDashboardIncome}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, showDashboardIncome: v }))
-              }
-            />
-            <Toggle
-              label={t.security.dashExpense}
-              checked={policy.showDashboardExpense}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, showDashboardExpense: v }))
-              }
-            />
-            <Toggle
-              label={t.security.dashBalance}
-              checked={policy.showDashboardBalance}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, showDashboardBalance: v }))
-              }
-            />
-            <Toggle
-              label={t.security.showBudgets}
-              checked={policy.showBudgets}
-              onChange={(v) => setPolicy((p) => ({ ...p, showBudgets: v }))}
-            />
-            <Toggle
-              label={t.security.showRecurring}
-              checked={policy.showRecurringIncomes}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, showRecurringIncomes: v }))
-              }
-            />
-            <Toggle
-              label={t.security.showDebtBal}
-              checked={policy.showDebtBalances}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, showDebtBalances: v }))
-              }
-            />
-            <Toggle
-              label={t.security.showExport}
-              checked={policy.showExport}
-              onChange={(v) => setPolicy((p) => ({ ...p, showExport: v }))}
-            />
-          </CardContent>
-        </Card>
-
-        <Card premium>
-          <CardHeader>
-            <CardTitle>{t.security.scope}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2">
-            <Toggle
-              label={t.security.onlyOwn}
-              checked={policy.onlyOwnTransactions}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, onlyOwnTransactions: v }))
-              }
-            />
-            <Toggle
-              label={t.security.showOthers}
-              checked={policy.showOtherMembers}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, showOtherMembers: v }))
-              }
-            />
-            <Toggle
-              label={t.security.showBalances}
-              checked={policy.showAccountBalances}
-              onChange={(v) =>
-                setPolicy((p) => ({ ...p, showAccountBalances: v }))
-              }
-            />
-          </CardContent>
-        </Card>
-
-        {catalogs && (
-          <>
-            <MultiPick
-              title={t.security.hideAccounts}
-              items={catalogs.accounts.map((a) => ({
-                id: a.id,
-                label: `${a.icon} ${a.name}`,
-              }))}
-              selected={policy.hiddenAccountIds}
-              onToggle={(id) => toggleInList("hiddenAccountIds", id)}
-            />
-            <MultiPick
-              title={t.security.onlyAccounts}
-              items={catalogs.accounts.map((a) => ({
-                id: a.id,
-                label: `${a.icon} ${a.name}`,
-              }))}
-              selected={policy.allowedAccountIds}
-              onToggle={(id) => toggleInList("allowedAccountIds", id)}
-            />
-            <MultiPick
-              title={t.security.categoriesHide || t.security.categories}
-              hint={t.security.categoriesHideHint}
-              items={catalogs.categories.map((c) => ({
-                id: c.id,
-                label: `${c.icon} ${c.name} (${c.type})`,
-              }))}
-              selected={policy.hiddenCategoryIds}
-              onToggle={(id) => toggleInList("hiddenCategoryIds", id)}
-            />
-            <MultiPick
-              title={t.security.cards}
-              items={catalogs.creditCards.map((c) => ({
-                id: c.id,
-                label: `${c.name}${c.lastFour ? " •••• " + c.lastFour : ""}`,
-              }))}
-              selected={policy.hiddenCreditCardIds}
-              onToggle={(id) => toggleInList("hiddenCreditCardIds", id)}
-            />
-            <MultiPick
-              title={t.security.debtsHide}
-              items={catalogs.debts.map((d) => ({
-                id: d.id,
-                label: d.name,
-              }))}
-              selected={policy.hiddenDebtIds}
-              onToggle={(id) => toggleInList("hiddenDebtIds", id)}
-            />
-</>
+        {/* Step 3: hide categories */}
+        {catalogs && catalogs.categories.length > 0 && (
+          <Card premium>
+            <CardHeader>
+              <CardTitle className="text-base">
+                3. {t.security.stepCategories}
+              </CardTitle>
+              <p className="mt-1 text-xs text-[var(--fg-faint)]">
+                {t.security.categoriesHideHint}
+              </p>
+            </CardHeader>
+            <CardContent className="grid max-h-56 gap-1 overflow-y-auto sm:grid-cols-2">
+              {catalogs.categories.map((c) => {
+                const on = policy.hiddenCategoryIds.includes(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
+                      on
+                        ? "border-rose-400/30 bg-rose-500/10"
+                        : "border-white/10 bg-black/20"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggleInList("hiddenCategoryIds", c.id)}
+                    />
+                    <span className="truncate">
+                      {c.icon} {c.name}
+                    </span>
+                  </label>
+                );
+              })}
+            </CardContent>
+          </Card>
         )}
+
+        {/* Primary actions */}
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={save} disabled={loading || isOwnerTarget || !selectedId}>
+            <Shield className="h-4 w-4" />
+            {t.security.savePolicy}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={startViewAs}
+            disabled={loading || isOwnerTarget || !selectedId}
+          >
+            <Eye className="h-4 w-4" />
+            {isInviteSelected ? t.security.viewAsInvite : t.security.viewAs}
+          </Button>
+          {isInviteSelected && (
+            <Button
+              variant="ghost"
+              onClick={revokeSelectedInvite}
+              disabled={loading}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t.security.revokeInvite || t.family.revokeInvite}
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-[var(--fg-faint)]">{t.security.viewAsHint}</p>
+
+        {/* Advanced (collapsed) */}
+        <Card premium>
+          <CardHeader>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between text-left"
+              onClick={() => setShowAdvanced((v) => !v)}
+            >
+              <CardTitle className="text-base">
+                {t.security.advanced}
+              </CardTitle>
+              <span className="text-xs text-[var(--fg-faint)]">
+                {showAdvanced ? t.security.hideAdvanced : t.security.showAdvanced}
+              </span>
+            </button>
+            <p className="mt-1 text-xs text-[var(--fg-faint)]">
+              {t.security.advancedHint}
+            </p>
+          </CardHeader>
+          {showAdvanced && (
+            <CardContent className="space-y-4 border-t border-white/10 pt-4">
+              <div>
+                <p className="mb-2 text-sm font-medium text-[var(--fg)]">
+                  {t.security.modules}
+                </p>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {MODULE_KEYS.map((key) => (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-white/5"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={policy.modules[key]}
+                        onChange={(e) => setModule(key, e.target.checked)}
+                      />
+                      {moduleLabels[key]}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Toggle
+                  label={t.security.showIncome}
+                  checked={policy.showIncome}
+                  onChange={(v) => setPolicy((p) => ({ ...p, showIncome: v }))}
+                />
+                <Toggle
+                  label={t.security.showExpense}
+                  checked={policy.showExpense}
+                  onChange={(v) => setPolicy((p) => ({ ...p, showExpense: v }))}
+                />
+                <Toggle
+                  label={t.security.showTransfers}
+                  checked={policy.showTransfers}
+                  onChange={(v) =>
+                    setPolicy((p) => ({ ...p, showTransfers: v }))
+                  }
+                />
+                <Toggle
+                  label={t.security.showBalances}
+                  checked={policy.showAccountBalances}
+                  onChange={(v) =>
+                    setPolicy((p) => ({ ...p, showAccountBalances: v }))
+                  }
+                />
+                <Toggle
+                  label={t.security.onlyOwn}
+                  checked={policy.onlyOwnTransactions}
+                  onChange={(v) =>
+                    setPolicy((p) => ({ ...p, onlyOwnTransactions: v }))
+                  }
+                />
+                <Toggle
+                  label={t.security.showOthers}
+                  checked={policy.showOtherMembers}
+                  onChange={(v) =>
+                    setPolicy((p) => ({ ...p, showOtherMembers: v }))
+                  }
+                />
+                <Toggle
+                  label={t.security.dashIncome}
+                  checked={policy.showDashboardIncome}
+                  onChange={(v) =>
+                    setPolicy((p) => ({ ...p, showDashboardIncome: v }))
+                  }
+                />
+                <Toggle
+                  label={t.security.dashExpense}
+                  checked={policy.showDashboardExpense}
+                  onChange={(v) =>
+                    setPolicy((p) => ({ ...p, showDashboardExpense: v }))
+                  }
+                />
+                <Toggle
+                  label={t.security.dashBalance}
+                  checked={policy.showDashboardBalance}
+                  onChange={(v) =>
+                    setPolicy((p) => ({ ...p, showDashboardBalance: v }))
+                  }
+                />
+                <Toggle
+                  label={t.security.showExport}
+                  checked={policy.showExport}
+                  onChange={(v) => setPolicy((p) => ({ ...p, showExport: v }))}
+                />
+              </div>
+
+              {catalogs && (
+                <>
+                  <MultiPick
+                    title={t.security.hideAccounts}
+                    items={catalogs.accounts.map((a) => ({
+                      id: a.id,
+                      label: `${a.icon} ${a.name}`,
+                    }))}
+                    selected={policy.hiddenAccountIds}
+                    onToggle={(id) => toggleInList("hiddenAccountIds", id)}
+                  />
+                  <MultiPick
+                    title={t.security.cards}
+                    items={catalogs.creditCards.map((c) => ({
+                      id: c.id,
+                      label: `${c.name}${c.lastFour ? " •••• " + c.lastFour : ""}`,
+                    }))}
+                    selected={policy.hiddenCreditCardIds}
+                    onToggle={(id) => toggleInList("hiddenCreditCardIds", id)}
+                  />
+                  <MultiPick
+                    title={t.security.debtsHide}
+                    items={catalogs.debts.map((d) => ({
+                      id: d.id,
+                      label: d.name,
+                    }))}
+                    selected={policy.hiddenDebtIds}
+                    onToggle={(id) => toggleInList("hiddenDebtIds", id)}
+                  />
+                </>
+              )}
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Templates simplified */}
+        <Card premium>
+          <CardHeader>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between text-left"
+              onClick={() => setShowTemplates((v) => !v)}
+            >
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BookmarkPlus className="h-4 w-4" />
+                {t.security.templates}
+              </CardTitle>
+              <span className="text-xs text-[var(--fg-faint)]">
+                {showTemplates ? "−" : "+"}
+              </span>
+            </button>
+          </CardHeader>
+          {showTemplates && (
+            <CardContent className="space-y-3 border-t border-white/10 pt-4">
+              <p className="text-xs text-[var(--fg-faint)]">
+                {t.security.templatesHint}
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Label htmlFor="tpl-name">{t.security.templateName}</Label>
+                  <Input
+                    id="tpl-name"
+                    className="mt-1"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder={t.security.templateNamePh}
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={saveAsTemplate}
+                  disabled={isOwnerTarget}
+                >
+                  {t.security.saveAsTemplate}
+                </Button>
+              </div>
+              {templates.length === 0 ? (
+                <p className="text-sm text-[var(--fg-faint)]">
+                  {t.security.noTemplates}
+                </p>
+              ) : (
+                <ul className="divide-y divide-white/10 rounded-xl border border-white/10">
+                  {templates.map((tpl) => (
+                    <li
+                      key={tpl.id}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium">{tpl.name}</span>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => applyTemplate(tpl)}
+                        >
+                          {t.security.applyTemplate}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteTemplate(tpl)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {templates.length > 0 && (
+                <div className="space-y-2 rounded-xl border border-white/10 p-3">
+                  <p className="text-xs text-[var(--fg-faint)]">
+                    {t.security.applyToManyHint}
+                  </p>
+                  <Select
+                    value={bulkTemplateId}
+                    onChange={(e) => setBulkTemplateId(e.target.value)}
+                  >
+                    <option value="">{t.select}</option>
+                    {templates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <div className="max-h-32 space-y-1 overflow-y-auto text-sm">
+                    {invites.map((inv) => {
+                      const id = INVITE_PREFIX + inv.id;
+                      return (
+                        <label key={id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={bulkIds.includes(id)}
+                            onChange={() => toggleBulk(id)}
+                          />
+                          {inv.email}
+                        </label>
+                      );
+                    })}
+                    {members
+                      .filter((m) => m.role !== "owner")
+                      .map((m) => (
+                        <label key={m.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={bulkIds.includes(m.id)}
+                            onChange={() => toggleBulk(m.id)}
+                          />
+                          {m.user.displayName}
+                        </label>
+                      ))}
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={!bulkTemplateId || loading}
+                    onClick={applyTemplateToMany}
+                  >
+                    {t.security.applyToMany}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
       </fieldset>
+
+      {/* Passkeys collapsed */}
+      <div>
+        <button
+          type="button"
+          className="mb-2 text-sm text-[var(--fg-muted)] underline-offset-2 hover:underline"
+          onClick={() => setShowPasskeys((v) => !v)}
+        >
+          {showPasskeys ? "− " : "+ "}
+          {t.security.passkeysTitle}
+        </button>
+        {showPasskeys && passkeysBlock}
+      </div>
+
+      {/* Alerts collapsed */}
+      <Card premium>
+        <CardHeader>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between text-left"
+            onClick={() => setShowAlerts((v) => !v)}
+          >
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Radio className="h-4 w-4 text-emerald-400" />
+              {t.security.monitoringTitle}
+            </CardTitle>
+            <span className="text-xs text-[var(--fg-faint)]">
+              {showAlerts ? "−" : `${alerts.length}`}
+            </span>
+          </button>
+        </CardHeader>
+        {showAlerts && (
+          <CardContent className="max-h-72 space-y-2 overflow-y-auto border-t border-white/10 pt-4">
+            {alerts.length === 0 ? (
+              <p className="text-sm text-[var(--fg-faint)]">
+                {t.security.monitoringEmpty}
+              </p>
+            ) : (
+              alerts.map((a) => (
+                <div
+                  key={a.id}
+                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm"
+                >
+                  <div className="text-[11px] text-[var(--fg-faint)]">
+                    {new Date(a.createdAt).toLocaleString()} · {a.severity}
+                  </div>
+                  <div className="font-medium">{a.summary}</div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }
+
 
 function Toggle({
   label,
