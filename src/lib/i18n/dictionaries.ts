@@ -760,7 +760,8 @@ export const es = {
     cards: "Tarjetas ocultas",
     debtsHide: "Deudas ocultas",
     scope: "Alcance de datos",
-    onlyOwn: "Solo sus propios movimientos (creados o gastados por él/ella)",
+    onlyOwn:
+      "Solo sus ingresos/transferencias propias (los gastos del hogar sí se ven para presupuestos)",
     showOthers: "Ver nombres de otros miembros",
     dashboard: "Resumen del dashboard",
     dashIncome: "Mostrar total de ingresos",
@@ -1718,7 +1719,8 @@ export const en: Dictionary = {
     cards: "Hidden credit cards",
     debtsHide: "Hidden debts",
     scope: "Data scope",
-    onlyOwn: "Only their own transactions (created or spent by them)",
+    onlyOwn:
+      "Only their own income/transfers (household expenses stay visible for budgets)",
     showOthers: "See other members' names",
     dashboard: "Dashboard summary",
     dashIncome: "Show total income",

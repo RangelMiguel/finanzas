@@ -28,6 +28,7 @@ function defaultVisibilityForRole(role: string): MemberVisibility {
         tickets: false,
         safeToSpend: false,
       },
+      // Expenses stay visible for household budget tracking
       onlyOwnTransactions: true,
     };
   }

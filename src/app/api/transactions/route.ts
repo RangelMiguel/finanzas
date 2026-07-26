@@ -242,7 +242,13 @@ export async function POST(req: Request) {
           installmentPlanId = plan.id;
         }
 
-        const spentById = body.spentById || session.userId;
+        // spentBy is optional. Do not default to the logger — that made
+        // onlyOwn policies hide family expenses from limited members.
+        // Empty / omitted = household shared; set explicitly for personal spend.
+        const spentById =
+          body.spentById && body.spentById.length > 0
+            ? body.spentById
+            : null;
         const txn = await prisma.transaction.create({
           data: {
             ...(body.id ? { id: body.id } : {}),

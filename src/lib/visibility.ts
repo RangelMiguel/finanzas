@@ -124,28 +124,32 @@ export const LIMITED_VISIBILITY: MemberVisibility = {
   },
   showIncome: false,
   showTransfers: false,
+  showAccountBalances: false,
   showDashboardIncome: false,
   showDashboardBalance: false,
   showRecurringIncomes: false,
   showDebtBalances: false,
   showExport: false,
+  // Expenses stay household-visible (parents log family spend; budgets need them).
+  // onlyOwn still privacy-filters income/transfers when those types are enabled.
   onlyOwnTransactions: true,
   showOtherMembers: false,
 };
 
-/** Kids / allowance: expenses only, mostly own activity */
+/** Kids / allowance: expenses + budgets, no balances / household money */
 export const SPEND_ONLY_VISIBILITY: MemberVisibility = {
   ...LIMITED_VISIBILITY,
   showIncome: false,
   showExpense: true,
   showTransfers: false,
+  showAccountBalances: false,
   onlyOwnTransactions: true,
   showDashboardIncome: false,
   showDashboardExpense: true,
   showDashboardBalance: false,
   modules: {
     ...LIMITED_VISIBILITY.modules,
-    accounts: true,
+    accounts: true, // names for pickers; balances still hidden
     transactions: true,
     budgets: true,
     safeToSpend: false,
@@ -341,10 +345,21 @@ export function filterTransaction(
     return false;
   }
   if (vis.onlyOwnTransactions) {
-    const mine =
-      txn.createdById === userId ||
-      txn.spentById === userId;
-    if (!mine) return false;
+    /**
+     * Expenses are household-shared for budget tracking.
+     * Parents/admins often log family spending under their own user id
+     * (createdBy + default spentBy). Hiding those made "spend only" /
+     * limited members see empty movements — incorrect for kids/partners
+     * who should see expenses but not balances or income.
+     *
+     * onlyOwn still privacy-filters income and transfers to the member's
+     * own activity when those types are visible.
+     */
+    if (txn.type !== "expense") {
+      const mine =
+        txn.createdById === userId || txn.spentById === userId;
+      if (!mine) return false;
+    }
   }
   return true;
 }
