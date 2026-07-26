@@ -713,7 +713,7 @@ export const es = {
       "Navega por la app con sus permisos reales. No podrás modificar datos hasta salir.",
     categoriesHide: "Categorías ocultas",
     categoriesHideHint:
-      "Oculta esa categoría en movimientos y en presupuestos (gasto y límite de la categoría).",
+      "Oculta esa categoría en movimientos y en presupuestos (gasto y límite). Si ocultas todas las categorías con gasto, verá 0 en presupuestos.",
     templates: "Plantillas personalizadas",
     templatesHint:
       "Guarda políticas reutilizables y aplícalas a varios miembros o invitaciones. También puedes copiar la de un miembro existente.",
@@ -754,7 +754,7 @@ export const es = {
     showTransfers: "Ver transferencias",
     accounts: "Cuentas",
     showBalances: "Mostrar saldos de cuentas",
-    hideAccounts: "Ocultar estas cuentas",
+    hideAccounts: "Ocultar estas cuentas (solo saldos; los gastos siguen viéndose)",
     onlyAccounts: "Solo permitir estas cuentas (vacío = todas excepto ocultas)",
     categories: "Categorías ocultas",
     cards: "Tarjetas ocultas",
@@ -1673,7 +1673,7 @@ export const en: Dictionary = {
       "Browse the app with their real permissions. You cannot change data until you exit.",
     categoriesHide: "Hidden categories",
     categoriesHideHint:
-      "Hides that category in transactions and in budgets (spent + budget line).",
+      "Hides that category in transactions and in budgets (spent + budget line). Hiding every category with spend shows 0 on budgets.",
     templates: "Custom templates",
     templatesHint:
       "Save reusable policies and apply them to several members or invites. You can also copy from an existing member.",
@@ -1713,7 +1713,7 @@ export const en: Dictionary = {
     showTransfers: "View transfers",
     accounts: "Accounts",
     showBalances: "Show account balances",
-    hideAccounts: "Hide these accounts",
+    hideAccounts: "Hide these accounts (balances only; expenses still show)",
     onlyAccounts: "Only allow these accounts (empty = all except hidden)",
     categories: "Hidden categories",
     cards: "Hidden credit cards",

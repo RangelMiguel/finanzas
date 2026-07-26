@@ -72,8 +72,12 @@ export async function GET(req: Request) {
         spentById: true,
       },
     });
+    // Budget spent = household expenses in period the member may see.
+    // filterTransaction no longer drops expenses for hidden payment accounts.
     const spentByCat: Record<string, number> = {};
+    const canSpend = m.visibility.showExpense;
     for (const e of expenses) {
+      if (!canSpend) break;
       if (!e.categoryId) continue;
       if (!filterTransaction(m.visibility, e, m.subjectUserId)) continue;
       spentByCat[e.categoryId] =

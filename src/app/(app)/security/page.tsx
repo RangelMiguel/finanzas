@@ -416,16 +416,28 @@ export default function SecurityPage() {
   }
 
   function applyPreset(kind: "full" | "limited" | "spend") {
-    // Keep category / account hide lists when switching level
-    const keep = {
+    // Keep category hide lists when switching level. For limited/spend, drop
+    // account/card allow-lists — those were meant to hide money, not erase
+    // expenses from movements/budgets (balances already off via flags).
+    const keepCategories = {
       hiddenCategoryIds: policy.hiddenCategoryIds,
-      hiddenAccountIds: policy.hiddenAccountIds,
-      allowedAccountIds: policy.allowedAccountIds,
-      hiddenCreditCardIds: policy.hiddenCreditCardIds,
-      hiddenDebtIds: policy.hiddenDebtIds,
       hiddenTransactionIds: policy.hiddenTransactionIds || [],
       hiddenBudgetIds: policy.hiddenBudgetIds || [],
     };
+    const keepAccounts =
+      kind === "full"
+        ? {
+            hiddenAccountIds: policy.hiddenAccountIds,
+            allowedAccountIds: policy.allowedAccountIds,
+            hiddenCreditCardIds: policy.hiddenCreditCardIds,
+            hiddenDebtIds: policy.hiddenDebtIds,
+          }
+        : {
+            hiddenAccountIds: [] as string[],
+            allowedAccountIds: [] as string[],
+            hiddenCreditCardIds: [] as string[],
+            hiddenDebtIds: [] as string[],
+          };
     const base =
       kind === "full"
         ? FULL_VISIBILITY
@@ -435,7 +447,11 @@ export default function SecurityPage() {
     setPolicy({
       ...base,
       modules: { ...base.modules },
-      ...keep,
+      ...keepCategories,
+      ...keepAccounts,
+      // Always keep spend visible on these levels (balances stay off)
+      showExpense: kind === "full" ? base.showExpense : true,
+      showDashboardExpense: kind === "full" ? base.showDashboardExpense : true,
     });
   }
 

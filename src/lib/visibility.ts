@@ -328,6 +328,14 @@ export function filterBudget(
   return true;
 }
 
+/**
+ * Whether a transaction is visible in movements / dashboard spend / budget spent.
+ *
+ * Important: "hide accounts" / "hide cards" / "only own" must NOT erase expenses.
+ * Limited members are often configured with no balances (accounts hidden) while
+ * still needing to see household expenses against budgets. Filtering expenses by
+ * payment account made their movements list empty and budgets stuck at 0/X.
+ */
 export function filterTransaction(
   vis: MemberVisibility,
   txn: TxnFilterable,
@@ -336,6 +344,15 @@ export function filterTransaction(
   if (txn.id && vis.hiddenTransactionIds.includes(txn.id)) return false;
   if (!filterTxnType(vis, txn.type)) return false;
   if (!filterCategoryId(vis, txn.categoryId)) return false;
+
+  // —— Expenses: category + type only ——
+  // Payment source (account / card) and who logged them are admin details.
+  // Hiding accounts is for balances, not for zeroing spend.
+  if (txn.type === "expense") {
+    return true;
+  }
+
+  // —— Income / transfers / other: stricter privacy ——
   if (txn.accountId && !filterAccountId(vis, txn.accountId)) return false;
   if (txn.toAccountId && !filterAccountId(vis, txn.toAccountId)) return false;
   if (
@@ -345,21 +362,9 @@ export function filterTransaction(
     return false;
   }
   if (vis.onlyOwnTransactions) {
-    /**
-     * Expenses are household-shared for budget tracking.
-     * Parents/admins often log family spending under their own user id
-     * (createdBy + default spentBy). Hiding those made "spend only" /
-     * limited members see empty movements — incorrect for kids/partners
-     * who should see expenses but not balances or income.
-     *
-     * onlyOwn still privacy-filters income and transfers to the member's
-     * own activity when those types are visible.
-     */
-    if (txn.type !== "expense") {
-      const mine =
-        txn.createdById === userId || txn.spentById === userId;
-      if (!mine) return false;
-    }
+    const mine =
+      txn.createdById === userId || txn.spentById === userId;
+    if (!mine) return false;
   }
   return true;
 }
