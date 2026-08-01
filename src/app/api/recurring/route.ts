@@ -5,6 +5,7 @@ import { jsonError, jsonOk } from "@/lib/access";
 import { pesosToCents } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
+import { ensureRecurringIncomesPosted } from "@/lib/recurring-income";
 
 export async function GET() {
   try {
@@ -16,12 +17,19 @@ export async function GET() {
     if (!m.visibility.showRecurringIncomes) {
       return jsonOk({ recurringIncomes: [] });
     }
+    // Post any due occurrences so the household ledger stays in sync
+    const posted = await ensureRecurringIncomesPosted(m.householdId, {
+      userId: session.userId,
+    });
     const recurringIncomes = await prisma.recurringIncome.findMany({
       where: { householdId: m.householdId },
       include: { category: true, account: true },
       orderBy: { dayOfMonth: "asc" },
     });
-    return jsonOk({ recurringIncomes });
+    return jsonOk({
+      recurringIncomes,
+      autoPosted: posted.created,
+    });
   } catch (e) {
     return jsonError(e);
   }

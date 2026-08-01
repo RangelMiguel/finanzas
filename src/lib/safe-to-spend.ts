@@ -93,6 +93,8 @@ export function projectSafeToSpend(input: ProjectionInput) {
     byDate.set(e.date, list);
   }
 
+  // Apply future items from today through end (was starting at +1 day, which
+  // dropped same-day paydays like salary on the 1st).
   let bal = currentBalance;
   let minBalance = currentBalance;
   let minDate = today;
@@ -100,11 +102,10 @@ export function projectSafeToSpend(input: ProjectionInput) {
   let maxDate = today;
 
   const timeline: DayPoint[] = [
-    { date: today, balance: bal, label: "start", delta: 0 },
+    { date: today, balance: currentBalance, label: "start", delta: 0 },
   ];
-  const dailySeries: DayPoint[] = [{ date: today, balance: bal, delta: 0 }];
+  const dailySeries: DayPoint[] = [];
 
-  // Walk day by day for smooth chart + goal detection
   const totalDays = Math.max(0, daysBetweenDates(today, endStr));
   let goalDate: string | null = null;
   let goalBalance: number | null = null;
@@ -115,7 +116,7 @@ export function projectSafeToSpend(input: ProjectionInput) {
     goalBalance = currentBalance;
   }
 
-  for (let i = 1; i <= totalDays; i++) {
+  for (let i = 0; i <= totalDays; i++) {
     const date = addDaysISO(today, i);
     const dayEvents = byDate.get(date) || [];
     let dayDelta = 0;
@@ -135,7 +136,7 @@ export function projectSafeToSpend(input: ProjectionInput) {
     dailySeries.push({
       date,
       balance: bal,
-      label: lastLabel,
+      label: lastLabel || (i === 0 ? "start" : undefined),
       delta: dayDelta,
     });
 
@@ -151,6 +152,11 @@ export function projectSafeToSpend(input: ProjectionInput) {
       goalDate = date;
       goalBalance = bal;
     }
+  }
+
+  // Opening point for charts when today had no events
+  if (dailySeries.length === 0) {
+    dailySeries.push({ date: today, balance: currentBalance, delta: 0 });
   }
 
   // Balance on target date (end of that day after events)

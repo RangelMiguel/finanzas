@@ -8,6 +8,10 @@ import {
   listCardPayments,
 } from "@/lib/credit-card-cycles";
 import { buildBudgetReserveItems } from "@/lib/budget-defaults";
+import {
+  ensureRecurringIncomesPosted,
+  listFutureRecurringDates,
+} from "@/lib/recurring-income";
 import { addMonths, format, setDate, differenceInCalendarDays } from "date-fns";
 
 async function buildFutureItems(opts: {
@@ -32,26 +36,49 @@ async function buildFutureItems(opts: {
     const recurring = await prisma.recurringIncome.findMany({
       where: { householdId: opts.householdId, active: true },
     });
-    for (let i = 0; i < monthsAhead; i++) {
-      const monthDate = addMonths(now, i);
-      for (const r of recurring) {
-        const day = Math.min(
-          r.dayOfMonth,
-          new Date(
-            monthDate.getFullYear(),
-            monthDate.getMonth() + 1,
-            0
-          ).getDate()
+    // Already posted as real income (auto or manual) — don't double-count in projection
+    const posted = await prisma.transaction.findMany({
+      where: {
+        householdId: opts.householdId,
+        deletedAt: null,
+        type: "income",
+        date: { gte: todayStr, lte: untilDate },
+      },
+      select: {
+        date: true,
+        amountCents: true,
+        description: true,
+        accountId: true,
+      },
+    });
+    const postedKey = new Set(
+      posted.map(
+        (t) =>
+          `${t.date}|${t.amountCents}|${t.description}|${t.accountId || ""}`
+      )
+    );
+
+    for (const r of recurring) {
+      const dates = listFutureRecurringDates({
+        dayOfMonth: r.dayOfMonth,
+        fromDate: todayStr,
+        untilDate,
+        monthsAhead,
+      });
+      for (const date of dates) {
+        const key = `${date}|${r.amountCents}|${r.description}|${r.accountId || ""}`;
+        // Also match posts that used default account (accountId null on template)
+        const keyAnyAcctPrefix = `${date}|${r.amountCents}|${r.description}|`;
+        const already = [...postedKey].some(
+          (k) => k === key || k.startsWith(keyAnyAcctPrefix)
         );
-        const d = setDate(new Date(monthDate), day);
-        if (d >= now) {
-          futureItems.push({
-            date: format(d, "yyyy-MM-dd"),
-            amountCents: r.amountCents,
-            type: "income",
-            label: r.description,
-          });
-        }
+        if (already) continue;
+        futureItems.push({
+          date,
+          amountCents: r.amountCents,
+          type: "income",
+          label: r.description,
+        });
       }
     }
   }
@@ -222,6 +249,11 @@ export async function GET(req: Request) {
       horizonDays = Math.max(horizonDays, 365);
     }
 
+    // Post due recurring salaries (incl. last month day-30) before projecting
+    await ensureRecurringIncomesPosted(m.householdId, {
+      userId: session.userId,
+    });
+
     const accounts = await prisma.account.findMany({
       where: { householdId: m.householdId },
       orderBy: { createdAt: "asc" },
@@ -311,6 +343,10 @@ export async function POST(req: Request) {
       if (days > 0) horizonDays = Math.max(horizonDays, days + 1);
     }
     if (targetAmount) horizonDays = Math.max(horizonDays, 365);
+
+    await ensureRecurringIncomesPosted(m.householdId, {
+      userId: session.userId,
+    });
 
     const accounts = await prisma.account.findMany({
       where: { householdId: m.householdId },

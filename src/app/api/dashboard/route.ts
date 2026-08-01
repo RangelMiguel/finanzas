@@ -10,6 +10,7 @@ import {
   filterCategoryId,
   isBudgetableSpend,
 } from "@/lib/visibility";
+import { ensureRecurringIncomesPosted } from "@/lib/recurring-income";
 
 export async function GET(req: Request) {
   try {
@@ -18,6 +19,10 @@ export async function GET(req: Request) {
     if (!canSeeModule(m.visibility, "dashboard")) {
       throw new ForbiddenError("No access to dashboard");
     }
+    // Auto-post due salaries (incl. last month day-28/30/31) into real income
+    await ensureRecurringIncomesPosted(m.householdId, {
+      userId: session.userId,
+    });
     const month = new URL(req.url).searchParams.get("month") || monthKey();
     const { start, end } = monthBounds(month);
     const vis = m.visibility;

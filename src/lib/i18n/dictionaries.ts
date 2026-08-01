@@ -321,7 +321,8 @@ export const es = {
     subtitle: "Ingresos recurrentes y pagos diferidos (MSI)",
     newIncome: "Nuevo ingreso recurrente",
     incomes: "Ingresos recurrentes",
-    incomesHint: "Se agregan automáticamente a la proyección",
+    incomesHint:
+      "Se registran solos en la fecha (p. ej. día 30) y entran al saldo y a ¿Cuánto gastar?. Si abres la app después, se publican los pendientes de meses recientes.",
     noIncomes: "Sin ingresos recurrentes",
     msi: "Pagos diferidos (MSI)",
     msiHint: "Al crear un gasto con tarjeta de crédito, activa MSI para generar el plan.",
@@ -1285,7 +1286,8 @@ export const en: Dictionary = {
     subtitle: "Recurring income and installment plans",
     newIncome: "New recurring income",
     incomes: "Recurring income",
-    incomesHint: "Included automatically in projections",
+    incomesHint:
+      "Posted automatically on the due day (e.g. day 30) into your balance and Safe to spend. If you open the app later, recent missed paydays are backfilled.",
     noIncomes: "No recurring income",
     msi: "Installment plans",
     msiHint: "Enable installments when creating a credit-card expense.",

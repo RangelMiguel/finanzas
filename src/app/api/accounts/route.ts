@@ -18,6 +18,7 @@ import {
   filterTransaction,
 } from "@/lib/visibility";
 import { ensureAllPersonalAccounts } from "@/lib/personal";
+import { ensureRecurringIncomesPosted } from "@/lib/recurring-income";
 
 export async function GET() {
   try {
@@ -28,6 +29,10 @@ export async function GET() {
       throw new ForbiddenError("No access to accounts");
     }
     await ensureAllPersonalAccounts(m.householdId);
+    // Keep balances current with due recurring income (e.g. day-30 salary)
+    await ensureRecurringIncomesPosted(m.householdId, {
+      userId: session.userId,
+    });
     const accounts = await prisma.account.findMany({
       where: { householdId: m.householdId },
       orderBy: { createdAt: "asc" },
