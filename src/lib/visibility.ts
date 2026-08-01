@@ -296,11 +296,30 @@ export function filterCategoryId(
   return !vis.hiddenCategoryIds.includes(categoryId);
 }
 
-export function filterTxnType(vis: MemberVisibility, type: string): boolean {
+export function filterTxnType(
+  vis: MemberVisibility,
+  type: string,
+  /** Transfer with a purpose category counts as spend when expenses are visible. */
+  hasCategory = false
+): boolean {
   if (type === "income") return vis.showIncome;
   if (type === "expense") return vis.showExpense;
-  if (type === "transfer") return vis.showTransfers;
+  if (type === "transfer") {
+    if (vis.showTransfers) return true;
+    // e.g. allowance to personal account tagged “School”
+    return hasCategory && vis.showExpense;
+  }
   return true;
+}
+
+/** Expense or transfer that should count toward category budgets / spend totals. */
+export function isBudgetableSpend(txn: {
+  type: string;
+  categoryId?: string | null;
+}): boolean {
+  if (txn.type === "expense") return true;
+  if (txn.type === "transfer" && txn.categoryId) return true;
+  return false;
 }
 
 export type TxnFilterable = {
@@ -342,17 +361,18 @@ export function filterTransaction(
   userId: string
 ): boolean {
   if (txn.id && vis.hiddenTransactionIds.includes(txn.id)) return false;
-  if (!filterTxnType(vis, txn.type)) return false;
+  if (!filterTxnType(vis, txn.type, !!txn.categoryId)) return false;
   if (!filterCategoryId(vis, txn.categoryId)) return false;
 
-  // —— Expenses: category + type only ——
+  // —— Expenses + categorized transfers: category + type only ——
   // Payment source (account / card) and who logged them are admin details.
   // Hiding accounts is for balances, not for zeroing spend.
-  if (txn.type === "expense") {
+  // Categorized transfers (e.g. school allowance) are purpose spend.
+  if (txn.type === "expense" || (txn.type === "transfer" && txn.categoryId)) {
     return true;
   }
 
-  // —— Income / transfers / other: stricter privacy ——
+  // —— Income / plain transfers: stricter privacy ——
   if (txn.accountId && !filterAccountId(vis, txn.accountId)) return false;
   if (txn.toAccountId && !filterAccountId(vis, txn.toAccountId)) return false;
   if (

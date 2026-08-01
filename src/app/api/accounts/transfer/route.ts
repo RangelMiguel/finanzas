@@ -16,6 +16,8 @@ export async function POST(req: Request) {
         amount: z.union([z.number(), z.string()]),
         description: z.string().optional(),
         date: z.string().optional(),
+        /** Optional purpose category (e.g. school allowance for a child). */
+        categoryId: z.string().nullable().optional(),
       })
       .parse(await req.json());
     if (body.fromAccountId === body.toAccountId) {
@@ -24,15 +26,24 @@ export async function POST(req: Request) {
     const amountCents = pesosToCents(body.amount);
     if (amountCents <= 0) throw new Error("Monto inválido");
 
-    const [from, to] = await Promise.all([
+    const categoryId =
+      body.categoryId && body.categoryId.length > 0 ? body.categoryId : null;
+
+    const [from, to, category] = await Promise.all([
       prisma.account.findFirst({
         where: { id: body.fromAccountId, householdId: m.householdId },
       }),
       prisma.account.findFirst({
         where: { id: body.toAccountId, householdId: m.householdId },
       }),
+      categoryId
+        ? prisma.category.findFirst({
+            where: { id: categoryId, householdId: m.householdId },
+          })
+        : Promise.resolve(null),
     ]);
     if (!from || !to) throw new Error("Cuenta no encontrada");
+    if (categoryId && !category) throw new Error("Categoría no encontrada");
 
     // Members may only send into their own personal account (or between shared accounts)
     const { canAdmin } = await import("@/lib/auth");
@@ -53,8 +64,10 @@ export async function POST(req: Request) {
         type: "transfer",
         accountId: body.fromAccountId,
         toAccountId: body.toAccountId,
+        categoryId,
         createdById: session.userId,
       },
+      include: { category: true },
     });
     await logActivity({
       householdId: m.householdId,
@@ -62,7 +75,9 @@ export async function POST(req: Request) {
       action: "create",
       entityType: "transfer",
       entityId: txn.id,
-      summary: `Transferencia ${from.name} → ${to.name}`,
+      summary: category
+        ? `Transferencia ${from.name} → ${to.name} (${category.icon} ${category.name})`
+        : `Transferencia ${from.name} → ${to.name}`,
     });
     return jsonOk({ transaction: txn }, 201);
   } catch (e) {

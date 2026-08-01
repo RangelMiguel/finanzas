@@ -184,6 +184,10 @@ export const es = {
     transferTitle: "Transferencia entre cuentas",
     from: "Cuenta origen",
     to: "Cuenta destino",
+    transferCategory: "Categoría (opcional)",
+    transferCategoryNone: "Sin categoría (solo mueve saldo)",
+    transferCategoryHint:
+      "Úsala si la transferencia es un gasto con propósito (ej. escuela, mesada). Cuenta en presupuestos de esa categoría.",
     initialBalance: "Saldo inicial",
     namePlaceholder: "Ej: Cuenta BBVA",
     created: "Cuenta creada",
@@ -1144,6 +1148,10 @@ export const en: Dictionary = {
     transferTitle: "Transfer between accounts",
     from: "From account",
     to: "To account",
+    transferCategory: "Category (optional)",
+    transferCategoryNone: "No category (balance move only)",
+    transferCategoryHint:
+      "Use when the transfer is purpose spend (e.g. school, allowance). It counts toward that category’s budget.",
     initialBalance: "Opening balance",
     namePlaceholder: "e.g. Chase Checking",
     created: "Account created",

@@ -23,6 +23,8 @@ type Account = {
   balancesHidden?: boolean;
 };
 
+type Cat = { id: string; name: string; type: string; icon: string };
+
 const emptyForm = {
   name: "",
   type: "checking",
@@ -30,23 +32,33 @@ const emptyForm = {
   initialBalance: "0",
 };
 
+const emptyTransfer = {
+  fromAccountId: "",
+  toAccountId: "",
+  amount: "",
+  description: "",
+  categoryId: "",
+};
+
 export default function AccountsPage() {
   const { money, t } = useApp();
   const { confirm } = useConfirm();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Cat[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit" | "transfer">("none");
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [transfer, setTransfer] = useState({
-    fromAccountId: "",
-    toAccountId: "",
-    amount: "",
-    description: "",
-  });
+  const [transfer, setTransfer] = useState(emptyTransfer);
 
   async function load() {
-    const res = await api<{ accounts: Account[] }>("/api/accounts");
+    const [res, cats] = await Promise.all([
+      api<{ accounts: Account[] }>("/api/accounts"),
+      api<{ categories: Cat[] }>("/api/categories").catch(() => ({
+        categories: [] as Cat[],
+      })),
+    ]);
     setAccounts(res.accounts);
+    setCategories(cats.categories || []);
     if (res.accounts[0]) {
       setTransfer((prev) => ({
         ...prev,
@@ -95,14 +107,31 @@ export default function AccountsPage() {
 
   async function doTransfer() {
     try {
-      await api("/api/accounts/transfer", { method: "POST", json: transfer });
+      await api("/api/accounts/transfer", {
+        method: "POST",
+        json: {
+          fromAccountId: transfer.fromAccountId,
+          toAccountId: transfer.toAccountId,
+          amount: transfer.amount,
+          description: transfer.description || undefined,
+          categoryId: transfer.categoryId || null,
+        },
+      });
       toast.success(t.accounts.transferred);
       setMode("none");
+      setTransfer((prev) => ({
+        ...prev,
+        amount: "",
+        description: "",
+        categoryId: "",
+      }));
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
     }
   }
+
+  const expenseCategories = categories.filter((c) => c.type === "expense");
 
   async function remove(id: string) {
     const ok = await confirm({
@@ -287,7 +316,27 @@ export default function AccountsPage() {
                 }
               />
             </div>
-            <div className="flex gap-2">
+            <div>
+              <Label>{t.accounts.transferCategory}</Label>
+              <Select
+                className="mt-1"
+                value={transfer.categoryId}
+                onChange={(e) =>
+                  setTransfer({ ...transfer, categoryId: e.target.value })
+                }
+              >
+                <option value="">{t.accounts.transferCategoryNone}</option>
+                {expenseCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.icon} {c.name}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-[var(--fg-faint)]">
+                {t.accounts.transferCategoryHint}
+              </p>
+            </div>
+            <div className="flex gap-2 sm:col-span-2">
               <Button onClick={doTransfer}>{t.accounts.transfer}</Button>
               <Button variant="ghost" onClick={() => setMode("none")}>
                 {t.cancel}

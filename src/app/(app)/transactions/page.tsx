@@ -581,9 +581,15 @@ export default function TransactionsPage() {
                 <div className="min-w-0">
                   <div className="truncate font-medium">
                     {txn.category?.icon || "•"} {txn.description}
+                    {txn.category?.name ? (
+                      <span className="ml-1 font-normal text-[var(--fg-faint)]">
+                        · {txn.category.name}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-xs text-[var(--fg-faint)]">
                     {txn.date}
+                    {txn.type === "transfer" ? ` · ${t.transfer}` : ""}
                     {paid ? ` · ${paid}` : ""}
                     {txn.spentBy ? ` · ${txn.spentBy.displayName}` : ""}
                   </div>

@@ -17,6 +17,7 @@ import {
   filterBudget,
   filterCategoryId,
   filterTransaction,
+  isBudgetableSpend,
 } from "@/lib/visibility";
 import { ensurePeriodBudgets, saveBudgetWithScope } from "@/lib/budget-defaults";
 
@@ -53,12 +54,16 @@ export async function GET(req: Request) {
       }),
     ]);
 
-    const expenses = await prisma.transaction.findMany({
+    // Expenses + categorized transfers (purpose spend, e.g. school allowance)
+    const spendRows = await prisma.transaction.findMany({
       where: {
         householdId: m.householdId,
-        type: "expense",
         deletedAt: null,
         date: { gte: start, lte: end },
+        OR: [
+          { type: "expense" },
+          { type: "transfer", categoryId: { not: null } },
+        ],
       },
       select: {
         id: true,
@@ -72,13 +77,13 @@ export async function GET(req: Request) {
         spentById: true,
       },
     });
-    // Budget spent = household expenses in period the member may see.
+    // Budget spent = household spend in period the member may see.
     // filterTransaction no longer drops expenses for hidden payment accounts.
     const spentByCat: Record<string, number> = {};
     const canSpend = m.visibility.showExpense;
-    for (const e of expenses) {
+    for (const e of spendRows) {
       if (!canSpend) break;
-      if (!e.categoryId) continue;
+      if (!e.categoryId || !isBudgetableSpend(e)) continue;
       if (!filterTransaction(m.visibility, e, m.subjectUserId)) continue;
       spentByCat[e.categoryId] =
         (spentByCat[e.categoryId] || 0) + e.amountCents;

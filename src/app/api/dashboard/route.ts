@@ -8,6 +8,7 @@ import {
   filterAccountId,
   filterTransaction,
   filterCategoryId,
+  isBudgetableSpend,
 } from "@/lib/visibility";
 
 export async function GET(req: Request) {
@@ -82,7 +83,10 @@ export async function GET(req: Request) {
     for (const t of visibleTxns) {
       if (t.date < start || t.date > end) continue;
       if (t.type === "income" && vis.showIncome) income += t.amountCents;
-      if (t.type === "expense" && vis.showExpense) expenses += t.amountCents;
+      // Categorized transfers count as purpose spend (e.g. school allowance)
+      if (vis.showExpense && isBudgetableSpend(t)) {
+        expenses += t.amountCents;
+      }
     }
 
     const accountBalances = accounts
@@ -99,7 +103,7 @@ export async function GET(req: Request) {
     if (vis.showExpense) {
       for (const t of visibleTxns) {
         if (
-          t.type !== "expense" ||
+          !isBudgetableSpend(t) ||
           t.date < start ||
           t.date > end ||
           !t.categoryId ||
