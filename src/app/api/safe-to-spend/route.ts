@@ -11,6 +11,7 @@ import { buildBudgetReserveItems } from "@/lib/budget-defaults";
 import {
   ensureRecurringIncomesPosted,
   listFutureRecurringDates,
+  recurringOccurrenceHandled,
 } from "@/lib/recurring-income";
 import { addMonths, format, setDate, differenceInCalendarDays } from "date-fns";
 
@@ -36,28 +37,7 @@ async function buildFutureItems(opts: {
     const recurring = await prisma.recurringIncome.findMany({
       where: { householdId: opts.householdId, active: true },
     });
-    // Already posted as real income (auto or manual) — don't double-count in projection
-    const posted = await prisma.transaction.findMany({
-      where: {
-        householdId: opts.householdId,
-        deletedAt: null,
-        type: "income",
-        date: { gte: todayStr, lte: untilDate },
-      },
-      select: {
-        date: true,
-        amountCents: true,
-        description: true,
-        accountId: true,
-      },
-    });
-    const postedKey = new Set(
-      posted.map(
-        (t) =>
-          `${t.date}|${t.amountCents}|${t.description}|${t.accountId || ""}`
-      )
-    );
-
+    // Skip dates already on the ledger or soft-deleted by the user (dismissed auto-salary)
     for (const r of recurring) {
       const dates = listFutureRecurringDates({
         dayOfMonth: r.dayOfMonth,
@@ -66,13 +46,14 @@ async function buildFutureItems(opts: {
         monthsAhead,
       });
       for (const date of dates) {
-        const key = `${date}|${r.amountCents}|${r.description}|${r.accountId || ""}`;
-        // Also match posts that used default account (accountId null on template)
-        const keyAnyAcctPrefix = `${date}|${r.amountCents}|${r.description}|`;
-        const already = [...postedKey].some(
-          (k) => k === key || k.startsWith(keyAnyAcctPrefix)
-        );
-        if (already) continue;
+        const handled = await recurringOccurrenceHandled({
+          householdId: opts.householdId,
+          date,
+          amountCents: r.amountCents,
+          description: r.description,
+          accountId: r.accountId,
+        });
+        if (handled) continue;
         futureItems.push({
           date,
           amountCents: r.amountCents,

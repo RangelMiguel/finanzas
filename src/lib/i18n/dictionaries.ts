@@ -322,7 +322,7 @@ export const es = {
     newIncome: "Nuevo ingreso recurrente",
     incomes: "Ingresos recurrentes",
     incomesHint:
-      "Se registran solos en la fecha (p. ej. día 30) y entran al saldo y a ¿Cuánto gastar?. Si abres la app después, se publican los pendientes de meses recientes.",
+      "Se registran solos en la fecha (p. ej. día 30) y entran al saldo y a ¿Cuánto gastar?. Si abres la app después, se publican los pendientes de meses recientes. Si borras un sueldo auto-registrado, no se vuelve a crear ese día.",
     noIncomes: "Sin ingresos recurrentes",
     msi: "Pagos diferidos (MSI)",
     msiHint: "Al crear un gasto con tarjeta de crédito, activa MSI para generar el plan.",
@@ -1287,7 +1287,7 @@ export const en: Dictionary = {
     newIncome: "New recurring income",
     incomes: "Recurring income",
     incomesHint:
-      "Posted automatically on the due day (e.g. day 30) into your balance and Safe to spend. If you open the app later, recent missed paydays are backfilled.",
+      "Posted automatically on the due day (e.g. day 30) into your balance and Safe to spend. If you open the app later, recent missed paydays are backfilled. Deleting an auto-posted salary dismisses that payday so it won’t come back.",
     noIncomes: "No recurring income",
     msi: "Installment plans",
     msiHint: "Enable installments when creating a credit-card expense.",
