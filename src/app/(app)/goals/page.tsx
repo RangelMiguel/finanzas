@@ -25,8 +25,9 @@ type Reserve = {
   period: string;
   date: string;
   notes: string | null;
-  accountId: string;
-  account: { id: string; name: string; icon: string };
+  accountId: string | null;
+  source?: string;
+  account: { id: string; name: string; icon: string } | null;
 };
 
 type Goal = {
@@ -181,9 +182,13 @@ export default function GoalsPage() {
   }
 
   async function undoReserve(reserveId: string) {
+    const row = goals.flatMap((g) => g.reserves).find((r) => r.id === reserveId);
+    const fromClose = row?.source === "budget_close" || !row?.accountId;
     const ok = await confirm({
       title: t.goals.confirmUndoReserve,
-      description: t.goals.confirmUndoReserve,
+      description: fromClose
+        ? t.goals.confirmUndoBudgetCloseReserve
+        : t.goals.confirmUndoReserve,
       confirmLabel: t.confirm,
       cancelLabel: t.cancel,
       danger: true,
@@ -530,7 +535,10 @@ export default function GoalsPage() {
                             className="flex items-center justify-between gap-2 text-sm"
                           >
                             <span>
-                              {r.account.icon} {r.account.name} · {r.date}
+                              {r.account
+                                ? `${r.account.icon} ${r.account.name}`
+                                : t.goals.fromBudgetClose}{" "}
+                              · {r.date}
                             </span>
                             <span className="flex items-center gap-2">
                               <span className="font-medium">
@@ -559,7 +567,10 @@ export default function GoalsPage() {
                         {g.reserves.map((r) => (
                           <li key={r.id} className="flex justify-between gap-2">
                             <span>
-                              {r.period} · {r.account.name}
+                              {r.period} ·{" "}
+                              {r.account
+                                ? r.account.name
+                                : t.goals.fromBudgetClose}
                             </span>
                             <span>{money(r.amountCents)}</span>
                           </li>

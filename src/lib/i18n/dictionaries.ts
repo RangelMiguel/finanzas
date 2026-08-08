@@ -176,7 +176,8 @@ export const es = {
     budgetEmergency: "Usando emergencia",
     accountsStrip: "Saldos por cuenta",
     thisPeriodBudgets: "Presupuestos de esta quincena",
-    closeBudgets: "Cierra la quincena {period}: el sobrante pasa como fondo de emergencia",
+    closeBudgets:
+      "Cierra la quincena {period}: decide qué hacer con el sobrante",
     closeBudgetsCta: "Revisar y cerrar",
   },
 
@@ -272,22 +273,64 @@ export const es = {
     closePeriod: "Cerrar quincena",
     closePeriodTitle: "Cerrar quincena",
     closePeriodHint:
-      "El último día ({end}) puedes pasar lo no gastado a la siguiente quincena como fondo de emergencia. No suma al presupuesto planeado.",
+      "El último día ({end}) puedes cerrar la quincena y decidir qué hacer con el sobrante.",
     closePeriodReady:
-      "Esta quincena ya terminó. Pasa el sobrante a {next} como fondo de emergencia (sin subir el presupuesto).",
+      "Esta quincena ya terminó. Elige qué hacer con el sobrante: emergencia, una meta, otra categoría o marcarlo gastado.",
+    closePeriodReadyStale:
+      "Esta quincena ya pasó. Puedes cerrarla sin mover nada a presupuestos actuales ni a saldos.",
     closePeriodTooEarly: "Podrás cerrar esta quincena el {end} (último día del periodo).",
-    closePeriodDone: "Quincena cerrada. El sobrante vive en {next} como emergencia.",
+    closePeriodDone: "Quincena cerrada.",
+    closePeriodDoneEmergency:
+      "Quincena cerrada. El sobrante vive en {next} como emergencia.",
+    closePeriodDoneSpent:
+      "Quincena cerrada. El sobrante se marcó como gastado: no cambió presupuestos posteriores ni saldos.",
+    closePeriodDoneMixed:
+      "Quincena cerrada. Emergencia {emergency} · metas {goals} · marcado gastado {spent}.",
     closeConfirm:
-      "¿Cerrar esta quincena? El sobrante no aumenta el presupuesto de la siguiente: queda como fondo de emergencia.",
+      "¿Cerrar esta quincena? Revisa a dónde va el sobrante antes de confirmar.",
     closeSuccess: "Quincena cerrada. {amount} pasó como fondo de emergencia.",
+    closeSuccessSpent:
+      "Quincena cerrada. {amount} se marcó como gastado (sin efecto en presupuestos actuales ni saldos).",
+    closeSuccessMixed: "Quincena cerrada. {summary}",
     closeNothing: "Sin sobrante que pasar. Aun así puedes marcar la quincena como cerrada.",
     closedBadge: "Cerrada",
     undoClose: "Deshacer cierre",
     undoCloseConfirm:
-      "¿Deshacer el cierre? Se quitará el fondo de emergencia que se pasó a la siguiente quincena.",
+      "¿Deshacer el cierre? Se revertirán los destinos del sobrante (emergencia y/o metas).",
+    undoCloseConfirmSpent:
+      "¿Deshacer el cierre? No se movió dinero; solo se volverá a abrir la quincena.",
     undoCloseSuccess: "Cierre deshecho",
     carryTo: "Pasa a {period}",
     noCarry: "Nada que pasar (todo gastado o sin presupuesto).",
+    presetLabel: "Qué hacer con el sobrante",
+    presetEmergency: "Todo a emergencia de la siguiente quincena (mismas categorías)",
+    presetSpent: "Marcar todo como gastado (sin efecto futuro)",
+    presetCustom: "Personalizar por categoría",
+    presetEmergencyHint:
+      "El sobrante no sube el presupuesto planeado: queda como colchón en {next}.",
+    presetSpentHint:
+      "Útil para quincenas ya pasadas. No toca presupuestos actuales ni saldos de cuentas.",
+    presetCustomHint:
+      "Parte a emergencia, a otra categoría, a una meta, o márcalo como gastado.",
+    allocEmergencySame: "Emergencia · misma categoría ({next})",
+    allocEmergencyOther: "Emergencia · otra categoría ({next})",
+    allocGoal: "Enviar a una meta",
+    allocSpent: "Marcar como gastado",
+    splitAdd: "Partir sobrante",
+    splitRemove: "Quitar",
+    allocUnassigned: "Falta asignar {amount}",
+    allocOver: "Te pasaste por {amount}",
+    destCategory: "Categoría destino",
+    destGoal: "Meta",
+    noGoals: "No hay metas activas",
+    closeDialogTitle: "Cerrar quincena {period}",
+    closeDialogSubmit: "Cerrar quincena",
+    appliedSummary: "Destino del sobrante",
+    staleBanner:
+      "Cerrar esta quincena no cambia el presupuesto actual ni los saldos. Por defecto el sobrante se marca como gastado.",
+    allocSummaryEmergency: "Emergencia {amount}",
+    allocSummaryGoal: "Metas {amount}",
+    allocSummarySpent: "Gastado {amount}",
     confirmDelete: "¿Eliminar este presupuesto?",
     fromDefault: "default",
     summaryPlanned: "Presupuestado",
@@ -458,7 +501,10 @@ export const es = {
     undo: "Deshacer",
     confirmUndoReserve:
       "¿Deshacer esta reserva? El dinero vuelve a la cuenta.",
+    confirmUndoBudgetCloseReserve:
+      "¿Quitar esta asignación? No mueve dinero de cuentas; solo baja el progreso de la meta.",
     reserveUndone: "Reserva deshecha",
+    fromBudgetClose: "Sobrante de presupuesto",
   },
 
   retirement: {
@@ -1201,7 +1247,7 @@ export const en: Dictionary = {
     budgetEmergency: "Using emergency",
     accountsStrip: "Balances by account",
     thisPeriodBudgets: "This half-month's budgets",
-    closeBudgets: "Close period {period}: leftover becomes emergency funding",
+    closeBudgets: "Close period {period}: decide what happens to leftover",
     closeBudgetsCta: "Review and close",
   },
 
@@ -1297,22 +1343,64 @@ export const en: Dictionary = {
     closePeriod: "Close period",
     closePeriodTitle: "Close half-month",
     closePeriodHint:
-      "On the last day ({end}) you can move unspent money to the next half-month as emergency funding. It does not increase the planned budget.",
+      "On the last day ({end}) you can close the half-month and choose what happens to leftover.",
     closePeriodReady:
-      "This half-month has ended. Move leftover to {next} as emergency funding (the planned budget stays the same).",
+      "This half-month has ended. Choose what to do with leftover: emergency, a goal, another category, or mark it spent.",
+    closePeriodReadyStale:
+      "This half-month is already in the past. You can close it without moving anything into current budgets or balances.",
     closePeriodTooEarly: "You can close this half-month on {end} (last day of the period).",
-    closePeriodDone: "Period closed. Leftover now sits on {next} as emergency funding.",
+    closePeriodDone: "Period closed.",
+    closePeriodDoneEmergency:
+      "Period closed. Leftover now sits on {next} as emergency funding.",
+    closePeriodDoneSpent:
+      "Period closed. Leftover was marked as spent — later budgets and balances were not changed.",
+    closePeriodDoneMixed:
+      "Period closed. Emergency {emergency} · goals {goals} · marked spent {spent}.",
     closeConfirm:
-      "Close this half-month? Leftover will not increase the next budget — it becomes emergency funding.",
+      "Close this half-month? Review where leftover goes before confirming.",
     closeSuccess: "Period closed. {amount} moved as emergency funding.",
+    closeSuccessSpent:
+      "Period closed. {amount} was marked as spent (no effect on current budgets or balances).",
+    closeSuccessMixed: "Period closed. {summary}",
     closeNothing: "Nothing left to carry. You can still mark the period as closed.",
     closedBadge: "Closed",
     undoClose: "Undo close",
     undoCloseConfirm:
-      "Undo this close? Emergency funding that was moved to the next half-month will be removed.",
+      "Undo this close? Leftover destinations (emergency and/or goals) will be reversed.",
+    undoCloseConfirmSpent:
+      "Undo this close? Nothing was moved; the period will simply reopen.",
     undoCloseSuccess: "Close undone",
     carryTo: "Goes to {period}",
     noCarry: "Nothing to carry (fully spent or no budgets).",
+    presetLabel: "What to do with leftover",
+    presetEmergency: "All to next period emergency (same categories)",
+    presetSpent: "Mark all as spent (no future effect)",
+    presetCustom: "Customize per category",
+    presetEmergencyHint:
+      "Leftover does not raise the planned budget — it becomes a cushion on {next}.",
+    presetSpentHint:
+      "Best for past periods. Does not change current budgets or account balances.",
+    presetCustomHint:
+      "Send part to emergency, another category, a goal, or mark it spent.",
+    allocEmergencySame: "Emergency · same category ({next})",
+    allocEmergencyOther: "Emergency · another category ({next})",
+    allocGoal: "Send to a goal",
+    allocSpent: "Mark as spent",
+    splitAdd: "Split leftover",
+    splitRemove: "Remove",
+    allocUnassigned: "{amount} still unassigned",
+    allocOver: "Over by {amount}",
+    destCategory: "Destination category",
+    destGoal: "Goal",
+    noGoals: "No active goals",
+    closeDialogTitle: "Close half-month {period}",
+    closeDialogSubmit: "Close period",
+    appliedSummary: "Leftover destinations",
+    staleBanner:
+      "Closing this period will not change the current budget or balances. Leftover is marked as spent by default.",
+    allocSummaryEmergency: "Emergency {amount}",
+    allocSummaryGoal: "Goals {amount}",
+    allocSummarySpent: "Spent {amount}",
     confirmDelete: "Delete this budget?",
     fromDefault: "default",
     summaryPlanned: "Budgeted",
@@ -1483,7 +1571,10 @@ export const en: Dictionary = {
     undo: "Undo",
     confirmUndoReserve:
       "Undo this reserve? Money returns to the account.",
+    confirmUndoBudgetCloseReserve:
+      "Remove this assignment? It does not move account cash; it only lowers goal progress.",
     reserveUndone: "Reserve undone",
+    fromBudgetClose: "Budget leftover",
   },
 
   retirement: {

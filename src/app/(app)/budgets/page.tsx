@@ -16,6 +16,10 @@ import {
 } from "@/lib/utils";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import {
+  BudgetCloseDialog,
+  type CloseStatus,
+} from "@/components/budget-close-dialog";
 import { toast } from "sonner";
 import { addMonths, format, parse, subMonths } from "date-fns";
 import {
@@ -27,6 +31,8 @@ import {
   Sparkles,
   Undo2,
 } from "lucide-react";
+import type { CloseLineInput } from "@/lib/budget-math";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 type Budget = {
   id: string;
@@ -48,27 +54,6 @@ type DefaultRow = {
 };
 type Cat = { id: string; name: string; type: string; icon: string };
 type Scope = "this_period" | "both_periods" | "default" | "next_year";
-type CloseLine = {
-  categoryId: string;
-  categoryName: string;
-  icon: string;
-  amountCents: number;
-  emergencyCents: number;
-  spentCents: number;
-  remainingCents: number;
-};
-type CloseStatus = {
-  period: string;
-  toPeriod: string;
-  bounds: { start: string; end: string };
-  closed: boolean;
-  closedAt: string | null;
-  canClose: boolean;
-  canUndo: boolean;
-  tooEarly: boolean;
-  carryovers: CloseLine[];
-  totalRemainingCents: number;
-};
 
 export default function BudgetsPage() {
   const { money, t, tr } = useApp();
@@ -93,6 +78,7 @@ export default function BudgetsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [showDefaults, setShowDefaults] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
 
   const period = `${month}-${half}`;
 
@@ -231,26 +217,56 @@ export default function BudgetsPage() {
     await load();
   }
 
-  async function doClose() {
+  async function doClose(body: {
+    defaultKind?: "emergency" | "spent";
+    lines?: CloseLineInput[];
+  }) {
     if (!close) return;
-    const ok = await confirm({
-      title: t.budgets.closePeriodTitle,
-      description: t.budgets.closeConfirm,
-      confirmLabel: t.budgets.closePeriod,
-      cancelLabel: t.cancel,
-    });
-    if (!ok) return;
     setClosing(true);
     try {
-      await api("/api/budgets/close", {
+      const res = await api<{ close: CloseStatus }>("/api/budgets/close", {
         method: "POST",
-        json: { period },
+        json: { period, ...body },
       });
-      toast.success(
-        tr(t.budgets.closeSuccess, {
-          amount: money(close.totalRemainingCents),
-        })
-      );
+      setCloseDialogOpen(false);
+      const next = res.close;
+      const summary = next.appliedSummary;
+      if (!summary || close.totalRemainingCents === 0) {
+        toast.success(t.budgets.closePeriodDone);
+      } else if (summary.movedCents === 0) {
+        toast.success(
+          tr(t.budgets.closeSuccessSpent, {
+            amount: money(summary.spentCents),
+          })
+        );
+      } else if (summary.goalCents === 0 && summary.spentCents === 0) {
+        toast.success(
+          tr(t.budgets.closeSuccess, {
+            amount: money(summary.emergencyCents),
+          })
+        );
+      } else {
+        const parts = [
+          summary.emergencyCents > 0
+            ? tr(t.budgets.allocSummaryEmergency, {
+                amount: money(summary.emergencyCents),
+              })
+            : null,
+          summary.goalCents > 0
+            ? tr(t.budgets.allocSummaryGoal, {
+                amount: money(summary.goalCents),
+              })
+            : null,
+          summary.spentCents > 0
+            ? tr(t.budgets.allocSummarySpent, {
+                amount: money(summary.spentCents),
+              })
+            : null,
+        ].filter(Boolean);
+        toast.success(
+          tr(t.budgets.closeSuccessMixed, { summary: parts.join(" · ") })
+        );
+      }
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
@@ -260,9 +276,12 @@ export default function BudgetsPage() {
   }
 
   async function doUndoClose() {
+    const nothingMoved = (close?.appliedSummary?.movedCents || 0) === 0;
     const ok = await confirm({
       title: t.budgets.undoClose,
-      description: t.budgets.undoCloseConfirm,
+      description: nothingMoved
+        ? t.budgets.undoCloseConfirmSpent
+        : t.budgets.undoCloseConfirm,
       danger: true,
       confirmLabel: t.budgets.undoClose,
       cancelLabel: t.cancel,
@@ -427,20 +446,29 @@ export default function BudgetsPage() {
                 </p>
                 <p className="mt-1 text-sm text-[var(--fg-muted)]">
                   {close.closed
-                    ? tr(t.budgets.closePeriodDone, { next: close.toPeriod })
+                    ? closeDoneCopy(close, t, tr, money)
                     : close.canClose
-                      ? tr(t.budgets.closePeriodReady, { next: close.toPeriod })
+                      ? close.isStale
+                        ? t.budgets.closePeriodReadyStale
+                        : tr(t.budgets.closePeriodReady, {
+                            next: close.toPeriod,
+                          })
                       : tr(t.budgets.closePeriodTooEarly, {
                           end: close.bounds.end,
                         })}
                 </p>
                 <p className="mt-1 text-xs text-[var(--fg-faint)]">
-                  {t.budgets.emergencyHint}
+                  {close.isStale
+                    ? t.budgets.staleBanner
+                    : t.budgets.emergencyHint}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {close.canClose && (
-                  <Button onClick={doClose} disabled={closing}>
+                  <Button
+                    onClick={() => setCloseDialogOpen(true)}
+                    disabled={closing}
+                  >
                     {t.budgets.closePeriod}
                   </Button>
                 )}
@@ -482,14 +510,51 @@ export default function BudgetsPage() {
                 {t.budgets.closeNothing}
               </p>
             )}
-            {close.totalRemainingCents > 0 && (
+            {close.closed && close.appliedSummary && close.totalRemainingCents > 0 && (
               <p className="text-xs text-amber-100/80">
-                {tr(t.budgets.carryTo, { period: close.toPeriod })} ·{" "}
-                {money(close.totalRemainingCents)}
+                {t.budgets.appliedSummary}:{" "}
+                {[
+                  close.appliedSummary.emergencyCents > 0
+                    ? tr(t.budgets.allocSummaryEmergency, {
+                        amount: money(close.appliedSummary.emergencyCents),
+                      })
+                    : null,
+                  close.appliedSummary.goalCents > 0
+                    ? tr(t.budgets.allocSummaryGoal, {
+                        amount: money(close.appliedSummary.goalCents),
+                      })
+                    : null,
+                  close.appliedSummary.spentCents > 0
+                    ? tr(t.budgets.allocSummarySpent, {
+                        amount: money(close.appliedSummary.spentCents),
+                      })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             )}
+            {!close.closed &&
+              close.totalRemainingCents > 0 &&
+              !close.isStale && (
+                <p className="text-xs text-amber-100/80">
+                  {tr(t.budgets.carryTo, { period: close.toPeriod })} ·{" "}
+                  {money(close.totalRemainingCents)}
+                </p>
+              )}
           </CardContent>
         </Card>
+      )}
+
+      {close && (
+        <BudgetCloseDialog
+          open={closeDialogOpen}
+          close={close}
+          categories={categories}
+          loading={closing}
+          onCancel={() => setCloseDialogOpen(false)}
+          onConfirm={(body) => void doClose(body)}
+        />
       )}
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -724,6 +789,25 @@ export default function BudgetsPage() {
       </div>
     </div>
   );
+}
+
+function closeDoneCopy(
+  close: CloseStatus,
+  t: Dictionary,
+  tr: (template: string, vars: Record<string, string | number>) => string,
+  money: (cents: number) => string
+) {
+  const s = close.appliedSummary;
+  if (!s || close.totalRemainingCents === 0) return t.budgets.closePeriodDone;
+  if (s.movedCents === 0) return t.budgets.closePeriodDoneSpent;
+  if (s.goalCents === 0 && s.spentCents === 0) {
+    return tr(t.budgets.closePeriodDoneEmergency, { next: close.toPeriod });
+  }
+  return tr(t.budgets.closePeriodDoneMixed, {
+    emergency: money(s.emergencyCents),
+    goals: money(s.goalCents),
+    spent: money(s.spentCents),
+  });
 }
 
 function SummaryStat({

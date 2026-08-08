@@ -192,8 +192,9 @@ const es: HelpContent = {
             "Controla cuánto planeas gastar por categoría. El periodo del hogar usa dos quincenas al mes: del 1 al 15 y del 16 al fin de mes.",
             "Cada presupuesto muestra gastado vs límite. Si te pasas, verás alerta (también en el inicio).",
             "Puedes copiar la quincena anterior, guardar una plantilla default y aplicarla a este periodo, a ambas quincenas del mes, o al año siguiente.",
-            "Al terminar la quincena (día 15 o último día del mes) cierra el periodo. Lo no gastado pasa a la siguiente quincena como fondo de emergencia: no aumenta el presupuesto planeado, es un colchón.",
-            "La opción “Reservar presupuestos” en ¿Cuánto gastar? aparta lo no gastado del presupuesto y del fondo de emergencia (como si lo fueras a gastar todo), más las quincenas futuras.",
+            "Al terminar la quincena (día 15 o último día del mes) cierra el periodo. Puedes enviar el sobrante a emergencia de la siguiente quincena (sin subir el presupuesto planeado), a otra categoría, a una meta, o marcarlo como gastado.",
+            "Las quincenas ya pasadas se cierran por defecto sin efecto futuro: no tocan el presupuesto actual ni los saldos. Así evitas que un cierre viejo “empuje” sobrante al periodo de hoy.",
+            "La opción “Reservar presupuestos” en ¿Cuánto gastar? aparta lo no gastado del presupuesto y del fondo de emergencia (como si lo fueras a gastar todo), más las quincenas futuras. Un periodo cerrado ya no arrastra sobrante implícito.",
           ],
           bullets: [
             {
@@ -209,8 +210,8 @@ const es: HelpContent = {
               body: "Propaga el default a las 24 quincenas del siguiente año (útil al planificar).",
             },
             {
-              title: "Cierre y emergencia",
-              body: "El sobrante no se suma al límite de la siguiente quincena. En ¿Cuánto gastar? se reserva igual que el presupuesto, como si lo gastaras.",
+              title: "Cierre y destinos",
+              body: "Elige destino por categoría. Emergencia es un colchón, no un límite más grande. Marcar gastado cierra la quincena sin mover nada adelante. Enviar a una meta suma progreso sin mover saldos de cuentas.",
             },
           ],
         },
@@ -689,8 +690,9 @@ const en: HelpContent = {
             "Plan spending by category. The household uses two half-months: 1–15 and 16–end of month.",
             "Each budget shows spent vs limit. Overages surface here and on Home.",
             "Copy the previous half-month, save a default template, and apply to this period, both halves of the month, or the next year.",
-            "When a half-month ends (day 15 or the last day of the month), close it. Leftover becomes emergency funding on the next period — it does not raise the planned budget.",
-            "“Reserve budgets” on Safe to spend holds unspent budget and emergency funding as if you will spend it all, plus future half-months.",
+            "When a half-month ends (day 15 or the last day of the month), close it. Leftover can go to next-period emergency (without raising the planned budget), another category’s emergency, a savings goal, or be marked as spent.",
+            "Past periods close with no future effect by default: they do not change the current budget or account balances. That keeps an old close from pushing leftover into today’s envelopes.",
+            "“Reserve budgets” on Safe to spend holds unspent budget and emergency funding as if you will spend it all, plus future half-months. A closed period no longer implicitly carries leftover forward.",
           ],
           bullets: [
             {
@@ -706,8 +708,8 @@ const en: HelpContent = {
               body: "Pushes the default across all 24 half-months of the following year.",
             },
             {
-              title: "Close & emergency",
-              body: "Leftover is a cushion, not a bigger limit. Safe to spend reserves it the same way as the original budget.",
+              title: "Close destinations",
+              body: "Choose per category. Emergency is a cushion, not a bigger limit. Mark spent to close without moving anything forward. Sending leftover to a goal increases progress without moving account cash.",
             },
           ],
         },

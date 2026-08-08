@@ -183,6 +183,15 @@ export function isBudgetPeriodCloseable(period: string, today = todayISO()): boo
 }
 
 /**
+ * True when the *next* period after `period` has already ended.
+ * Closing these should default to no carry — leftover must not land on current budgets.
+ */
+export function isStaleBudgetClose(period: string, today = todayISO()): boolean {
+  const next = nextBudgetPeriod(period);
+  return budgetPeriodBounds(next).end < today;
+}
+
+/**
  * Half-month periods from the one containing `asOf` through the one that
  * contains `until` (inclusive). Caps at 48 periods (~2 years).
  */

@@ -1,14 +1,18 @@
 import {
   budgetAvailableCents,
   budgetRemainingCents,
+  buildCloseAllocations,
+  effectiveAllocations,
   isOverBudget,
   isUsingEmergency,
   parseCarryovers,
   spentAgainstEmergency,
   spentByCategoryInRange,
+  summarizeCloseAllocations,
 } from "../src/lib/budget-math";
 import {
   isBudgetPeriodCloseable,
+  isStaleBudgetClose,
   nextBudgetPeriod,
   prevBudgetPeriod,
   todayISO,
@@ -59,5 +63,90 @@ const parsed = parseCarryovers(
   JSON.stringify([{ categoryId: "a", remainingCents: 12.4 }, { categoryId: "", remainingCents: 3 }])
 );
 assert(parsed.length === 1 && parsed[0].remainingCents === 12, "carryovers");
+
+assert(isStaleBudgetClose("2026-07-1", "2026-08-08"), "july-1 is stale in august");
+assert(!isStaleBudgetClose("2026-07-2", "2026-08-08"), "july-2 next is current aug-1");
+assert(!isStaleBudgetClose("2026-08-1", "2026-08-15"), "aug-1 next still open on day 15");
+assert(
+  !isStaleBudgetClose("2026-08-1", "2026-08-31"),
+  "aug-1 next is still current on last day of aug-2"
+);
+assert(isStaleBudgetClose("2026-08-1", "2026-09-01"), "aug-1 stale in september");
+
+const leftover = [
+  { categoryId: "food", remainingCents: 10000 },
+  { categoryId: "fun", remainingCents: 2500 },
+];
+const spentPlan = buildCloseAllocations({
+  leftover,
+  defaultKind: "spent",
+});
+assert(spentPlan.length === 2, "spent plan rows");
+assert(spentPlan[0].allocations?.[0].kind === "spent", "default spent");
+assert(summarizeCloseAllocations(spentPlan).spentCents === 12500, "all spent");
+assert(summarizeCloseAllocations(spentPlan).movedCents === 0, "spent does not move");
+
+const emPlan = buildCloseAllocations({ leftover, defaultKind: "emergency" });
+assert(emPlan[0].allocations?.[0].categoryId === "food", "same-cat emergency");
+assert(summarizeCloseAllocations(emPlan).emergencyCents === 12500, "all emergency");
+
+const custom = buildCloseAllocations({
+  leftover,
+  defaultKind: "spent",
+  lines: [
+    {
+      categoryId: "food",
+      allocations: [
+        { kind: "emergency", amountCents: 4000, categoryId: "fun" },
+        { kind: "goal", amountCents: 3500, goalId: "g1" },
+        { kind: "spent", amountCents: 2500 },
+      ],
+    },
+  ],
+});
+assert(custom[0].allocations?.length === 3, "split food");
+assert(custom[1].allocations?.[0].kind === "spent", "fun uses default");
+const customSum = summarizeCloseAllocations(custom);
+assert(customSum.emergencyCents === 4000, "custom em");
+assert(customSum.goalCents === 3500, "custom goal");
+assert(customSum.spentCents === 5000, "custom spent + default fun");
+
+let threw = false;
+try {
+  buildCloseAllocations({
+    leftover,
+    defaultKind: "spent",
+    lines: [
+      {
+        categoryId: "food",
+        allocations: [{ kind: "spent", amountCents: 1 }],
+      },
+    ],
+  });
+} catch {
+  threw = true;
+}
+assert(threw, "partial custom must still sum to leftover");
+
+const legacy = parseCarryovers(
+  JSON.stringify([{ categoryId: "a", remainingCents: 80 }])
+);
+assert(effectiveAllocations(legacy[0])[0].kind === "emergency", "legacy = emergency");
+assert(effectiveAllocations(legacy[0])[0].amountCents === 80, "legacy amount");
+
+const withAlloc = parseCarryovers(
+  JSON.stringify([
+    {
+      categoryId: "a",
+      remainingCents: 80,
+      allocations: [
+        { kind: "goal", amountCents: 50, goalId: "g", reserveId: "r" },
+        { kind: "spent", amountCents: 30 },
+      ],
+    },
+  ])
+);
+assert(withAlloc[0].allocations?.[0].reserveId === "r", "keep reserveId");
+assert(summarizeCloseAllocations(withAlloc).goalCents === 50, "parsed goal");
 
 console.log("budget math ok");

@@ -53,13 +53,33 @@ export async function POST(req: Request) {
     const session = await requireSession();
     const m = await requireHouseholdAccess(session.userId, { write: true });
     assertBudgetsAccess(m.visibility);
+    const allocationSchema = z.object({
+      kind: z.enum(["emergency", "goal", "spent"]),
+      amountCents: z.number().int().nonnegative().optional(),
+      amount: z.union([z.number(), z.string()]).optional(),
+      categoryId: z.string().optional(),
+      goalId: z.string().optional(),
+    });
     const body = z
-      .object({ period: z.string().min(6) })
+      .object({
+        period: z.string().min(6),
+        defaultKind: z.enum(["emergency", "spent"]).optional(),
+        lines: z
+          .array(
+            z.object({
+              categoryId: z.string(),
+              allocations: z.array(allocationSchema),
+            })
+          )
+          .optional(),
+      })
       .parse(await req.json());
     const close = await closeBudgetPeriod({
       householdId: m.householdId,
       period: body.period,
       userId: session.userId,
+      defaultKind: body.defaultKind,
+      lines: body.lines,
     });
     return jsonOk({ close });
   } catch (e) {

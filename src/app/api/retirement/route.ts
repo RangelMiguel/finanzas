@@ -47,7 +47,11 @@ async function householdNestEgg(
   }
   if (opts.includeGoals) {
     const reserves = await prisma.goalReserve.aggregate({
-      where: { householdId },
+      where: {
+        householdId,
+        // Leftover assigned at close never left accounts — do not double-count.
+        source: "account",
+      },
       _sum: { amountCents: true },
     });
     // Goal reserves already left accounts as expenses — do NOT double count.

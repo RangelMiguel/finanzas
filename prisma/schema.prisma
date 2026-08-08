@@ -285,13 +285,14 @@ model Budget {
   @@index([householdId, period])
 }
 
-/// Snapshot of a closed half-month: leftover became emergency on `toPeriod`.
+/// Snapshot of a closed half-month and where leftover went.
 model BudgetPeriodClose {
   id          String   @id @default(cuid())
   householdId String
   period      String
   toPeriod    String
-  /// JSON: [{ categoryId, remainingCents }]
+  /// JSON: [{ categoryId, remainingCents, allocations: [{ kind, amountCents, categoryId?, goalId?, reserveId? }] }]
+  /// kind: emergency | goal | spent. Legacy rows without allocations = all emergency.
   carryovers  String
   closedById  String?
   createdAt   DateTime @default(now())
@@ -661,12 +662,16 @@ model Goal {
   @@index([householdId, status])
 }
 
-/// Money reserved from an account toward a goal for a given quincena
+/// Money reserved toward a goal for a given quincena.
+/// `account` source: cash reserved from an account (linked expense txn).
+/// `budget_close` source: leftover assigned at period close — no cash movement.
 model GoalReserve {
   id            String   @id @default(cuid())
   householdId   String
   goalId        String
-  accountId     String
+  accountId     String?
+  /// account | budget_close
+  source        String   @default("account")
   amountCents   Int
   /// Budget period: YYYY-MM-1 | YYYY-MM-2
   period        String
@@ -679,7 +684,7 @@ model GoalReserve {
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
   goal      Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  account   Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  account   Account?  @relation(fields: [accountId], references: [id], onDelete: Restrict)
   createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([householdId, period])

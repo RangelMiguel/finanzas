@@ -18,7 +18,7 @@ function mapGoal(
     status: string;
     createdAt: Date;
     updatedAt: Date;
-    reserves: { amountCents: number; period: string; id: string; accountId: string; date: string; notes: string | null; createdAt: Date; account: { id: string; name: string; icon: string } }[];
+    reserves: { amountCents: number; period: string; id: string; accountId: string | null; source?: string; date: string; notes: string | null; createdAt: Date; account: { id: string; name: string; icon: string } | null }[];
   }
 ) {
   const reservedCents = g.reserves.reduce((s, r) => s + r.amountCents, 0);
