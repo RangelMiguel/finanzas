@@ -431,14 +431,14 @@ export default function RetirementPage() {
               hint={t.retirement.desiredAnnualHint}
             >
               <Input
-                inputMode="decimal"
+                money
                 value={form.desiredAnnualIncome}
                 onChange={(e) => set("desiredAnnualIncome", e.target.value)}
               />
             </Field>
             <Field label={t.retirement.currentIncome}>
               <Input
-                inputMode="decimal"
+                money
                 value={form.currentAnnualIncome}
                 onChange={(e) => set("currentAnnualIncome", e.target.value)}
               />
@@ -525,7 +525,7 @@ export default function RetirementPage() {
             ) : (
               <Field label={t.retirement.manualSavings}>
                 <Input
-                  inputMode="decimal"
+                  money
                   value={form.currentSavings}
                   onChange={(e) => set("currentSavings", e.target.value)}
                 />
@@ -536,7 +536,7 @@ export default function RetirementPage() {
               hint={t.retirement.monthlyContributionHint}
             >
               <Input
-                inputMode="decimal"
+                money
                 value={form.monthlyContribution}
                 onChange={(e) => set("monthlyContribution", e.target.value)}
               />
@@ -620,14 +620,14 @@ export default function RetirementPage() {
               hint={t.retirement.pensionHint}
             >
               <Input
-                inputMode="decimal"
+                money
                 value={form.pensionAnnual}
                 onChange={(e) => set("pensionAnnual", e.target.value)}
               />
             </Field>
             <Field label={t.retirement.otherIncome}>
               <Input
-                inputMode="decimal"
+                money
                 value={form.otherIncomeAnnual}
                 onChange={(e) => set("otherIncomeAnnual", e.target.value)}
               />

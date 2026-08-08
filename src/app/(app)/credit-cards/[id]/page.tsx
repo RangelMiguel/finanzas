@@ -386,6 +386,7 @@ export default function CreditCardDetailPage() {
                 <div>
                   <Label>{t.cards.msiTotal}</Label>
                   <Input
+                    money
                     className="mt-1"
                     value={msiEdit.totalAmount}
                     onChange={(e) =>
@@ -396,6 +397,7 @@ export default function CreditCardDetailPage() {
                 <div>
                   <Label>{t.cards.msiMonths}</Label>
                   <Input
+                    numeric
                     className="mt-1"
                     value={msiEdit.months}
                     onChange={(e) =>
@@ -454,6 +456,7 @@ export default function CreditCardDetailPage() {
                 <div>
                   <Label>{t.amount}</Label>
                   <Input
+                    money
                     className="mt-1"
                     value={purchaseEdit.amount}
                     onChange={(e) =>

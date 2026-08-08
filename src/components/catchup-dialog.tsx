@@ -161,6 +161,7 @@ export function CatchupDialog({
                   }}
                 />
                 <Input
+                  money
                   placeholder={t.amount}
                   value={r.amount}
                   onChange={(e) => {
@@ -218,6 +219,7 @@ export function CatchupDialog({
                   {a.name} — {t.catchup.realBalance}
                 </Label>
                 <Input
+                  money
                   className="mt-1"
                   placeholder={t.optional}
                   value={balances[a.id] || ""}
@@ -256,6 +258,7 @@ export function CatchupDialog({
                 <div>
                   <Label>{t.catchup.capital}</Label>
                   <Input
+                    money
                     className="mt-1"
                     value={debtPay.capital}
                     onChange={(e) =>
@@ -266,6 +269,7 @@ export function CatchupDialog({
                 <div>
                   <Label>{t.catchup.interest}</Label>
                   <Input
+                    money
                     className="mt-1"
                     value={debtPay.interest}
                     onChange={(e) =>

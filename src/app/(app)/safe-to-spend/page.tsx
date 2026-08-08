@@ -221,9 +221,9 @@ export default function SafeToSpendPage() {
               <div>
                 <Label htmlFor="goal-amt">{t.safe.askGoal}</Label>
                 <Input
+                  money
                   id="goal-amt"
                   className="mt-1"
-                  inputMode="decimal"
                   placeholder="5000"
                   value={goalAmount}
                   onChange={(e) => setGoalAmount(e.target.value)}
@@ -476,6 +476,7 @@ export default function SafeToSpendPage() {
                   }
                 />
                 <Input
+                  money
                   placeholder={t.amount}
                   value={w.amount}
                   onChange={(e) =>

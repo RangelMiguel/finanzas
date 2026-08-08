@@ -33,12 +33,12 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-screen text-[var(--fg)]">
+    <div className="app-frame text-[var(--fg)]">
       <a href="#main-content" className="skip-link">
         {t.skipToContent}
       </a>
 
-      <div className="sticky top-0 hidden h-screen md:block">
+      <div className="app-sidebar-dock sticky top-3 hidden md:block">
         <Sidebar
           householdName={householdName}
           userName={userName}
@@ -50,11 +50,11 @@ export function AppShell({
         <div className="fixed inset-0 z-40 md:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-black/70"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             aria-label={t.closeMenu}
             onClick={() => setOpen(false)}
           />
-          <div className="relative z-50 h-full w-[17rem] max-w-[85vw] shadow-2xl">
+          <div className="relative z-50 m-3 h-[calc(100%-1.5rem)] w-[17.5rem] max-w-[85vw] overflow-hidden rounded-[1.35rem] shadow-2xl">
             <Sidebar
               householdName={householdName}
               userName={userName}
@@ -67,7 +67,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {impersonating && (
-          <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 border-b border-amber-400/30 bg-amber-500/15 px-4 py-2 text-sm text-amber-50 md:px-8">
+          <div className="sticky top-0 z-40 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-400/30 bg-amber-500/15 px-4 py-2 text-sm text-amber-50">
             <span className="flex min-w-0 items-center gap-2">
               <Eye className="h-4 w-4 shrink-0" />
               <span className="truncate">
@@ -88,7 +88,7 @@ export function AppShell({
           </div>
         )}
         <OfflineBanner />
-        <header className="app-topbar sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3 md:px-8">
+        <header className="app-topbar sticky top-0 z-30 flex items-center justify-between gap-2 px-4 py-3 md:top-0 md:px-5">
           <div className="flex min-w-0 items-center gap-2">
             <Button
               variant="ghost"
@@ -104,12 +104,18 @@ export function AppShell({
               {t.appName}
             </div>
             <div className="hidden truncate text-sm text-[var(--fg-muted)] md:block">
-              {householdName || t.appName}
+              <span className="text-[var(--fg-faint)]">{t.appName}</span>
+              {householdName ? (
+                <>
+                  <span className="mx-2 text-[var(--fg-faint)]">/</span>
+                  <span className="text-[var(--fg)]">{householdName}</span>
+                </>
+              ) : null}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <SecurityNotifications />
-            <div className="hidden max-w-[10rem] truncate text-xs text-[var(--fg-muted)] sm:block">
+            <div className="hidden max-w-[10rem] truncate rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-[var(--fg-muted)] sm:block">
               {userName}
             </div>
           </div>
@@ -117,7 +123,7 @@ export function AppShell({
 
         <main
           id="main-content"
-          className="relative flex-1 overflow-auto p-4 md:p-8"
+          className="page-stage relative flex-1 overflow-auto p-4 md:px-2 md:py-5"
           tabIndex={-1}
         >
           {children}

@@ -119,10 +119,10 @@ export function CreditCardPayDialog({
         <div>
           <Label>{t.cards.payAmount}</Label>
           <Input
+            money
             className="mt-1"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            inputMode="decimal"
           />
         </div>
         <div>

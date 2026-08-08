@@ -371,6 +371,7 @@ export default function PersonalPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
                 value={incomeForm.amount}
                 onChange={(e) =>
@@ -431,6 +432,7 @@ export default function PersonalPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
                 value={budgetForm.amount}
                 onChange={(e) =>
@@ -555,6 +557,7 @@ export default function PersonalPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
                 value={expenseForm.amount}
                 onChange={(e) =>

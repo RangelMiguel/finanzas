@@ -161,6 +161,7 @@ export default function DebtsPage() {
             <div>
               <Label>{t.debts.principal}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.principal}
                 onChange={(e) => setForm({ ...form, principal: e.target.value })}
@@ -169,6 +170,7 @@ export default function DebtsPage() {
             <div>
               <Label>{t.debts.annualRate}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.annualRatePercent}
                 onChange={(e) =>
@@ -179,6 +181,7 @@ export default function DebtsPage() {
             <div>
               <Label>{t.debts.monthlyPayment}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.monthlyPayment}
                 onChange={(e) =>
@@ -189,6 +192,7 @@ export default function DebtsPage() {
             <div>
               <Label>{t.debts.paymentDay}</Label>
               <Input
+                numeric
                 className="mt-1"
                 value={form.paymentDay}
                 onChange={(e) => setForm({ ...form, paymentDay: e.target.value })}
@@ -213,6 +217,7 @@ export default function DebtsPage() {
             <div>
               <Label>{t.debts.capital}</Label>
               <Input
+                money
                 className="mt-1"
                 value={pay.capital}
                 onChange={(e) => setPay({ ...pay, capital: e.target.value })}
@@ -221,6 +226,7 @@ export default function DebtsPage() {
             <div>
               <Label>{t.debts.interest}</Label>
               <Input
+                money
                 className="mt-1"
                 value={pay.interest}
                 onChange={(e) => setPay({ ...pay, interest: e.target.value })}

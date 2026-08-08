@@ -197,6 +197,7 @@ export default function AllowancesPage() {
             <div>
               <Label>{t.allowances.cap}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}

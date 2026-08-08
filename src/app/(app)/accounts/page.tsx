@@ -241,6 +241,7 @@ export default function AccountsPage() {
             <div>
               <Label>{t.accounts.initialBalance}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.initialBalance}
                 onChange={(e) =>
@@ -299,6 +300,7 @@ export default function AccountsPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
                 value={transfer.amount}
                 onChange={(e) =>

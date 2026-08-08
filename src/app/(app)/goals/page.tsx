@@ -320,8 +320,8 @@ export default function GoalsPage() {
             <div>
               <Label>{t.goals.target}</Label>
               <Input
+                money
                 className="mt-1"
-                inputMode="decimal"
                 value={form.target}
                 onChange={(e) => setForm({ ...form, target: e.target.value })}
               />
@@ -386,8 +386,8 @@ export default function GoalsPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
-                inputMode="decimal"
                 value={reserve.amount}
                 onChange={(e) =>
                   setReserve({ ...reserve, amount: e.target.value })

@@ -223,10 +223,10 @@ export function Sidebar({
               onClick={(e) => handleNavClick(e, item.href)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                "nav-item flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm",
                 active
                   ? "nav-item-active"
-                  : "text-[var(--fg-muted)] hover:bg-white/[0.04] hover:text-[var(--fg)]"
+                  : "text-[var(--fg-muted)] hover:bg-white/[0.05] hover:text-[var(--fg)]"
               )}
             >
               <Icon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
@@ -247,9 +247,9 @@ export function Sidebar({
             onClick={() => setLocale("es")}
             aria-pressed={locale === "es"}
             className={cn(
-              "flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold",
+              "flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
               locale === "es"
-                ? "bg-teal-400/15 text-teal-100"
+                ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
                 : "text-[var(--fg-faint)] hover:bg-white/5"
             )}
           >
@@ -260,9 +260,9 @@ export function Sidebar({
             onClick={() => setLocale("en")}
             aria-pressed={locale === "en"}
             className={cn(
-              "flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold",
+              "flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
               locale === "en"
-                ? "bg-teal-400/15 text-teal-100"
+                ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
                 : "text-[var(--fg-faint)] hover:bg-white/5"
             )}
           >
@@ -274,7 +274,7 @@ export function Sidebar({
             href="/?catchup=1"
             prefetch={!offline}
             onClick={(e) => handleNavClick(e, "/?catchup=1")}
-            className="flex w-full items-center gap-2 rounded-xl border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-xs text-teal-100 hover:bg-teal-400/15"
+            className="flex w-full items-center gap-2 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-2 text-xs text-[var(--nav-active-fg)] hover:bg-[var(--accent)]/15"
           >
             <CalendarClock className="h-3.5 w-3.5" aria-hidden />
             {t.nav.catchUp}

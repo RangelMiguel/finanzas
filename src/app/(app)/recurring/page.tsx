@@ -150,6 +150,7 @@ export default function RecurringPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
@@ -158,6 +159,7 @@ export default function RecurringPage() {
             <div>
               <Label>{t.recurring.dayOfMonth}</Label>
               <Input
+                numeric
                 className="mt-1"
                 value={form.dayOfMonth}
                 onChange={(e) => setForm({ ...form, dayOfMonth: e.target.value })}

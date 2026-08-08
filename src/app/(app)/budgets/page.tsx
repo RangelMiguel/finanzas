@@ -351,7 +351,7 @@ export default function BudgetsPage() {
               onClick={() => setHalf(1)}
               className={`rounded-lg px-3 py-2 text-xs font-semibold ${
                 half === 1
-                  ? "bg-teal-400/20 text-teal-100"
+                  ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
                   : "text-[var(--fg-faint)]"
               }`}
             >
@@ -362,7 +362,7 @@ export default function BudgetsPage() {
               onClick={() => setHalf(2)}
               className={`rounded-lg px-3 py-2 text-xs font-semibold ${
                 half === 2
-                  ? "bg-teal-400/20 text-teal-100"
+                  ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
                   : "text-[var(--fg-faint)]"
               }`}
             >
@@ -642,6 +642,7 @@ export default function BudgetsPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}

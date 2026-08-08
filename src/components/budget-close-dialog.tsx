@@ -272,7 +272,7 @@ export function BudgetCloseDialog({
                       key={id}
                       className={`flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-sm ${
                         preset === id
-                          ? "border-teal-300/40 bg-teal-400/10"
+                          ? "border-[var(--accent)]/40 bg-[var(--accent)]/10"
                           : "border-white/10 bg-black/20"
                       }`}
                     >
@@ -344,7 +344,7 @@ export function BudgetCloseDialog({
                               className="grid gap-2 sm:grid-cols-[7rem_1fr_auto]"
                             >
                               <Input
-                                inputMode="decimal"
+                                money
                                 value={row.amount}
                                 onChange={(e) =>
                                   updateSplit(line.categoryId, idx, {

@@ -375,10 +375,9 @@ export default function TicketsPage() {
                   }
                 />
                 <Input
+                  money
                   className="sm:col-span-2"
-                  type="number"
-                  step="0.01"
-                  value={item.amount}
+                  value={String(item.amount)}
                   onChange={(e) =>
                     setItems((list) =>
                       list.map((x, i) =>

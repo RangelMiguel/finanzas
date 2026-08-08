@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
-import { DM_Sans, Fraunces } from "next/font/google";
+import { Plus_Jakarta_Sans, Fraunces } from "next/font/google";
 import { AppProvider } from "@/components/providers/app-provider";
 import { ConfirmProvider } from "@/components/providers/confirm-provider";
 import { PwaProvider } from "@/components/pwa/pwa-provider";
+import { AmbientLights } from "@/components/ambient-lights";
 import "./globals.css";
 
-const sans = DM_Sans({
+const sans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
@@ -70,6 +71,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body className="antialiased">
+        <AmbientLights />
         <AppProvider>
           <ConfirmProvider>
             <PwaProvider>

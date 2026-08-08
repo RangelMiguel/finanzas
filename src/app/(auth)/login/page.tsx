@@ -60,7 +60,7 @@ function LoginForm() {
           <div className="flex gap-1" role="group" aria-label={t.language}>
             <button
               type="button"
-              className={`rounded-lg px-2 py-0.5 text-xs ${locale === "es" ? "bg-[var(--accent)]/20 text-[#ffe3b0]" : "text-[var(--fg-faint)]"}`}
+              className={`rounded-lg px-2 py-0.5 text-xs ${locale === "es" ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]" : "text-[var(--fg-faint)]"}`}
               aria-pressed={locale === "es"}
               onClick={() => setLocale("es")}
             >
@@ -68,7 +68,7 @@ function LoginForm() {
             </button>
             <button
               type="button"
-              className={`rounded-lg px-2 py-0.5 text-xs ${locale === "en" ? "bg-[var(--accent)]/20 text-[#ffe3b0]" : "text-[var(--fg-faint)]"}`}
+              className={`rounded-lg px-2 py-0.5 text-xs ${locale === "en" ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]" : "text-[var(--fg-faint)]"}`}
               aria-pressed={locale === "en"}
               onClick={() => setLocale("en")}
             >

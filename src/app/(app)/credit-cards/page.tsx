@@ -262,6 +262,7 @@ export default function CreditCardsPage() {
             <div>
               <Label>{t.cards.lastFour}</Label>
               <Input
+                numeric
                 className="mt-1"
                 maxLength={4}
                 value={form.lastFour}
@@ -271,6 +272,7 @@ export default function CreditCardsPage() {
             <div>
               <Label>{t.cards.cutoffDay}</Label>
               <Input
+                numeric
                 className="mt-1"
                 value={form.cutoffDay}
                 onChange={(e) => setForm({ ...form, cutoffDay: e.target.value })}
@@ -279,6 +281,7 @@ export default function CreditCardsPage() {
             <div>
               <Label>{t.cards.graceDays}</Label>
               <Input
+                numeric
                 className="mt-1"
                 value={form.graceDays}
                 onChange={(e) => setForm({ ...form, graceDays: e.target.value })}

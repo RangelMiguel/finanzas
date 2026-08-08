@@ -126,7 +126,18 @@ function DashboardInner() {
   });
 
   if (!data) {
-    return <div className="text-[var(--fg-muted)]">{t.loading}</div>;
+    return (
+      <div className="space-y-4">
+        <div className="skeleton h-28 w-full rounded-[1.5rem]" />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="skeleton h-28" />
+          <div className="skeleton h-28" />
+          <div className="skeleton h-28" />
+        </div>
+        <div className="skeleton h-52" />
+        <p className="text-sm text-[var(--fg-muted)]">{t.loading}</p>
+      </div>
+    );
   }
 
   const alerts = budgets
@@ -142,27 +153,85 @@ function DashboardInner() {
     .filter((b) => b.ratio >= 0.8 || b.overAll || b.usingEmergency)
     .sort((a, b) => b.ratio - a.ratio);
 
+  const income = data.summary.incomeCents || 0;
+  const expense = data.summary.expenseCents || 0;
+  const flowMax = Math.max(income, expense, 1);
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="page-kicker">{t.nav.dashboard}</p>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => shift(-1)} aria-label={t.back}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="page-title capitalize">{title}</h1>
-            <Button variant="ghost" size="icon" onClick={() => shift(1)} aria-label={t.next}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+      <div className="dash-hero">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="page-kicker">{t.nav.dashboard}</p>
+            <div className="flex items-center gap-1.5">
+              <Button variant="ghost" size="icon" onClick={() => shift(-1)} aria-label={t.back}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <h1 className="page-title capitalize">{title}</h1>
+              <Button variant="ghost" size="icon" onClick={() => shift(1)} aria-label={t.next}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="page-subtitle">
+              {t.dashboard.title} — {data.household.name}
+            </p>
           </div>
-          <p className="page-subtitle">
-            {t.dashboard.title} — {data.household.name}
-          </p>
+          <Button variant="secondary" onClick={() => setCatchup(true)}>
+            {t.nav.catchUp}
+          </Button>
         </div>
-        <Button variant="secondary" onClick={() => setCatchup(true)}>
-          {t.nav.catchUp}
-        </Button>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="bento-stat">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--income)]/80">
+              {t.dashboard.incomes}
+            </p>
+            <p className="mt-2 font-display text-3xl money-income sm:text-4xl">
+              {moneyOrHidden(data.summary.incomeCents)}
+            </p>
+            <div className="bento-meter" aria-hidden>
+              <span style={{ width: `${(income / flowMax) * 100}%` }} />
+            </div>
+          </div>
+          <div className="bento-stat">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--expense)]/80">
+              {t.dashboard.expenses}
+            </p>
+            <p className="mt-2 font-display text-3xl money-expense sm:text-4xl">
+              {moneyOrHidden(data.summary.expenseCents)}
+            </p>
+            <div className="bento-meter" aria-hidden>
+              <span
+                className="!bg-[linear-gradient(90deg,var(--expense),#fb7185)]"
+                style={{ width: `${(expense / flowMax) * 100}%` }}
+              />
+            </div>
+          </div>
+          <div className="bento-stat">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--accent-2)]/80">
+              {t.dashboard.balance}
+            </p>
+            <p
+              className={`mt-2 font-display text-3xl sm:text-4xl ${
+                data.summary.balanceCents == null || data.summary.balanceCents >= 0
+                  ? "text-[var(--title-2)]"
+                  : "money-expense"
+              }`}
+            >
+              {moneyOrHidden(data.summary.balanceCents)}
+            </p>
+            <div className="bento-meter" aria-hidden>
+              <span
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.abs(data.summary.balanceCents || 0) / flowMax * 100
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Install app + enable notifications — outside the alerts tray */}
@@ -181,37 +250,6 @@ function DashboardInner() {
           </span>
         </Link>
       )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="bento-stat">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/70">
-            {t.dashboard.incomes}
-          </p>
-          <p className="mt-2 font-display text-3xl money-income">
-            {moneyOrHidden(data.summary.incomeCents)}
-          </p>
-        </div>
-        <div className="bento-stat">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-rose-200/70">
-            {t.dashboard.expenses}
-          </p>
-          <p className="mt-2 font-display text-3xl money-expense">
-            {moneyOrHidden(data.summary.expenseCents)}
-          </p>
-        </div>
-        <div className="bento-stat">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-violet-200/70">
-            {t.dashboard.balance}
-          </p>
-          <p
-            className={`mt-2 font-display text-3xl ${
-              (data.summary.balanceCents == null || data.summary.balanceCents >= 0) ? "text-teal-100" : "money-expense"
-            }`}
-          >
-            {moneyOrHidden(data.summary.balanceCents)}
-          </p>
-        </div>
-      </div>
 
       {alerts.length > 0 && (
         <Card premium className="border-[var(--accent)]/30">
@@ -289,39 +327,63 @@ function DashboardInner() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {data.accounts.map((a) => (
-          <Card key={a.id}>
-            <CardContent className="flex items-center justify-between py-4">
-              <span className="text-sm text-[var(--fg-muted)]">
-                {a.icon} {a.name}
-              </span>
-              <span className="font-semibold">{moneyOrHidden(a.balanceCents)}</span>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {data.accounts.length > 0 && (
+        <div>
+          <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[var(--fg-faint)]">
+            {t.dashboard.accountsStrip}
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {data.accounts.map((a) => (
+              <Card key={a.id}>
+                <CardContent className="flex items-center justify-between gap-3 py-4">
+                  <span className="flex min-w-0 items-center gap-2.5 text-sm text-[var(--fg-muted)]">
+                    <span className="icon-bubble text-base">{a.icon}</span>
+                    <span className="truncate">{a.name}</span>
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {moneyOrHidden(a.balanceCents)}
+                  </span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card premium>
           <CardHeader>
             <CardTitle>{t.dashboard.topCategories}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-1">
             {data.topCategories.length === 0 && (
               <p className="text-sm text-[var(--fg-faint)]">{t.dashboard.noExpenses}</p>
             )}
-            {data.topCategories.map((row) => (
-              <div
-                key={row.category.id}
-                className="flex items-center justify-between text-sm"
-              >
-                <span>
-                  {row.category.icon} {row.category.name}
-                </span>
-                <span className="money-expense">{money(row.amountCents)}</span>
-              </div>
-            ))}
+            {data.topCategories.map((row) => {
+              const catMax = data.topCategories[0]?.amountCents || 1;
+              return (
+                <div key={row.category.id} className="rounded-xl px-1 py-1.5">
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2">
+                      <span className="icon-bubble h-8 w-8 text-sm">
+                        {row.category.icon}
+                      </span>
+                      {row.category.name}
+                    </span>
+                    <span className="money-expense tabular-nums">
+                      {money(row.amountCents)}
+                    </span>
+                  </div>
+                  <div className="bento-meter ml-10" aria-hidden>
+                    <span
+                      style={{
+                        width: `${Math.max(8, (row.amountCents / catMax) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
         <Card premium>
@@ -333,8 +395,14 @@ function DashboardInner() {
               <p className="text-sm text-[var(--fg-faint)]">{t.dashboard.noCards}</p>
             )}
             {data.creditCards.map((c) => (
-              <div key={c.id} className="text-sm text-[var(--fg-muted)]">
-                {c.name} {c.lastFour ? `•••• ${c.lastFour}` : ""}
+              <div
+                key={c.id}
+                className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2.5 text-sm text-[var(--fg-muted)]"
+              >
+                <span className="font-medium text-[var(--fg)]">{c.name}</span>
+                <span className="font-mono text-xs tracking-[0.18em] text-[var(--fg-faint)]">
+                  {c.lastFour ? `•••• ${c.lastFour}` : "••••"}
+                </span>
               </div>
             ))}
           </CardContent>
@@ -345,26 +413,26 @@ function DashboardInner() {
         <CardHeader>
           <CardTitle>{t.dashboard.recent}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-0.5">
           {data.recentTransactions.length === 0 && (
             <p className="text-sm text-[var(--fg-faint)]">{t.dashboard.noTxns}</p>
           )}
           {data.recentTransactions.map((txn) => (
-            <div
-              key={txn.id}
-              className="flex items-center justify-between border-b border-white/5 py-2 text-sm last:border-0"
-            >
-              <div>
-                <div>
-                  {txn.category?.icon || "•"} {txn.description}
-                </div>
-                <div className="text-xs text-[var(--fg-faint)]">
-                  {txn.date}
-                  {txn.createdBy ? ` · ${txn.createdBy.displayName}` : ""}
+            <div key={txn.id} className="txn-row text-sm">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="icon-bubble text-sm">
+                  {txn.category?.icon || "•"}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate">{txn.description}</div>
+                  <div className="text-xs text-[var(--fg-faint)]">
+                    {txn.date}
+                    {txn.createdBy ? ` · ${txn.createdBy.displayName}` : ""}
+                  </div>
                 </div>
               </div>
               <span
-                className={
+                className={`shrink-0 tabular-nums ${
                   txn.type === "income"
                     ? "money-income"
                     : txn.type === "transfer"
@@ -372,7 +440,7 @@ function DashboardInner() {
                       : txn.type === "cc_payment"
                         ? "text-amber-200"
                         : "money-expense"
-                }
+                }`}
               >
                 {txn.type === "expense" ? "−" : txn.type === "income" ? "+" : ""}
                 {money(txn.amountCents)}

@@ -401,6 +401,7 @@ export default function TransactionsPage() {
             <div>
               <Label>{t.amount}</Label>
               <Input
+                money
                 className="mt-1"
                 value={form.amount}
                 onChange={(e) => onAmountChange(e.target.value)}
@@ -489,6 +490,7 @@ export default function TransactionsPage() {
                     <div>
                       <Label className="text-xs">{t.transactions.paymentAmount}</Label>
                       <Input
+                        money
                         className="mt-1"
                         value={line.amount}
                         onChange={(e) => setPayLine(i, { amount: e.target.value })}
@@ -547,6 +549,7 @@ export default function TransactionsPage() {
                   <div>
                     <Label>{t.transactions.msi}</Label>
                     <Input
+                      numeric
                       className="mt-1"
                       value={form.msiMonths}
                       onChange={(e) =>
