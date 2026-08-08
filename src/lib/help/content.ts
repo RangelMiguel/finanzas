@@ -192,7 +192,8 @@ const es: HelpContent = {
             "Controla cuánto planeas gastar por categoría. El periodo del hogar usa dos quincenas al mes: del 1 al 15 y del 16 al fin de mes.",
             "Cada presupuesto muestra gastado vs límite. Si te pasas, verás alerta (también en el inicio).",
             "Puedes copiar la quincena anterior, guardar una plantilla default y aplicarla a este periodo, a ambas quincenas del mes, o al año siguiente.",
-            "La opción “Reservar presupuestos” en ¿Cuánto gastar? aparta lo no gastado del presupuesto actual y de quincenas futuras para no contarlo como dinero libre.",
+            "Al terminar la quincena (día 15 o último día del mes) cierra el periodo. Lo no gastado pasa a la siguiente quincena como fondo de emergencia: no aumenta el presupuesto planeado, es un colchón.",
+            "La opción “Reservar presupuestos” en ¿Cuánto gastar? aparta lo no gastado del presupuesto y del fondo de emergencia (como si lo fueras a gastar todo), más las quincenas futuras.",
           ],
           bullets: [
             {
@@ -206,6 +207,10 @@ const es: HelpContent = {
             {
               title: "Año siguiente",
               body: "Propaga el default a las 24 quincenas del siguiente año (útil al planificar).",
+            },
+            {
+              title: "Cierre y emergencia",
+              body: "El sobrante no se suma al límite de la siguiente quincena. En ¿Cuánto gastar? se reserva igual que el presupuesto, como si lo gastaras.",
             },
           ],
         },
@@ -225,7 +230,7 @@ const es: HelpContent = {
             "Cada tarjeta tiene día de corte y días de gracia. Con eso la app calcula el ciclo en curso, el próximo pago y el siguiente ciclo.",
             "En la lista ves gasto del mes, montos a pagar y un acceso a pagos pendientes. Al entrar al detalle de una tarjeta ves cargos, planes MSI y puedes editar o eliminar.",
             "Al eliminar un cargo MSI te pregunta si quitas solo ese mes o todo el plan. Eso evita borrar por error un financiamiento completo.",
-            "Los pagos a la tarjeta (desde una cuenta) se registran como movimientos de pago; el ciclo y “seguro para gastar” consideran lo pendiente.",
+            "Para pagar la tarjeta pulsa Pagar y elige la cuenta de origen. Ese movimiento nunca se crea solo: baja el saldo de la cuenta y lo pendiente del ciclo. ¿Cuánto gastar? solo proyecta lo que aún no has pagado.",
           ],
           bullets: [
             {
@@ -315,7 +320,7 @@ const es: HelpContent = {
           ],
           tips: [
             "Si el saldo mínimo proyectado es negativo, baja el “seguro para gastar” o mueve fechas en escenarios.",
-            "Cambia horizonte (días) para ver más o menos futuro.",
+            "Cambia horizonte (días, hasta 2 años) para ver más o menos futuro.",
           ],
         },
         {
@@ -684,7 +689,8 @@ const en: HelpContent = {
             "Plan spending by category. The household uses two half-months: 1–15 and 16–end of month.",
             "Each budget shows spent vs limit. Overages surface here and on Home.",
             "Copy the previous half-month, save a default template, and apply to this period, both halves of the month, or the next year.",
-            "“Reserve budgets” on Safe to spend holds unspent budget (including future halves with defaults) so it isn’t treated as free cash.",
+            "When a half-month ends (day 15 or the last day of the month), close it. Leftover becomes emergency funding on the next period — it does not raise the planned budget.",
+            "“Reserve budgets” on Safe to spend holds unspent budget and emergency funding as if you will spend it all, plus future half-months.",
           ],
           bullets: [
             {
@@ -698,6 +704,10 @@ const en: HelpContent = {
             {
               title: "Next year",
               body: "Pushes the default across all 24 half-months of the following year.",
+            },
+            {
+              title: "Close & emergency",
+              body: "Leftover is a cushion, not a bigger limit. Safe to spend reserves it the same way as the original budget.",
             },
           ],
         },
@@ -717,7 +727,7 @@ const en: HelpContent = {
             "Each card has a cutoff day and grace days. The app derives the open cycle, next payment, and following cycle.",
             "The list shows month spend, amounts due, and pending payments. Card detail lists charges and installment plans you can edit or delete.",
             "Deleting an installment charge asks whether to remove only that month or the whole plan—so you don’t wipe a financing plan by mistake.",
-            "Paying the card from an account is a payment transaction; Safe to spend uses pending cycle amounts.",
+            "To pay the card, press Pay and pick the source account. That movement is never created automatically: it lowers the account balance and the remaining due. Safe to spend only projects what is still unpaid.",
           ],
           bullets: [
             {
@@ -807,7 +817,7 @@ const en: HelpContent = {
           ],
           tips: [
             "If projected minimum balance goes negative, reduce safe-to-spend or adjust scenarios.",
-            "Change the horizon (days) to look further ahead.",
+            "Change the horizon (days, up to 2 years) to look further ahead.",
           ],
         },
         {

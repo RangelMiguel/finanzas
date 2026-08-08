@@ -304,6 +304,7 @@ export function filterTxnType(
 ): boolean {
   if (type === "income") return vis.showIncome;
   if (type === "expense") return vis.showExpense;
+  if (type === "cc_payment") return vis.showExpense || vis.showTransfers;
   if (type === "transfer") {
     if (vis.showTransfers) return true;
     // e.g. allowance to personal account tagged “School”

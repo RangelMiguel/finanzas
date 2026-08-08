@@ -128,7 +128,7 @@ export function cutoffOn(y: number, m: number, cutoffDay: number): string {
 
 /** Last cut-off date on or before `asOf` (YYYY-MM-DD). */
 export function lastCutoffOnOrBefore(asOf: string, cutoffDay: number): string {
-  const { y, m, d } = parseISODate(asOf);
+  const { y, m } = parseISODate(asOf);
   const thisMonth = cutoffOn(y, m, cutoffDay);
   if (thisMonth <= asOf) return thisMonth;
   // previous month
@@ -208,23 +208,42 @@ export function upcomingBillingCycles(
   ];
 }
 
+function previousBillingCycle(
+  cycle: BillingCycle,
+  cutoffDay: number,
+  graceDays: number
+): BillingCycle {
+  const prevCutoff = lastCutoffOnOrBefore(addDaysISO(cycle.start, -1), cutoffDay);
+  const w = cycleWindow(prevCutoff, cutoffDay);
+  return {
+    start: w.start,
+    end: w.end,
+    paymentDue: paymentDueForCutoff(prevCutoff, graceDays),
+  };
+}
+
 /**
- * All billing cycles whose payment due date falls in `[asOf, untilDate]` (inclusive).
+ * All billing cycles whose payment due date falls in `[asOf, untilDate]`
+ * plus recent past-due cycles (so unpaid statements don't vanish after the due date).
  */
 export function billingCyclesThrough(
   asOf: string,
   untilDate: string,
   cutoffDay: number,
-  graceDays: number
+  graceDays: number,
+  opts?: { pastDueMonths?: number }
 ): BillingCycle[] {
-  const cycles: BillingCycle[] = [];
+  const pastDueMonths = opts?.pastDueMonths ?? 6;
   let cycle = firstUpcomingBillingCycle(asOf, cutoffDay, graceDays);
+  for (let i = 0; i < pastDueMonths; i++) {
+    cycle = previousBillingCycle(cycle, cutoffDay, graceDays);
+  }
+
+  const cycles: BillingCycle[] = [];
   // Safety cap (~5 years of monthly cuts)
   for (let i = 0; i < 60; i++) {
     if (cycle.paymentDue > untilDate) break;
-    if (cycle.paymentDue >= asOf) {
-      cycles.push(cycle);
-    }
+    cycles.push(cycle);
     const nextEnd = nextCutoffAfter(cycle.end, cutoffDay);
     const w = cycleWindow(nextEnd, cutoffDay);
     cycle = {
@@ -234,6 +253,70 @@ export function billingCyclesThrough(
     };
   }
   return cycles;
+}
+
+export type RecordedCardPayment = {
+  id?: string;
+  amountCents: number;
+  date: string;
+  ccCycleDue?: string | null;
+  description?: string | null;
+  accountName?: string | null;
+};
+
+export type AppliedCycle<T extends { paymentDue: string; amountCents: number }> =
+  T & {
+    chargedCents: number;
+    paidCents: number;
+    remainingCents: number;
+  };
+
+/** Apply manual card payments: preferred cycle first, then FIFO by due date. */
+export function applyRecordedPaymentsToCycles<
+  T extends { paymentDue: string; amountCents: number },
+>(
+  cycles: T[],
+  recorded: RecordedCardPayment[]
+): AppliedCycle<T>[] {
+  const result: AppliedCycle<T>[] = [...cycles]
+    .sort((a, b) => a.paymentDue.localeCompare(b.paymentDue))
+    .map((c) => ({
+      ...c,
+      chargedCents: c.amountCents,
+      paidCents: 0,
+      remainingCents: Math.max(0, c.amountCents),
+    }));
+
+  const pays = [...recorded]
+    .filter((p) => p.amountCents > 0)
+    .sort((a, b) => {
+      const d = a.date.localeCompare(b.date);
+      if (d !== 0) return d;
+      return (a.id || "").localeCompare(b.id || "");
+    });
+
+  for (const pay of pays) {
+    let left = pay.amountCents;
+    if (pay.ccCycleDue) {
+      const idx = result.findIndex((c) => c.paymentDue === pay.ccCycleDue);
+      if (idx >= 0 && result[idx].remainingCents > 0) {
+        const take = Math.min(left, result[idx].remainingCents);
+        result[idx].paidCents += take;
+        result[idx].remainingCents -= take;
+        left -= take;
+      }
+    }
+    for (const c of result) {
+      if (left <= 0) break;
+      if (c.remainingCents <= 0) continue;
+      const take = Math.min(left, c.remainingCents);
+      c.paidCents += take;
+      c.remainingCents -= take;
+      left -= take;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -415,8 +498,13 @@ export function detailedCardPaymentSchedule(opts: {
   untilDate?: string;
   transactions: ChargeLike[];
   installments: InstallmentLike[];
+  recordedPayments?: RecordedCardPayment[];
 }): {
-  payments: DetailedCardPayment[];
+  payments: (DetailedCardPayment & {
+    chargedCents: number;
+    paidCents: number;
+    remainingCents: number;
+  })[];
   msiPending: PendingMsiSummary[];
   totalPendingCents: number;
 } {
@@ -445,7 +533,7 @@ export function detailedCardPaymentSchedule(opts: {
     opts.graceDays
   );
 
-  const payments: DetailedCardPayment[] = [];
+  const built: DetailedCardPayment[] = [];
   for (const cycle of cycles) {
     const lines: PaymentLine[] = charges
       .filter((c) => c.date >= cycle.start && c.date <= cycle.end)
@@ -453,8 +541,13 @@ export function detailedCardPaymentSchedule(opts: {
       .sort((a, b) => a.date.localeCompare(b.date));
     const amountCents = lines.reduce((s, l) => s + l.amountCents, 0);
     if (amountCents <= 0) continue;
-    payments.push({ ...cycle, amountCents, lines });
+    built.push({ ...cycle, amountCents, lines });
   }
+
+  const payments = applyRecordedPaymentsToCycles(
+    built,
+    opts.recordedPayments || []
+  ).filter((p) => p.remainingCents > 0 || p.paidCents > 0);
 
   const msiPending = pendingMsiForCard(
     opts.installments,
@@ -465,7 +558,7 @@ export function detailedCardPaymentSchedule(opts: {
   return {
     payments,
     msiPending,
-    totalPendingCents: payments.reduce((s, p) => s + p.amountCents, 0),
+    totalPendingCents: payments.reduce((s, p) => s + p.remainingCents, 0),
   };
 }
 
@@ -488,6 +581,7 @@ export function listCardPayments(opts: {
   untilDate: string;
   transactions: ChargeLike[];
   installments: InstallmentLike[];
+  recordedPayments?: RecordedCardPayment[];
 }): ScheduledCardPayment[] {
   const charges = collectCardCharges(
     opts.creditCardId,
@@ -500,14 +594,22 @@ export function listCardPayments(opts: {
     opts.cutoffDay,
     opts.graceDays
   );
-  return cycles
-    .map((cycle) => ({
-      ...cycle,
-      amountCents: sumInCycle(charges, cycle),
-      creditCardId: opts.creditCardId,
-      creditCardName: opts.creditCardName,
-    }))
-    .filter((p) => p.amountCents > 0);
+  const raw = cycles.map((cycle) => ({
+    ...cycle,
+    amountCents: sumInCycle(charges, cycle),
+    creditCardId: opts.creditCardId,
+    creditCardName: opts.creditCardName,
+  }));
+  return applyRecordedPaymentsToCycles(raw, opts.recordedPayments || [])
+    .filter((p) => p.remainingCents > 0)
+    .map((p) => ({
+      start: p.start,
+      end: p.end,
+      paymentDue: p.paymentDue,
+      amountCents: p.remainingCents,
+      creditCardId: p.creditCardId,
+      creditCardName: p.creditCardName,
+    }));
 }
 
 /**
@@ -524,6 +626,7 @@ export function summarizeCardPayments(opts: {
   monthEnd: string;
   transactions: ChargeLike[];
   installments: InstallmentLike[];
+  recordedPayments?: RecordedCardPayment[];
 }): CardPaymentSummary {
   const {
     creditCardId,
@@ -537,7 +640,20 @@ export function summarizeCardPayments(opts: {
   } = opts;
 
   const [next, following] = upcomingBillingCycles(asOf, cutoffDay, graceDays);
-  const charges = collectCardCharges(creditCardId, transactions, installments);
+  const until = addMonthsISO(asOf, 8);
+  const pending = listCardPayments({
+    creditCardId,
+    creditCardName: "",
+    cutoffDay,
+    graceDays,
+    asOf,
+    untilDate: until,
+    transactions,
+    installments,
+    recordedPayments: opts.recordedPayments,
+  });
+  const nextPending = pending[0];
+  const followPending = pending[1];
 
   let monthSpendCents = 0;
   for (const t of transactions) {
@@ -554,14 +670,22 @@ export function summarizeCardPayments(opts: {
   }
 
   return {
-    nextPayment: {
-      ...next,
-      amountCents: sumInCycle(charges, next),
-    },
-    followingPayment: {
-      ...following,
-      amountCents: sumInCycle(charges, following),
-    },
+    nextPayment: nextPending
+      ? {
+          start: nextPending.start,
+          end: nextPending.end,
+          paymentDue: nextPending.paymentDue,
+          amountCents: nextPending.amountCents,
+        }
+      : { ...next, amountCents: 0 },
+    followingPayment: followPending
+      ? {
+          start: followPending.start,
+          end: followPending.end,
+          paymentDue: followPending.paymentDue,
+          amountCents: followPending.amountCents,
+        }
+      : { ...following, amountCents: 0 },
     monthSpendCents,
   };
 }

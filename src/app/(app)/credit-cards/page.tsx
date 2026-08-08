@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { es as esLocale, enUS } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,12 @@ import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
+import { todayISO } from "@/lib/utils";
+import {
+  CreditCardPayDialog,
+  type PayTarget,
+} from "@/components/credit-card-pay-dialog";
+import { Banknote, CreditCard as CardIcon } from "lucide-react";
 
 type PaymentBucket = {
   start: string;
@@ -32,6 +38,14 @@ type CC = {
   followingPayment: PaymentBucket;
 };
 
+function dueTone(due: string, today: string) {
+  if (due < today) return "overdue";
+  if (due === today) return "today";
+  const days = differenceInCalendarDays(parseISO(due), parseISO(today));
+  if (days <= 5) return "soon";
+  return "ok";
+}
+
 export default function CreditCardsPage() {
   const { money, t, tr, locale } = useApp();
   const { confirm } = useConfirm();
@@ -39,6 +53,7 @@ export default function CreditCardsPage() {
   const [cards, setCards] = useState<CC[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
+  const [payTarget, setPayTarget] = useState<PayTarget | null>(null);
   const [form, setForm] = useState({
     name: "",
     lastFour: "",
@@ -47,6 +62,7 @@ export default function CreditCardsPage() {
   });
 
   const dateLocale = locale === "en" ? enUS : esLocale;
+  const today = todayISO();
 
   function fmtDate(iso: string) {
     try {
@@ -119,35 +135,57 @@ export default function CreditCardsPage() {
     label,
     amountLabel,
     bucket,
+    card,
     emphasize,
     inProgress,
   }: {
     label: string;
     amountLabel: string;
     bucket: PaymentBucket;
+    card: CC;
     emphasize?: boolean;
     inProgress?: boolean;
   }) {
+    const tone = dueTone(bucket.paymentDue, today);
+    const badge =
+      tone === "overdue"
+        ? t.cards.overdue
+        : tone === "today"
+          ? t.cards.dueToday
+          : tone === "soon"
+            ? t.cards.dueSoon
+            : null;
     return (
       <div
         className={
           emphasize
-            ? "rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3"
-            : "rounded-xl border border-dashed border-[var(--border)] p-3"
+            ? "rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-3"
+            : "rounded-2xl border border-dashed border-white/10 p-3"
         }
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-[var(--fg-faint)]">
-          {label}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--fg-faint)]">
+            {label}
+          </p>
+          {badge && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                tone === "overdue"
+                  ? "bg-rose-500/20 text-rose-100"
+                  : "bg-amber-400/15 text-amber-100"
+              }`}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
         <p className="mt-0.5 text-sm text-[var(--fg-muted)]">
           {tr(t.cards.payOn, { date: fmtDate(bucket.paymentDue) })}
         </p>
         <p
-          className={
-            emphasize
-              ? "mt-1 font-display text-2xl text-[var(--fg)]"
-              : "mt-1 font-display text-xl text-[var(--fg)]"
-          }
+          className={`mt-1 font-display ${
+            emphasize ? "text-2xl" : "text-xl"
+          } ${tone === "overdue" ? "money-expense" : "text-[var(--fg)]"}`}
         >
           {money(bucket.amountCents)}
         </p>
@@ -160,6 +198,24 @@ export default function CreditCardsPage() {
           })}
           {inProgress ? ` (${t.cards.inProgress})` : ""}
         </p>
+        {bucket.amountCents > 0 && (
+          <Button
+            size="sm"
+            className="mt-3"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPayTarget({
+                cardId: card.id,
+                cardName: card.name,
+                cycleDue: bucket.paymentDue,
+                remainingCents: bucket.amountCents,
+              });
+            }}
+          >
+            <Banknote className="h-3.5 w-3.5" aria-hidden />
+            {t.cards.pay}
+          </Button>
+        )}
       </div>
     );
   }
@@ -181,6 +237,12 @@ export default function CreditCardsPage() {
             {t.cards.new}
           </Button>
         }
+      />
+
+      <CreditCardPayDialog
+        target={payTarget}
+        onClose={() => setPayTarget(null)}
+        onPaid={() => load().catch((e) => toast.error(e.message))}
       />
 
       {mode !== "none" && (
@@ -232,7 +294,7 @@ export default function CreditCardsPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {cards.length === 0 && (
           <p className="text-sm text-[var(--fg-faint)]">{t.cards.empty}</p>
         )}
@@ -252,9 +314,22 @@ export default function CreditCardsPage() {
             }}
           >
             <CardHeader className="flex flex-row justify-between gap-2">
-              <CardTitle>
-                {c.name} {c.lastFour ? `•••• ${c.lastFour}` : ""}
-              </CardTitle>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-100">
+                  <CardIcon className="h-5 w-5" aria-hidden />
+                </div>
+                <div className="min-w-0">
+                  <CardTitle className="truncate">
+                    {c.name} {c.lastFour ? `•••• ${c.lastFour}` : ""}
+                  </CardTitle>
+                  <p className="mt-0.5 text-xs text-[var(--fg-faint)]">
+                    {tr(t.cards.cutoffGrace, {
+                      cutoff: c.cutoffDay,
+                      grace: c.graceDays,
+                    })}
+                  </p>
+                </div>
+              </div>
               <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                 <Button variant="secondary" size="sm" onClick={() => openEdit(c)}>
                   {t.edit}
@@ -265,36 +340,33 @@ export default function CreditCardsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-[var(--fg-muted)]">
-              <p>
-                {tr(t.cards.cutoffGrace, {
-                  cutoff: c.cutoffDay,
-                  grace: c.graceDays,
-                })}
-              </p>
-
               {c.nextPayment && c.followingPayment ? (
-                <div className="grid gap-2">
+                <div className="grid gap-2" onClick={(e) => e.stopPropagation()}>
                   <PaymentBlock
                     label={t.cards.nextPayment}
                     amountLabel={t.cards.dueAmount}
                     bucket={c.nextPayment}
+                    card={c}
                     emphasize
                   />
                   <PaymentBlock
                     label={t.cards.followingPayment}
                     amountLabel={t.cards.accumulated}
                     bucket={c.followingPayment}
+                    card={c}
                     inProgress
                   />
                 </div>
               ) : null}
 
-              <p className="text-xs text-[var(--fg-faint)]">
-                {t.cards.monthSpend}: {money(c.monthSpendCents)}
-              </p>
-              <p className="text-xs font-medium text-teal-300/90">
-                {t.cards.tapForPending} →
-              </p>
+              <div className="flex items-center justify-between text-xs text-[var(--fg-faint)]">
+                <span>
+                  {t.cards.monthSpend}: {money(c.monthSpendCents)}
+                </span>
+                <span className="font-medium text-teal-300/90">
+                  {t.cards.tapForPending} →
+                </span>
+              </div>
             </CardContent>
           </Card>
         ))}

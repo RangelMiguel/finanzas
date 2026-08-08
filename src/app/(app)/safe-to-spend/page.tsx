@@ -86,7 +86,7 @@ export default function SafeToSpendPage() {
       if (mode === "date") body.targetDate = targetDate;
       if (mode === "goal") {
         body.targetAmount = goalAmount;
-        body.horizon = 365;
+        body.horizon = 730;
       }
       const res = await api<Result>("/api/safe-to-spend", {
         method: "POST",
@@ -238,7 +238,8 @@ export default function SafeToSpendPage() {
                   id="horizon"
                   type="number"
                   min={14}
-                  max={365}
+                  max={730}
+                  placeholder="730"
                   className="mt-1"
                   value={horizon}
                   onChange={(e) => setHorizon(e.target.value)}

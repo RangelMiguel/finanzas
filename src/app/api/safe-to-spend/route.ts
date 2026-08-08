@@ -9,6 +9,10 @@ import {
 } from "@/lib/credit-card-cycles";
 import { buildBudgetReserveItems } from "@/lib/budget-defaults";
 import {
+  loadRecordedCardPayments,
+  recordedForCard,
+} from "@/lib/cc-payment";
+import {
   ensureRecurringIncomesPosted,
   listFutureRecurringDates,
   recurringOccurrenceHandled,
@@ -66,7 +70,7 @@ async function buildFutureItems(opts: {
 
   // Credit-card statement payments (cut day + grace). Includes MSI linked to a card.
   // Recomputed from purchases whenever this endpoint runs — no stored payment rows.
-  const [cards, cardTxns, plans] = await Promise.all([
+  const [cards, cardTxns, plans, recordedAll] = await Promise.all([
     prisma.creditCard.findMany({
       where: { householdId: opts.householdId },
       select: {
@@ -116,6 +120,7 @@ async function buildFutureItems(opts: {
         removedDates: true,
       },
     }),
+    loadRecordedCardPayments(opts.householdId),
   ]);
 
   for (const card of cards) {
@@ -128,10 +133,12 @@ async function buildFutureItems(opts: {
       untilDate,
       transactions: cardTxns,
       installments: plans,
+      recordedPayments: recordedForCard(recordedAll, card.id),
     });
     for (const p of payments) {
+      const date = p.paymentDue < todayStr ? todayStr : p.paymentDue;
       futureItems.push({
-        date: p.paymentDue,
+        date,
         amountCents: p.amountCents,
         type: "expense",
         label: `CC: ${card.name}`,
@@ -227,7 +234,7 @@ export async function GET(req: Request) {
       if (days > 0) horizonDays = Math.max(horizonDays, days + 1);
     }
     if (targetAmount) {
-      horizonDays = Math.max(horizonDays, 365);
+      horizonDays = Math.max(horizonDays, 730);
     }
 
     // Post due recurring salaries (incl. last month day-30) before projecting
@@ -323,7 +330,7 @@ export async function POST(req: Request) {
       );
       if (days > 0) horizonDays = Math.max(horizonDays, days + 1);
     }
-    if (targetAmount) horizonDays = Math.max(horizonDays, 365);
+    if (targetAmount) horizonDays = Math.max(horizonDays, 730);
 
     await ensureRecurringIncomesPosted(m.householdId, {
       userId: session.userId,

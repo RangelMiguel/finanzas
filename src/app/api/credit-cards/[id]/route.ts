@@ -7,6 +7,7 @@ import {
   addDaysISO,
   detailedCardPaymentSchedule,
 } from "@/lib/credit-card-cycles";
+import { loadRecordedCardPayments } from "@/lib/cc-payment";
 
 export async function GET(
   _req: Request,
@@ -29,7 +30,7 @@ export async function GET(
     if (!card) throw new Error("Tarjeta no encontrada");
 
     const asOf = todayISO();
-    const [txns, plans] = await Promise.all([
+    const [txns, plans, recordedPayments] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           householdId: m.householdId,
@@ -72,6 +73,7 @@ export async function GET(
           removedDates: true,
         },
       }),
+      loadRecordedCardPayments(m.householdId, id),
     ]);
 
     const schedule = detailedCardPaymentSchedule({
@@ -81,6 +83,7 @@ export async function GET(
       asOf,
       transactions: txns,
       installments: plans,
+      recordedPayments,
     });
 
     // Full plan rows for in-place editing (orphaned garbage from pre-fix deletes, etc.)
@@ -97,7 +100,11 @@ export async function GET(
     return jsonOk({
       creditCard: card,
       asOf,
-      payments: schedule.payments,
+      payments: schedule.payments.map((p) => ({
+        ...p,
+        amountCents: p.remainingCents,
+      })),
+      recordedPayments,
       msiPending: schedule.msiPending,
       msiPlans,
       totalPendingCents: schedule.totalPendingCents,

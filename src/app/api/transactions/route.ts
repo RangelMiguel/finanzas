@@ -162,7 +162,7 @@ export async function POST(req: Request) {
             date: z.string().optional(),
             amount: z.union([z.number(), z.string()]),
             description: z.string().min(1),
-            type: z.enum(["income", "expense"]),
+            type: z.enum(["income", "expense", "cc_payment"]),
             categoryId: z.string().optional().nullable(),
             accountId: z.string().optional().nullable(),
             creditCardId: z.string().optional().nullable(),
@@ -173,6 +173,12 @@ export async function POST(req: Request) {
             msiMonths: z.number().int().min(2).max(48).optional(),
           })
           .parse(raw);
+
+        if (body.type === "cc_payment") {
+          throw new Error(
+            "Los pagos de tarjeta solo se crean con el botón Pagar en Tarjetas"
+          );
+        }
 
         const amountCents = pesosToCents(body.amount);
         if (amountCents <= 0) throw new Error("Monto inválido");
@@ -308,7 +314,8 @@ export async function PATCH(req: Request) {
         date: z.string().optional(),
         amount: z.union([z.number(), z.string()]).optional(),
         description: z.string().optional(),
-        type: z.enum(["income", "expense", "transfer"]).optional(),
+        type: z.enum(["income", "expense", "transfer", "cc_payment"]).optional(),
+        ccCycleDue: z.string().nullable().optional(),
         categoryId: z.string().nullable().optional(),
         accountId: z.string().nullable().optional(),
         creditCardId: z.string().nullable().optional(),
@@ -322,6 +329,19 @@ export async function PATCH(req: Request) {
       include: { fundings: true },
     });
     if (!existing) throw new Error("Transacción no encontrada");
+
+    if (body.type === "cc_payment" && existing.type !== "cc_payment") {
+      throw new Error(
+        "Los pagos de tarjeta solo se crean con el botón Pagar en Tarjetas"
+      );
+    }
+    if (
+      existing.type === "cc_payment" &&
+      body.type &&
+      body.type !== "cc_payment"
+    ) {
+      throw new Error("Un pago de tarjeta no se convierte en otro tipo");
+    }
 
     const nextType = body.type || existing.type;
     const amountCents =
@@ -461,6 +481,8 @@ export async function PATCH(req: Request) {
         accountId,
         creditCardId,
         spentById: body.spentById,
+        ccCycleDue:
+          body.ccCycleDue !== undefined ? body.ccCycleDue : undefined,
       },
       include: {
         category: true,

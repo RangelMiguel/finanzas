@@ -793,6 +793,24 @@ body::before {
   transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   background: linear-gradient(90deg, var(--progress-1), var(--progress-2));
 }
+.progress-fill-emergency {
+  background: linear-gradient(90deg, var(--accent-gold), #f59e0b);
+}
+.progress-track-split {
+  position: relative;
+}
+.progress-track-split .progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.close-banner {
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background:
+    linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(167, 139, 250, 0.08)),
+    var(--bg-card);
+}
 
 .auth-stage {
   min-height: 100vh;

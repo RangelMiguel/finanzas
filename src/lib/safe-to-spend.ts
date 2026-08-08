@@ -75,8 +75,8 @@ export function projectSafeToSpend(input: ProjectionInput) {
     endStr = addDaysISO(today, horizon);
   }
 
-  // If looking for a goal amount, extend horizon if needed (up to 365 days)
-  const maxEnd = addDaysISO(today, 365);
+  // If looking for a goal amount, extend horizon if needed (up to 2 years)
+  const maxEnd = addDaysISO(today, 730);
   if (input.targetAmountCents != null && input.targetAmountCents > 0) {
     endStr = maxEnd;
   }

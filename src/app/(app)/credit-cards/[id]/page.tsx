@@ -14,6 +14,12 @@ import { useApp } from "@/components/providers/app-provider";
 import { centsToInput } from "@/lib/utils";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import {
+  CreditCardPayDialog,
+  type PayTarget,
+} from "@/components/credit-card-pay-dialog";
+import { Banknote } from "lucide-react";
+import { todayISO } from "@/lib/utils";
 
 type PaymentLine = {
   date: string;
@@ -30,7 +36,19 @@ type Payment = {
   end: string;
   paymentDue: string;
   amountCents: number;
+  chargedCents?: number;
+  paidCents?: number;
+  remainingCents?: number;
   lines: PaymentLine[];
+};
+
+type RecordedPay = {
+  id: string;
+  amountCents: number;
+  date: string;
+  description?: string | null;
+  ccCycleDue?: string | null;
+  accountName?: string | null;
 };
 
 type MsiPending = {
@@ -58,6 +76,7 @@ type Detail = {
   msiPlans?: MsiPending[];
   totalPendingCents: number;
   totalMsiRemainingCents: number;
+  recordedPayments?: RecordedPay[];
 };
 
 type MsiEditForm = {
@@ -88,6 +107,7 @@ export default function CreditCardDetailPage() {
     null
   );
   const [saving, setSaving] = useState(false);
+  const [payTarget, setPayTarget] = useState<PayTarget | null>(null);
 
   function fmtDate(iso: string) {
     try {
@@ -277,9 +297,30 @@ export default function CreditCardDetailPage() {
             : t.cards.pendingSubtitle
         }
         actions={
-          <Button variant="secondary" onClick={() => router.push("/credit-cards")}>
-            {t.back}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {data && data.totalPendingCents > 0 && (
+              <Button
+                onClick={() => {
+                  const first = data.payments.find(
+                    (p) => (p.remainingCents ?? p.amountCents) > 0
+                  );
+                  if (!first || !card) return;
+                  setPayTarget({
+                    cardId: card.id,
+                    cardName: card.name,
+                    cycleDue: first.paymentDue,
+                    remainingCents: first.remainingCents ?? first.amountCents,
+                  });
+                }}
+              >
+                <Banknote className="h-4 w-4" aria-hidden />
+                {t.cards.pay}
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => router.push("/credit-cards")}>
+              {t.back}
+            </Button>
+          </div>
         }
       />
 
@@ -289,7 +330,13 @@ export default function CreditCardDetailPage() {
 
       {data && !loading && (
         <>
-          <p className="text-xs text-amber-200/80">{t.cards.orphanHint}</p>
+          <CreditCardPayDialog
+            target={payTarget}
+            onClose={() => setPayTarget(null)}
+            onPaid={() => load()}
+          />
+          <p className="text-xs text-amber-200/80">{t.cards.payHint}</p>
+          <p className="text-xs text-[var(--fg-faint)]">{t.cards.orphanHint}</p>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Card premium>
@@ -511,23 +558,61 @@ export default function CreditCardDetailPage() {
                 {t.cards.noPending}
               </p>
             )}
-            {data.payments.map((pay) => (
+            {data.payments.map((pay) => {
+              const remaining = pay.remainingCents ?? pay.amountCents;
+              const paid = pay.paidCents ?? 0;
+              const charged = pay.chargedCents ?? pay.amountCents;
+              const overdue = pay.paymentDue < todayISO();
+              return (
               <Card key={pay.paymentDue} premium>
                 <CardHeader className="flex flex-row items-start justify-between gap-2">
                   <div>
                     <CardTitle className="text-base">
                       {tr(t.cards.payOn, { date: fmtDate(pay.paymentDue) })}
+                      {overdue && remaining > 0 && (
+                        <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-rose-300">
+                          {t.cards.overdue}
+                        </span>
+                      )}
+                      {remaining <= 0 && (
+                        <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-teal-300">
+                          {t.cards.paidInFull}
+                        </span>
+                      )}
                     </CardTitle>
                     <p className="mt-1 text-xs text-[var(--fg-faint)]">
                       {tr(t.cards.cycleRange, {
                         start: fmtDate(pay.start),
                         end: fmtDate(pay.end),
                       })}
+                      {" · "}
+                      {tr(t.cards.charged, { amount: money(charged) })}
+                      {paid > 0
+                        ? ` · ${tr(t.cards.paidSoFar, { amount: money(paid) })}`
+                        : ""}
                     </p>
                   </div>
-                  <p className="font-display text-2xl text-[var(--fg)]">
-                    {money(pay.amountCents)}
-                  </p>
+                  <div className="flex flex-col items-end gap-2">
+                    <p className={`font-display text-2xl ${remaining > 0 && overdue ? "money-expense" : "text-[var(--fg)]"}`}>
+                      {money(remaining)}
+                    </p>
+                    {remaining > 0 && card && (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          setPayTarget({
+                            cardId: card.id,
+                            cardName: card.name,
+                            cycleDue: pay.paymentDue,
+                            remainingCents: remaining,
+                          })
+                        }
+                      >
+                        <Banknote className="h-3.5 w-3.5" aria-hidden />
+                        {t.cards.pay}
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="divide-y divide-white/5 border-t border-white/5 p-0">
                   {pay.lines.map((line, i) => (
@@ -610,8 +695,64 @@ export default function CreditCardDetailPage() {
                   ))}
                 </CardContent>
               </Card>
-            ))}
+            );
+            })}
           </div>
+
+          {(data.recordedPayments || []).length > 0 && (
+            <Card premium>
+              <CardHeader>
+                <CardTitle>{t.cards.payRecorded}</CardTitle>
+              </CardHeader>
+              <CardContent className="divide-y divide-white/5 p-0">
+                {(data.recordedPayments || []).map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">{p.description || t.cards.ccPaymentType}</p>
+                      <p className="text-xs text-[var(--fg-faint)]">
+                        {fmtDate(p.date)}
+                        {p.accountName ? ` · ${p.accountName}` : ""}
+                        {p.ccCycleDue ? ` · ${p.ccCycleDue}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>{money(p.amountCents)}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: t.delete,
+                            description: t.cards.confirmDeletePay,
+                            confirmLabel: t.delete,
+                            cancelLabel: t.cancel,
+                            danger: true,
+                          });
+                          if (!ok) return;
+                          try {
+                            await api(`/api/transactions?id=${p.id}`, {
+                              method: "DELETE",
+                            });
+                            toast.success(t.success);
+                            await load();
+                          } catch (e) {
+                            toast.error(
+                              e instanceof Error ? e.message : t.error
+                            );
+                          }
+                        }}
+                      >
+                        {t.delete}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

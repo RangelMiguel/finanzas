@@ -43,8 +43,12 @@ export function monthKey(date = new Date()): string {
   return `${y}-${m}`;
 }
 
-export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+/** Local calendar date YYYY-MM-DD (not UTC — Mexico evenings would roll over). */
+export function todayISO(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /** ISO week key YYYY-Www */
@@ -164,16 +168,30 @@ export function nextBudgetPeriod(period: string): string {
   return makeBudgetPeriod(year, month + 1, 1);
 }
 
+/** Previous half-month period before `period`. */
+export function prevBudgetPeriod(period: string): string {
+  const { year, month, half } = parseBudgetPeriod(period);
+  if (half === 2) return makeBudgetPeriod(year, month, 1);
+  if (month === 1) return makeBudgetPeriod(year - 1, 12, 2);
+  return makeBudgetPeriod(year, month - 1, 2);
+}
+
+/** True once the period's last calendar day has arrived (day 15 or month end). */
+export function isBudgetPeriodCloseable(period: string, today = todayISO()): boolean {
+  const { end } = budgetPeriodBounds(period);
+  return today >= end;
+}
+
 /**
  * Half-month periods from the one containing `asOf` through the one that
- * contains `until` (inclusive). Caps at 36 periods (~1.5 years).
+ * contains `until` (inclusive). Caps at 48 periods (~2 years).
  */
 export function budgetPeriodsThrough(asOf: string, until: string): string[] {
   const startKey = budgetPeriodKey(new Date(asOf + "T12:00:00"));
   const endKey = budgetPeriodKey(new Date(until + "T12:00:00"));
   const out: string[] = [];
   let cur = startKey;
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < 48; i++) {
     out.push(cur);
     if (cur === endKey) break;
     cur = nextBudgetPeriod(cur);

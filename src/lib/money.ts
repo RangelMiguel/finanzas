@@ -36,6 +36,10 @@ export function signedAmountForAccount(
     if (txn.accountId === accountId) return -txn.amountCents;
     if (txn.toAccountId === accountId) return txn.amountCents;
   }
+  // Manual card payment: drains the bank/cash account, never auto-created.
+  if (txn.type === "cc_payment" && txn.accountId === accountId) {
+    return -txn.amountCents;
+  }
   return 0;
 }
 
@@ -66,7 +70,7 @@ export function sumByType(
   type: "income" | "expense",
   month?: string
 ): number {
-  let bounds = month ? monthBounds(month) : null;
+  const bounds = month ? monthBounds(month) : null;
   return transactions
     .filter(
       (t) =>

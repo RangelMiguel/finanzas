@@ -1,20 +1,32 @@
 import { prisma } from "./db";
 import {
   budgetPeriodBounds,
+  budgetPeriodKey,
   budgetPeriodsThrough,
   makeBudgetPeriod,
   monthBudgetPeriods,
   parseBudgetPeriod,
-  type BudgetHalf,
+  prevBudgetPeriod,
 } from "./utils";
 import type { FutureItem } from "./safe-to-spend";
+import {
+  budgetRemainingCents,
+  spentByCategoryInRange,
+} from "./budget-math";
+
+type PeriodRow = {
+  categoryId: string;
+  amountCents: number;
+  emergencyCents: number;
+};
 
 /**
  * Build future expenses that ring-fence budget money across the projection.
  *
- * - Current open period: reserves the **unutilized** amount (budget − spent).
- *   Unspent budget still blocks cash even if you haven't used it yet.
- * - Future periods: reserves the full planned amount on each period start.
+ * - Current open period: reserves unutilized planned + emergency (as if spent).
+ * - Future periods: full planned amount + any stored emergency on period start.
+ * - Past unclosed periods: leftover is treated as emergency on the next period
+ *   so cash isn't freed just because the close button wasn't pressed yet.
  * - Falls back to budget defaults when a period has no explicit rows.
  */
 export async function buildBudgetReserveItems(opts: {
@@ -23,93 +35,181 @@ export async function buildBudgetReserveItems(opts: {
   untilDate: string;
 }): Promise<FutureItem[]> {
   const { householdId, asOf, untilDate } = opts;
-  const periods = budgetPeriodsThrough(asOf, untilDate);
+  const currentPeriod = budgetPeriodKey(new Date(asOf + "T12:00:00"));
+  let lookback = currentPeriod;
+  for (let i = 0; i < 6; i++) lookback = prevBudgetPeriod(lookback);
+  const periods = budgetPeriodsThrough(
+    budgetPeriodBounds(lookback).start,
+    untilDate
+  );
   if (periods.length === 0) return [];
 
-  const [defaults, allBudgets, expenses] = await Promise.all([
+  const [defaults, allBudgets, expenses, closes] = await Promise.all([
     prisma.budgetDefault.findMany({
       where: { householdId },
       select: { categoryId: true, amountCents: true },
     }),
     prisma.budget.findMany({
       where: { householdId, period: { in: periods } },
-      select: { period: true, categoryId: true, amountCents: true },
+      select: {
+        period: true,
+        categoryId: true,
+        amountCents: true,
+        emergencyCents: true,
+      },
     }),
     prisma.transaction.findMany({
       where: {
         householdId,
-        type: "expense",
         deletedAt: null,
         date: {
           gte: budgetPeriodBounds(periods[0]).start,
           lte: asOf,
         },
+        OR: [
+          { type: "expense" },
+          { type: "transfer", categoryId: { not: null } },
+        ],
       },
-      select: { categoryId: true, amountCents: true, date: true },
+      select: {
+        categoryId: true,
+        amountCents: true,
+        date: true,
+        type: true,
+      },
+    }),
+    prisma.budgetPeriodClose.findMany({
+      where: { householdId, period: { in: periods } },
+      select: { period: true },
     }),
   ]);
 
-  const budgetsByPeriod = new Map<
-    string,
-    { categoryId: string; amountCents: number }[]
-  >();
+  const closed = new Set(closes.map((c) => c.period));
+  const budgetsByPeriod = new Map<string, PeriodRow[]>();
   for (const b of allBudgets) {
     const list = budgetsByPeriod.get(b.period) || [];
-    list.push({ categoryId: b.categoryId, amountCents: b.amountCents });
+    list.push({
+      categoryId: b.categoryId,
+      amountCents: b.amountCents,
+      emergencyCents: b.emergencyCents || 0,
+    });
     budgetsByPeriod.set(b.period, list);
   }
 
+  const defaultRows: PeriodRow[] = defaults.map((d) => ({
+    categoryId: d.categoryId,
+    amountCents: d.amountCents,
+    emergencyCents: 0,
+  }));
+
+  const pendingLeftover = new Map<string, number>();
   const items: FutureItem[] = [];
 
   for (const period of periods) {
     const { start, end } = budgetPeriodBounds(period);
-    if (end < asOf) continue; // fully past
     if (start > untilDate) continue;
 
-    let rows = budgetsByPeriod.get(period) || [];
-    if (rows.length === 0 && defaults.length > 0) {
-      rows = defaults.map((d) => ({
-        categoryId: d.categoryId,
-        amountCents: d.amountCents,
-      }));
-    }
-    if (rows.length === 0) continue;
-
+    const isPast = end < asOf;
     const isCurrent = start <= asOf && end >= asOf;
 
-    if (isCurrent) {
-      // Unutilized = planned − spent so far in this period (floor 0)
-      const spentByCat: Record<string, number> = {};
-      for (const e of expenses) {
-        if (!e.categoryId) continue;
-        if (e.date < start || e.date > asOf) continue;
-        spentByCat[e.categoryId] =
-          (spentByCat[e.categoryId] || 0) + e.amountCents;
+    let rows = budgetsByPeriod.get(period) || [];
+    // Defaults only fill current/future empty periods — never invent history.
+    if (rows.length === 0 && defaultRows.length > 0 && !isPast) {
+      rows = defaultRows.map((d) => ({ ...d }));
+    }
+
+    const merged = new Map<string, PeriodRow>();
+    for (const r of rows) {
+      merged.set(r.categoryId, {
+        categoryId: r.categoryId,
+        amountCents: r.amountCents,
+        emergencyCents: r.emergencyCents + (pendingLeftover.get(r.categoryId) || 0),
+      });
+    }
+    for (const [catId, extra] of pendingLeftover) {
+      if (merged.has(catId)) continue;
+      merged.set(catId, {
+        categoryId: catId,
+        amountCents: 0,
+        emergencyCents: extra,
+      });
+    }
+    pendingLeftover.clear();
+    rows = [...merged.values()];
+    if (rows.length === 0) continue;
+
+    if (isPast) {
+      const spentByCat = spentByCategoryInRange(expenses, start, end);
+      if (!closed.has(period)) {
+        for (const r of rows) {
+          const leftover = budgetRemainingCents(
+            r.amountCents,
+            r.emergencyCents,
+            spentByCat[r.categoryId] || 0
+          );
+          if (leftover > 0) {
+            pendingLeftover.set(
+              r.categoryId,
+              (pendingLeftover.get(r.categoryId) || 0) + leftover
+            );
+          }
+        }
       }
-      let remaining = 0;
+      continue;
+    }
+
+    if (isCurrent) {
+      const spentByCat = spentByCategoryInRange(expenses, start, asOf);
+      let plannedLeft = 0;
+      let emergencyLeft = 0;
       for (const r of rows) {
         const spent = spentByCat[r.categoryId] || 0;
-        remaining += Math.max(0, r.amountCents - spent);
+        const rem = budgetRemainingCents(r.amountCents, r.emergencyCents, spent);
+        const afterPlan = Math.max(0, r.amountCents - spent);
+        plannedLeft += afterPlan;
+        emergencyLeft += Math.max(0, rem - afterPlan);
       }
-      if (remaining > 0) {
+      if (plannedLeft > 0) {
         items.push({
           date: asOf,
-          amountCents: remaining,
+          amountCents: plannedLeft,
           type: "expense",
           label: `Budget reserve (${period})`,
         });
       }
-    } else {
-      // Future quincena: full planned envelope on period start
-      const total = rows.reduce((s, r) => s + r.amountCents, 0);
-      if (total > 0 && start >= asOf && start <= untilDate) {
+      if (emergencyLeft > 0) {
         items.push({
-          date: start,
-          amountCents: total,
+          date: asOf,
+          amountCents: emergencyLeft,
           type: "expense",
-          label: `Budget reserve (${period})`,
+          label: `Emergency fund (${period})`,
         });
       }
+      continue;
+    }
+
+    // Future quincena: full planned + emergency (incl. pending unclosed leftover)
+    let planned = 0;
+    let emergency = 0;
+    for (const r of rows) {
+      planned += Math.max(0, r.amountCents);
+      emergency += Math.max(0, r.emergencyCents);
+    }
+    if (planned > 0 && start >= asOf && start <= untilDate) {
+      items.push({
+        date: start,
+        amountCents: planned,
+        type: "expense",
+        label: `Budget reserve (${period})`,
+      });
+    }
+    if (emergency > 0 && start >= asOf && start <= untilDate) {
+      items.push({
+        date: start,
+        amountCents: emergency,
+        type: "expense",
+        label: `Emergency fund (${period})`,
+      });
     }
   }
 
@@ -173,7 +273,7 @@ export async function saveBudgetWithScope(opts: {
   scope: "this_period" | "both_periods" | "default" | "next_year";
 }) {
   const { householdId, categoryId, amountCents, period, scope } = opts;
-  const { year, month, half, monthKey } = parseBudgetPeriod(period);
+  const { year, monthKey } = parseBudgetPeriod(period);
 
   if (scope === "default" || scope === "next_year") {
     await prisma.budgetDefault.upsert({

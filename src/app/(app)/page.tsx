@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
-import { monthKey } from "@/lib/utils";
+import { budgetPeriodKey, monthKey } from "@/lib/utils";
 import { CatchupDialog } from "@/components/catchup-dialog";
 import { format, parse, addMonths, subMonths } from "date-fns";
 import { es, enUS } from "date-fns/locale";
@@ -48,36 +49,71 @@ type Dash = {
 type Budget = {
   id: string;
   amountCents: number;
+  emergencyCents?: number;
   spentCents: number;
   category: { name: string; icon: string };
+};
+type CloseStatus = {
+  period: string;
+  canClose: boolean;
 };
 
 function DashboardInner() {
   const params = useSearchParams();
-  const { t, money, locale } = useApp();
+  const { t, tr, money, locale } = useApp();
   const moneyOrHidden = (cents: number | null | undefined) =>
     cents == null ? "—" : money(cents);
   const [month, setMonth] = useState(monthKey());
   const [data, setData] = useState<Dash | null>(null);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [periodBudgets, setPeriodBudgets] = useState<Budget[]>([]);
+  const [pendingClose, setPendingClose] = useState<CloseStatus | null>(null);
   const [catchup, setCatchup] = useState(false);
   const dateLocale = locale === "en" ? enUS : es;
+  const currentPeriod = budgetPeriodKey();
 
   useEffect(() => {
     if (params.get("catchup") === "1") setCatchup(true);
   }, [params]);
 
   useEffect(() => {
-    Promise.all([
-      api<Dash>(`/api/dashboard?month=${month}`),
-      api<{ budgets: Budget[] }>(`/api/budgets?month=${month}`),
-    ])
-      .then(([d, b]) => {
-        setData(d);
-        setBudgets(b.budgets);
-      })
-      .catch(console.error);
-  }, [month]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const d = await api<Dash>(`/api/dashboard?month=${month}`);
+        if (!cancelled) setData(d);
+      } catch (e) {
+        console.error(e);
+        return;
+      }
+      try {
+        const [h1, h2, close] = await Promise.all([
+          api<{ budgets: Budget[] }>(`/api/budgets?period=${month}-1`),
+          api<{ budgets: Budget[] }>(`/api/budgets?period=${month}-2`),
+          api<{ pendingClose: CloseStatus | null }>("/api/budgets/close"),
+        ]);
+        if (cancelled) return;
+        const all = [...(h1.budgets || []), ...(h2.budgets || [])];
+        setBudgets(all);
+        const live = currentPeriod.startsWith(month + "-")
+          ? currentPeriod.endsWith("-2")
+            ? h2.budgets || []
+            : h1.budgets || []
+          : all;
+        setPeriodBudgets(live);
+        setPendingClose(close.pendingClose);
+      } catch {
+        if (!cancelled) {
+          setBudgets([]);
+          setPeriodBudgets([]);
+          setPendingClose(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [month, currentPeriod]);
 
   function shift(delta: number) {
     const d = parse(month + "-01", "yyyy-MM-dd", new Date());
@@ -94,11 +130,16 @@ function DashboardInner() {
   }
 
   const alerts = budgets
-    .map((b) => ({
-      ...b,
-      ratio: b.amountCents > 0 ? b.spentCents / b.amountCents : 0,
-    }))
-    .filter((b) => b.ratio >= 0.8)
+    .map((b) => {
+      const emergency = b.emergencyCents || 0;
+      const available = b.amountCents + emergency;
+      const ratio = b.amountCents > 0 ? b.spentCents / b.amountCents : 0;
+      const overAll = b.spentCents > available;
+      const usingEmergency =
+        emergency > 0 && b.spentCents > b.amountCents && !overAll;
+      return { ...b, ratio, overAll, usingEmergency, available };
+    })
+    .filter((b) => b.ratio >= 0.8 || b.overAll || b.usingEmergency)
     .sort((a, b) => b.ratio - a.ratio);
 
   return (
@@ -126,6 +167,20 @@ function DashboardInner() {
 
       {/* Install app + enable notifications — outside the alerts tray */}
       <PwaSetup variant="banner" />
+
+      {pendingClose?.canClose && (
+        <Link
+          href="/budgets"
+          className="close-banner flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3"
+        >
+          <span className="text-sm text-amber-50">
+            {tr(t.dashboard.closeBudgets, { period: pendingClose.period })}
+          </span>
+          <span className="text-xs font-semibold text-amber-100">
+            {t.dashboard.closeBudgetsCta} →
+          </span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="bento-stat">
@@ -173,17 +228,63 @@ function DashboardInner() {
                   {b.category.icon} {b.category.name}{" "}
                   <span
                     className={
-                      b.ratio > 1 ? "money-expense" : "text-[var(--accent)]"
+                      b.overAll
+                        ? "money-expense"
+                        : b.usingEmergency
+                          ? "text-amber-200"
+                          : "text-[var(--accent)]"
                     }
                   >
-                    ({b.ratio > 1 ? t.dashboard.budgetOver : t.dashboard.budgetNear})
+                    (
+                    {b.overAll
+                      ? t.dashboard.budgetOver
+                      : b.usingEmergency
+                        ? t.dashboard.budgetEmergency
+                        : t.dashboard.budgetNear}
+                    )
                   </span>
                 </span>
                 <span>
-                  {money(b.spentCents)} / {money(b.amountCents)}
+                  {money(b.spentCents)} / {money(b.available)}
                 </span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {periodBudgets.length > 0 && (
+        <Card premium>
+          <CardHeader>
+            <CardTitle>{t.dashboard.thisPeriodBudgets}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            {periodBudgets.slice(0, 6).map((b) => {
+              const available = b.amountCents + (b.emergencyCents || 0);
+              const pct =
+                available > 0
+                  ? Math.min(100, (b.spentCents / available) * 100)
+                  : 0;
+              const over = b.spentCents > available;
+              return (
+                <div key={b.id}>
+                  <div className="mb-1 flex justify-between text-xs text-[var(--fg-muted)]">
+                    <span>
+                      {b.category.icon} {b.category.name}
+                    </span>
+                    <span className={over ? "money-expense" : ""}>
+                      {money(b.spentCents)} / {money(available)}
+                    </span>
+                  </div>
+                  <div className="progress-track">
+                    <div
+                      className={`progress-fill ${over ? "bg-[var(--expense)]" : ""}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -268,7 +369,9 @@ function DashboardInner() {
                     ? "money-income"
                     : txn.type === "transfer"
                       ? "text-[var(--fg-muted)]"
-                      : "money-expense"
+                      : txn.type === "cc_payment"
+                        ? "text-amber-200"
+                        : "money-expense"
                 }
               >
                 {txn.type === "expense" ? "−" : txn.type === "income" ? "+" : ""}

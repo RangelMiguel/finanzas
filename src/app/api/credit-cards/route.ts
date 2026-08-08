@@ -10,6 +10,10 @@ import {
   addDaysISO,
   summarizeCardPayments,
 } from "@/lib/credit-card-cycles";
+import {
+  loadRecordedCardPayments,
+  recordedForCard,
+} from "@/lib/cc-payment";
 
 export async function GET() {
   try {
@@ -48,7 +52,7 @@ export async function GET() {
     // Look back far enough for closed cycles + MSI months (≈ 2 years of MSI)
     const lookbackStart = addDaysISO(asOf, -750);
 
-    const [spend, installments] = await Promise.all([
+    const [spend, installments, recordedAll] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           householdId: m.householdId,
@@ -92,6 +96,7 @@ export async function GET() {
           removedDates: true,
         },
       }),
+      loadRecordedCardPayments(m.householdId),
     ]);
 
     return jsonOk({
@@ -105,6 +110,7 @@ export async function GET() {
           monthEnd,
           transactions: spend,
           installments,
+          recordedPayments: recordedForCard(recordedAll, c.id),
         });
         return {
           ...c,

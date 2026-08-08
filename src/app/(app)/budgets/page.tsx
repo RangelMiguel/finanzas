@@ -9,20 +9,32 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import {
-  monthKey,
   centsToInput,
   budgetPeriodKey,
   parseBudgetPeriod,
   type BudgetHalf,
 } from "@/lib/utils";
 import { useApp } from "@/components/providers/app-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
-import { format, parse, subMonths, addMonths } from "date-fns";
+import { addMonths, format, parse, subMonths } from "date-fns";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  ShieldAlert,
+  Sparkles,
+  Undo2,
+} from "lucide-react";
 
 type Budget = {
   id: string;
   amountCents: number;
+  emergencyCents: number;
   spentCents: number;
+  remainingCents: number;
+  availableCents: number;
   categoryId: string;
   period: string;
   category: { id: string; name: string; icon: string };
@@ -36,9 +48,31 @@ type DefaultRow = {
 };
 type Cat = { id: string; name: string; type: string; icon: string };
 type Scope = "this_period" | "both_periods" | "default" | "next_year";
+type CloseLine = {
+  categoryId: string;
+  categoryName: string;
+  icon: string;
+  amountCents: number;
+  emergencyCents: number;
+  spentCents: number;
+  remainingCents: number;
+};
+type CloseStatus = {
+  period: string;
+  toPeriod: string;
+  bounds: { start: string; end: string };
+  closed: boolean;
+  closedAt: string | null;
+  canClose: boolean;
+  canUndo: boolean;
+  tooEarly: boolean;
+  carryovers: CloseLine[];
+  totalRemainingCents: number;
+};
 
 export default function BudgetsPage() {
-  const { money, t, tr, locale } = useApp();
+  const { money, t, tr } = useApp();
+  const { confirm } = useConfirm();
   const initial = parseBudgetPeriod(budgetPeriodKey());
   const [month, setMonth] = useState(initial.monthKey);
   const [half, setHalf] = useState<BudgetHalf>(initial.half);
@@ -48,6 +82,8 @@ export default function BudgetsPage() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [defaults, setDefaults] = useState<DefaultRow[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
+  const [close, setClose] = useState<CloseStatus | null>(null);
+  const [pendingClose, setPendingClose] = useState<CloseStatus | null>(null);
   const [form, setForm] = useState({
     categoryId: "",
     amount: "",
@@ -56,6 +92,7 @@ export default function BudgetsPage() {
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
   const [showDefaults, setShowDefaults] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   const period = `${month}-${half}`;
 
@@ -68,17 +105,19 @@ export default function BudgetsPage() {
         bounds: { start: string; end: string };
         period: string;
         half: number;
+        close: CloseStatus | null;
+        pendingClose: CloseStatus | null;
       }>(`/api/budgets?period=${period}`),
       api<{ categories: Cat[] }>("/api/categories"),
     ]);
     setBudgets(b.budgets);
     setDefaults(b.defaults || []);
     setBounds(b.bounds);
+    setClose(b.close || null);
+    setPendingClose(b.pendingClose || null);
     setCategories(c.categories.filter((x) => x.type === "expense"));
     if (b.appliedDefaults && b.appliedDefaults > 0) {
-      toast.message(
-        tr(t.budgets.appliedDefaults, { n: b.appliedDefaults })
-      );
+      toast.message(tr(t.budgets.appliedDefaults, { n: b.appliedDefaults }));
     }
   }
 
@@ -86,6 +125,26 @@ export default function BudgetsPage() {
     load().catch((e) => toast.error(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
+
+  function shiftHalf(delta: number) {
+    if (delta > 0) {
+      if (half === 1) {
+        setHalf(2);
+        return;
+      }
+      const d = parse(month + "-01", "yyyy-MM-dd", new Date());
+      setMonth(format(addMonths(d, 1), "yyyy-MM"));
+      setHalf(1);
+      return;
+    }
+    if (half === 2) {
+      setHalf(1);
+      return;
+    }
+    const d = parse(month + "-01", "yyyy-MM-dd", new Date());
+    setMonth(format(subMonths(d, 1), "yyyy-MM"));
+    setHalf(2);
+  }
 
   function openEdit(b: Budget) {
     setEditId(b.id);
@@ -128,7 +187,6 @@ export default function BudgetsPage() {
   }
 
   async function copyPrev() {
-    // previous half-period
     let fromPeriod: string;
     if (half === 2) {
       fromPeriod = `${month}-1`;
@@ -150,21 +208,94 @@ export default function BudgetsPage() {
   }
 
   async function remove(id: string) {
+    const ok = await confirm({
+      title: t.budgets.confirmDelete,
+      danger: true,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+    });
+    if (!ok) return;
     await api(`/api/budgets?id=${id}`, { method: "DELETE" });
     await load();
   }
 
   async function removeDefault(id: string) {
+    const ok = await confirm({
+      title: t.budgets.confirmDelete,
+      danger: true,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+    });
+    if (!ok) return;
     await api(`/api/budgets/defaults?id=${id}`, { method: "DELETE" });
     await load();
   }
 
+  async function doClose() {
+    if (!close) return;
+    const ok = await confirm({
+      title: t.budgets.closePeriodTitle,
+      description: t.budgets.closeConfirm,
+      confirmLabel: t.budgets.closePeriod,
+      cancelLabel: t.cancel,
+    });
+    if (!ok) return;
+    setClosing(true);
+    try {
+      await api("/api/budgets/close", {
+        method: "POST",
+        json: { period },
+      });
+      toast.success(
+        tr(t.budgets.closeSuccess, {
+          amount: money(close.totalRemainingCents),
+        })
+      );
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  async function doUndoClose() {
+    const ok = await confirm({
+      title: t.budgets.undoClose,
+      description: t.budgets.undoCloseConfirm,
+      danger: true,
+      confirmLabel: t.budgets.undoClose,
+      cancelLabel: t.cancel,
+    });
+    if (!ok) return;
+    setClosing(true);
+    try {
+      await api(`/api/budgets/close?period=${period}`, { method: "DELETE" });
+      toast.success(t.budgets.undoCloseSuccess);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    } finally {
+      setClosing(false);
+    }
+  }
+
   const totalBudget = budgets.reduce((s, b) => s + b.amountCents, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spentCents, 0);
+  const totalEmergency = budgets.reduce((s, b) => s + (b.emergencyCents || 0), 0);
+  const totalRemaining = budgets.reduce(
+    (s, b) => s + (b.remainingCents ?? Math.max(0, b.amountCents + (b.emergencyCents || 0) - b.spentCents)),
+    0
+  );
   const halfLabel =
     half === 1
       ? t.budgets.half1 || "1st half (1–15)"
       : t.budgets.half2 || "2nd half (16–end)";
+
+  const showOtherPending =
+    pendingClose &&
+    pendingClose.canClose &&
+    pendingClose.period !== period;
 
   return (
     <div>
@@ -172,86 +303,215 @@ export default function BudgetsPage() {
         kicker={t.nav.budgets}
         title={t.budgets.title}
         subtitle={t.budgets.twoPerMonthHint || t.budgets.subtitle}
-        actions={
-          <>
-            <Input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="w-auto"
-              aria-label={t.period}
-            />
-            <div
-              className="flex rounded-xl border border-white/10 bg-black/30 p-0.5"
-              role="group"
-              aria-label={t.budgets.periodHalf || "Half of month"}
-            >
-              <button
-                type="button"
-                onClick={() => setHalf(1)}
-                className={`rounded-lg px-3 py-2 text-xs font-semibold ${
-                  half === 1
-                    ? "bg-teal-400/20 text-teal-100"
-                    : "text-[var(--fg-faint)]"
-                }`}
-              >
-                {t.budgets.half1Short || "1–15"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setHalf(2)}
-                className={`rounded-lg px-3 py-2 text-xs font-semibold ${
-                  half === 2
-                    ? "bg-teal-400/20 text-teal-100"
-                    : "text-[var(--fg-faint)]"
-                }`}
-              >
-                {t.budgets.half2Short || "16–end"}
-              </button>
-            </div>
-            <Button variant="secondary" onClick={copyPrev}>
-              {t.budgets.copyPrevPeriod || t.budgets.copyPrev}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setShowDefaults((v) => !v)}
-            >
-              {t.budgets.manageDefaults}
-            </Button>
-            <Button
-              onClick={() => {
-                setMode("new");
-                setEditId(null);
-                setForm({
-                  categoryId: "",
-                  amount: "",
-                  scope: "this_period",
-                });
-              }}
-            >
-              {t.budgets.new}
-            </Button>
-          </>
-        }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-[var(--fg-muted)]">
-        <span className="stat-pill">{halfLabel}</span>
-        {bounds && (
-          <span className="stat-pill">
-            {bounds.start} → {bounds.end}
-          </span>
-        )}
+      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/25 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t.back}
+            onClick={() => shiftHalf(-1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="w-auto"
+            aria-label={t.period}
+          />
+          <div
+            className="flex rounded-xl border border-white/10 bg-black/30 p-0.5"
+            role="group"
+            aria-label={t.budgets.periodHalf || "Half of month"}
+          >
+            <button
+              type="button"
+              onClick={() => setHalf(1)}
+              className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                half === 1
+                  ? "bg-teal-400/20 text-teal-100"
+                  : "text-[var(--fg-faint)]"
+              }`}
+            >
+              {t.budgets.half1Short || "1–15"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setHalf(2)}
+              className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                half === 2
+                  ? "bg-teal-400/20 text-teal-100"
+                  : "text-[var(--fg-faint)]"
+              }`}
+            >
+              {t.budgets.half2Short || "16–end"}
+            </button>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t.next}
+            onClick={() => shiftHalf(1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <span className="stat-pill">{halfLabel}</span>
+          {bounds && (
+            <span className="stat-pill">
+              {bounds.start} → {bounds.end}
+            </span>
+          )}
+          {close?.closed && (
+            <span className="stat-pill border-amber-400/30 bg-amber-400/10 text-amber-100">
+              <Lock className="h-3 w-3" aria-hidden />
+              {t.budgets.closedBadge}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={copyPrev}>
+            {t.budgets.copyPrevPeriod || t.budgets.copyPrev}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => setShowDefaults((v) => !v)}
+          >
+            {t.budgets.manageDefaults}
+          </Button>
+          <Button
+            onClick={() => {
+              setMode("new");
+              setEditId(null);
+              setForm({
+                categoryId: "",
+                amount: "",
+                scope: "this_period",
+              });
+            }}
+          >
+            {t.budgets.new}
+          </Button>
+        </div>
       </div>
 
-      <Card premium className="mb-4">
-        <CardContent className="flex justify-between py-5 text-sm">
-          <span className="text-[var(--fg-muted)]">{t.total}</span>
-          <span className="font-display text-lg">
-            {money(totalSpent)} / {money(totalBudget)}
+      {showOtherPending && (
+        <button
+          type="button"
+          onClick={() => {
+            const meta = parseBudgetPeriod(pendingClose.period);
+            setMonth(meta.monthKey);
+            setHalf(meta.half);
+          }}
+          className="close-banner mb-4 flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left"
+        >
+          <span className="text-sm text-amber-50">
+            {tr(t.budgets.pendingCloseBanner, { period: pendingClose.period })}
           </span>
-        </CardContent>
-      </Card>
+          <span className="text-xs font-semibold text-amber-100">
+            {t.budgets.pendingCloseCta} →
+          </span>
+        </button>
+      )}
+
+      {close && (
+        <Card premium className="close-banner mb-4">
+          <CardContent className="space-y-3 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-semibold text-amber-50">
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  {t.budgets.closePeriodTitle}
+                </p>
+                <p className="mt-1 text-sm text-[var(--fg-muted)]">
+                  {close.closed
+                    ? tr(t.budgets.closePeriodDone, { next: close.toPeriod })
+                    : close.canClose
+                      ? tr(t.budgets.closePeriodReady, { next: close.toPeriod })
+                      : tr(t.budgets.closePeriodTooEarly, {
+                          end: close.bounds.end,
+                        })}
+                </p>
+                <p className="mt-1 text-xs text-[var(--fg-faint)]">
+                  {t.budgets.emergencyHint}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {close.canClose && (
+                  <Button onClick={doClose} disabled={closing}>
+                    {t.budgets.closePeriod}
+                  </Button>
+                )}
+                {close.canUndo && (
+                  <Button
+                    variant="secondary"
+                    onClick={doUndoClose}
+                    disabled={closing}
+                  >
+                    <Undo2 className="h-4 w-4" />
+                    {t.budgets.undoClose}
+                  </Button>
+                )}
+              </div>
+            </div>
+            {close.carryovers.length > 0 ? (
+              <ul className="grid gap-1.5 sm:grid-cols-2">
+                {close.carryovers.map((line) => (
+                  <li
+                    key={line.categoryId}
+                    className="flex items-center justify-between rounded-xl bg-black/20 px-3 py-2 text-sm"
+                  >
+                    <span>
+                      {line.icon} {line.categoryName}
+                    </span>
+                    <span className="text-amber-100">
+                      {money(line.remainingCents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-[var(--fg-faint)]">
+                {t.budgets.noCarry}
+              </p>
+            )}
+            {close.canClose && close.totalRemainingCents === 0 && (
+              <p className="text-xs text-[var(--fg-faint)]">
+                {t.budgets.closeNothing}
+              </p>
+            )}
+            {close.totalRemainingCents > 0 && (
+              <p className="text-xs text-amber-100/80">
+                {tr(t.budgets.carryTo, { period: close.toPeriod })} ·{" "}
+                {money(close.totalRemainingCents)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryStat
+          label={t.budgets.summaryPlanned}
+          value={money(totalBudget)}
+        />
+        <SummaryStat
+          label={t.budgets.summarySpent}
+          value={money(totalSpent)}
+          danger={totalSpent > totalBudget + totalEmergency}
+        />
+        <SummaryStat
+          label={t.budgets.summaryRemaining}
+          value={money(totalRemaining)}
+        />
+        <SummaryStat
+          label={t.budgets.summaryEmergency}
+          value={money(totalEmergency)}
+          gold
+        />
+      </div>
 
       {showDefaults && (
         <Card premium className="mb-4">
@@ -363,24 +623,59 @@ export default function BudgetsPage() {
           <p className="text-sm text-[var(--fg-faint)]">{t.budgets.empty}</p>
         )}
         {budgets.map((b) => {
-          const pct =
-            b.amountCents > 0 ? (b.spentCents / b.amountCents) * 100 : 0;
-          const over = b.spentCents > b.amountCents;
+          const emergency = b.emergencyCents || 0;
+          const available = b.availableCents ?? b.amountCents + emergency;
+          const remaining =
+            b.remainingCents ?? Math.max(0, available - b.spentCents);
+          const over = b.spentCents > available;
+          const usingEm =
+            emergency > 0 && b.spentCents > b.amountCents && !over;
+          const planPct =
+            available > 0
+              ? (Math.min(b.spentCents, b.amountCents) / available) * 100
+              : 0;
+          const emPct =
+            available > 0 && b.spentCents > b.amountCents
+              ? (Math.min(b.spentCents, available) / available) * 100
+              : planPct;
           return (
             <Card key={b.id}>
               <CardContent className="py-4">
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span>
-                    {b.category.icon} {b.category.name}
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-2 text-sm">
+                  <div>
+                    <span className="font-medium">
+                      {b.category.icon} {b.category.name}
+                    </span>
                     {b.isFromDefault && (
                       <span className="ml-2 text-[10px] uppercase tracking-wider text-teal-300/80">
-                        default
+                        {t.budgets.fromDefault}
                       </span>
                     )}
-                  </span>
+                    <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] text-[var(--fg-faint)]">
+                      <span>
+                        {t.budgets.planned}: {money(b.amountCents)}
+                      </span>
+                      {emergency > 0 && (
+                        <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-amber-100">
+                          {t.budgets.emergencyShort} {money(emergency)}
+                        </span>
+                      )}
+                      <span>
+                        {t.budgets.remaining}: {money(remaining)}
+                      </span>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <span className={over ? "money-expense" : ""}>
-                      {money(b.spentCents)} / {money(b.amountCents)}
+                    <span
+                      className={
+                        over
+                          ? "money-expense"
+                          : usingEm
+                            ? "text-amber-200"
+                            : ""
+                      }
+                    >
+                      {money(b.spentCents)} / {money(available)}
                     </span>
                     <Button
                       variant="secondary"
@@ -398,17 +693,28 @@ export default function BudgetsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="progress-track">
+                <div className="progress-track progress-track-split h-2">
                   <div
-                    className={`progress-fill ${over ? "bg-[var(--expense)]" : ""}`}
-                    style={{ width: `${Math.min(pct, 100)}%` }}
+                    className="progress-fill progress-fill-emergency h-full"
+                    style={{ width: `${Math.min(emPct, 100)}%` }}
+                  />
+                  <div
+                    className={`progress-fill h-full ${over ? "bg-[var(--expense)]" : ""}`}
+                    style={{ width: `${Math.min(planPct, 100)}%` }}
                   />
                 </div>
                 {over && (
-                  <p className="mt-1 text-xs money-expense">
+                  <p className="mt-1 flex items-center gap-1 text-xs money-expense">
+                    <ShieldAlert className="h-3 w-3" aria-hidden />
                     {tr(t.budgets.overBy, {
-                      amount: money(b.spentCents - b.amountCents),
+                      amount: money(b.spentCents - available),
                     })}
+                  </p>
+                )}
+                {usingEm && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-amber-200">
+                    <CheckCircle2 className="h-3 w-3" aria-hidden />
+                    {t.budgets.usingEmergency}
                   </p>
                 )}
               </CardContent>
@@ -416,6 +722,37 @@ export default function BudgetsPage() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function SummaryStat({
+  label,
+  value,
+  danger,
+  gold,
+}: {
+  label: string;
+  value: string;
+  danger?: boolean;
+  gold?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+      <p className="text-[11px] uppercase tracking-wider text-[var(--fg-faint)]">
+        {label}
+      </p>
+      <p
+        className={`mt-1 font-display text-xl ${
+          danger
+            ? "money-expense"
+            : gold
+              ? "text-amber-200"
+              : "text-[var(--fg)]"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

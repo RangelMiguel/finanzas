@@ -199,11 +199,15 @@ export async function POST(req: Request) {
           householdId: m.householdId,
           categoryId: catId,
           amountCents: Number(b.amountCents || 0),
+          emergencyCents: Number(b.emergencyCents || 0),
           period: String(b.period || b.month || "").match(/-\d$/)
             ? String(b.period || b.month)
             : `${String(b.month || new Date().toISOString().slice(0, 7))}-1`,
         },
-        update: { amountCents: Number(b.amountCents || 0) },
+        update: {
+          amountCents: Number(b.amountCents || 0),
+          emergencyCents: Number(b.emergencyCents || 0),
+        },
       });
     }
 

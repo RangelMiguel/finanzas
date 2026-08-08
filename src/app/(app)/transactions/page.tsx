@@ -84,6 +84,9 @@ function fundingsToPayLines(txn: Txn): PayLine[] {
 }
 
 function fundingLabel(txn: Txn): string {
+  if (txn.type === "cc_payment") {
+    return [txn.account?.name, txn.creditCard?.name].filter(Boolean).join(" → ");
+  }
   if (txn.fundings && txn.fundings.length > 0) {
     return txn.fundings
       .map((f) => {
@@ -590,6 +593,9 @@ export default function TransactionsPage() {
                   <div className="text-xs text-[var(--fg-faint)]">
                     {txn.date}
                     {txn.type === "transfer" ? ` · ${t.transfer}` : ""}
+                    {txn.type === "cc_payment"
+                      ? ` · ${t.cards.ccPaymentType}`
+                      : ""}
                     {paid ? ` · ${paid}` : ""}
                     {txn.spentBy ? ` · ${txn.spentBy.displayName}` : ""}
                   </div>
@@ -601,12 +607,14 @@ export default function TransactionsPage() {
                         ? "money-income"
                         : txn.type === "transfer"
                           ? "text-[var(--fg-muted)]"
-                          : "money-expense"
+                          : txn.type === "cc_payment"
+                            ? "text-amber-200"
+                            : "money-expense"
                     }
                   >
                     {money(txn.amountCents)}
                   </span>
-                  {txn.type !== "transfer" && (
+                  {txn.type !== "transfer" && txn.type !== "cc_payment" && (
                     <Button
                       variant="secondary"
                       size="sm"

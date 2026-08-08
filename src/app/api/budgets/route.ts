@@ -11,6 +11,7 @@ import {
   budgetPeriodKey,
   budgetPeriodBounds,
   parseBudgetPeriod,
+  todayISO,
 } from "@/lib/utils";
 import {
   canSeeModule,
@@ -20,6 +21,11 @@ import {
   isBudgetableSpend,
 } from "@/lib/visibility";
 import { ensurePeriodBudgets, saveBudgetWithScope } from "@/lib/budget-defaults";
+import { findPendingClose, getCloseStatus } from "@/lib/budget-close";
+import {
+  budgetAvailableCents,
+  budgetRemainingCents,
+} from "@/lib/budget-math";
 
 export async function GET(req: Request) {
   try {
@@ -42,7 +48,7 @@ export async function GET(req: Request) {
     const { start, end } = budgetPeriodBounds(period);
     const meta = parseBudgetPeriod(period);
 
-    const [budgets, defaults] = await Promise.all([
+    const [budgets, defaults, close, pendingClose] = await Promise.all([
       prisma.budget.findMany({
         where: { householdId: m.householdId, period },
         include: { category: true },
@@ -52,6 +58,8 @@ export async function GET(req: Request) {
         include: { category: true },
         orderBy: { category: { name: "asc" } },
       }),
+      getCloseStatus(m.householdId, period, todayISO()),
+      findPendingClose(m.householdId, todayISO()),
     ]);
 
     // Expenses + categorized transfers (purpose spend, e.g. school allowance)
@@ -103,11 +111,27 @@ export async function GET(req: Request) {
       bounds: { start, end },
       appliedDefaults: applied,
       defaults: visibleDefaults,
-      budgets: visibleBudgets.map((b) => ({
-        ...b,
-        spentCents: spentByCat[b.categoryId] || 0,
-        isFromDefault: defaults.some((d) => d.categoryId === b.categoryId),
-      })),
+      close,
+      pendingClose,
+      budgets: visibleBudgets.map((b) => {
+        const spentCents = spentByCat[b.categoryId] || 0;
+        const emergencyCents = b.emergencyCents || 0;
+        return {
+          ...b,
+          emergencyCents,
+          spentCents,
+          remainingCents: budgetRemainingCents(
+            b.amountCents,
+            emergencyCents,
+            spentCents
+          ),
+          availableCents: budgetAvailableCents(b.amountCents, emergencyCents),
+          isFromDefault: defaults.some(
+            (d) =>
+              d.categoryId === b.categoryId && d.amountCents === b.amountCents
+          ),
+        };
+      }),
     });
   } catch (e) {
     return jsonError(e);
@@ -190,6 +214,7 @@ export async function PATCH(req: Request) {
         ? pesosToCents(body.amount)
         : existing.amountCents;
     const period = body.period || existing.period;
+    const categoryChanged = categoryId !== existing.categoryId;
 
     await saveBudgetWithScope({
       householdId: m.householdId,
@@ -198,6 +223,23 @@ export async function PATCH(req: Request) {
       period,
       scope: body.scope,
     });
+
+    if (categoryChanged) {
+      const moved = await prisma.budget.findFirst({
+        where: { householdId: m.householdId, categoryId, period },
+      });
+      if (moved && existing.emergencyCents > 0) {
+        await prisma.budget.update({
+          where: { id: moved.id },
+          data: {
+            emergencyCents: moved.emergencyCents + existing.emergencyCents,
+          },
+        });
+      }
+      await prisma.budget.delete({ where: { id: existing.id } }).catch(() => {
+        /* already gone */
+      });
+    }
 
     const budget = await prisma.budget.findFirst({
       where: {
