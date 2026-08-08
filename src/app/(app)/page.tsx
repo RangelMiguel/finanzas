@@ -51,6 +51,9 @@ type Budget = {
   amountCents: number;
   emergencyCents?: number;
   spentCents: number;
+  remainingCents?: number;
+  goalAllocatedCents?: number;
+  availableCents?: number;
   category: { name: string; icon: string };
 };
 type CloseStatus = {
@@ -143,12 +146,14 @@ function DashboardInner() {
   const alerts = budgets
     .map((b) => {
       const emergency = b.emergencyCents || 0;
-      const available = b.amountCents + emergency;
-      const ratio = b.amountCents > 0 ? b.spentCents / b.amountCents : 0;
-      const overAll = b.spentCents > available;
+      const available =
+        b.availableCents ?? b.amountCents + emergency;
+      const committed = b.spentCents + (b.goalAllocatedCents || 0);
+      const ratio = b.amountCents > 0 ? committed / b.amountCents : 0;
+      const overAll = committed > available;
       const usingEmergency =
-        emergency > 0 && b.spentCents > b.amountCents && !overAll;
-      return { ...b, ratio, overAll, usingEmergency, available };
+        emergency > 0 && committed > b.amountCents && !overAll;
+      return { ...b, ratio, overAll, usingEmergency, available, committed };
     })
     .filter((b) => b.ratio >= 0.8 || b.overAll || b.usingEmergency)
     .sort((a, b) => b.ratio - a.ratio);
@@ -172,9 +177,6 @@ function DashboardInner() {
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <p className="page-subtitle">
-              {t.dashboard.title} — {data.household.name}
-            </p>
           </div>
           <Button variant="secondary" onClick={() => setCatchup(true)}>
             {t.nav.catchUp}
@@ -183,7 +185,7 @@ function DashboardInner() {
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="bento-stat">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--income)]/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--income)]">
               {t.dashboard.incomes}
             </p>
             <p className="mt-2 font-display text-3xl money-income sm:text-4xl">
@@ -194,7 +196,7 @@ function DashboardInner() {
             </div>
           </div>
           <div className="bento-stat">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--expense)]/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--expense)]">
               {t.dashboard.expenses}
             </p>
             <p className="mt-2 font-display text-3xl money-expense sm:text-4xl">
@@ -208,7 +210,7 @@ function DashboardInner() {
             </div>
           </div>
           <div className="bento-stat">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--accent-2)]/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent-2)]">
               {t.dashboard.balance}
             </p>
             <p
@@ -251,70 +253,55 @@ function DashboardInner() {
         </Link>
       )}
 
-      {alerts.length > 0 && (
-        <Card premium className="border-[var(--accent)]/30">
-          <CardHeader>
-            <CardTitle>{t.dashboard.budgetAlerts}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {alerts.map((b) => (
-              <div
-                key={b.id}
-                className="flex justify-between text-sm"
-              >
-                <span>
-                  {b.category.icon} {b.category.name}{" "}
-                  <span
-                    className={
-                      b.overAll
-                        ? "money-expense"
-                        : b.usingEmergency
-                          ? "text-amber-200"
-                          : "text-[var(--accent)]"
-                    }
-                  >
-                    (
-                    {b.overAll
-                      ? t.dashboard.budgetOver
-                      : b.usingEmergency
-                        ? t.dashboard.budgetEmergency
-                        : t.dashboard.budgetNear}
-                    )
-                  </span>
-                </span>
-                <span>
-                  {money(b.spentCents)} / {money(b.available)}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
       {periodBudgets.length > 0 && (
-        <Card premium>
+        <Card>
           <CardHeader>
             <CardTitle>{t.dashboard.thisPeriodBudgets}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {periodBudgets.slice(0, 6).map((b) => {
-              const available = b.amountCents + (b.emergencyCents || 0);
+              const available =
+                b.availableCents ??
+                b.amountCents + (b.emergencyCents || 0);
+              const committed = b.spentCents + (b.goalAllocatedCents || 0);
+              const remaining =
+                b.remainingCents ?? Math.max(0, available - committed);
               const pct =
                 available > 0
-                  ? Math.min(100, (b.spentCents / available) * 100)
+                  ? Math.min(100, (committed / available) * 100)
                   : 0;
-              const over = b.spentCents > available;
+              const over = committed > available;
+              const alert = alerts.find((a) => a.id === b.id);
               return (
                 <div key={b.id}>
-                  <div className="mb-1 flex justify-between text-xs text-[var(--fg-muted)]">
-                    <span>
+                  <div className="mb-1 flex justify-between gap-2 text-sm">
+                    <span className="text-[var(--fg)]">
                       {b.category.icon} {b.category.name}
+                      {alert && (
+                        <span
+                          className={`ml-1.5 text-xs ${
+                            alert.overAll
+                              ? "money-expense"
+                              : alert.usingEmergency
+                                ? "text-amber-100"
+                                : "text-[var(--accent)]"
+                          }`}
+                        >
+                          {alert.overAll
+                            ? t.dashboard.budgetOver
+                            : alert.usingEmergency
+                              ? t.dashboard.budgetEmergency
+                              : t.dashboard.budgetNear}
+                        </span>
+                      )}
                     </span>
-                    <span className={over ? "money-expense" : ""}>
-                      {money(b.spentCents)} / {money(available)}
+                    <span
+                      className={`tabular-nums ${over ? "money-expense" : "text-[var(--fg-muted)]"}`}
+                    >
+                      {money(remaining)}
                     </span>
                   </div>
-                  <div className="progress-track">
+                  <div className="progress-track h-2">
                     <div
                       className={`progress-fill ${over ? "bg-[var(--expense)]" : ""}`}
                       style={{ width: `${pct}%` }}
@@ -329,7 +316,7 @@ function DashboardInner() {
 
       {data.accounts.length > 0 && (
         <div>
-          <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[var(--fg-faint)]">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--fg-muted)]">
             {t.dashboard.accountsStrip}
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -351,7 +338,7 @@ function DashboardInner() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card premium>
+        <Card>
           <CardHeader>
             <CardTitle>{t.dashboard.topCategories}</CardTitle>
           </CardHeader>
@@ -386,7 +373,7 @@ function DashboardInner() {
             })}
           </CardContent>
         </Card>
-        <Card premium>
+        <Card>
           <CardHeader>
             <CardTitle>{t.dashboard.creditCards}</CardTitle>
           </CardHeader>
@@ -409,7 +396,7 @@ function DashboardInner() {
         </Card>
       </div>
 
-      <Card premium>
+      <Card>
         <CardHeader>
           <CardTitle>{t.dashboard.recent}</CardTitle>
         </CardHeader>
@@ -425,7 +412,7 @@ function DashboardInner() {
                 </span>
                 <div className="min-w-0">
                   <div className="truncate">{txn.description}</div>
-                  <div className="text-xs text-[var(--fg-faint)]">
+                  <div className="text-xs text-[var(--fg-muted)]">
                     {txn.date}
                     {txn.createdBy ? ` · ${txn.createdBy.displayName}` : ""}
                   </div>

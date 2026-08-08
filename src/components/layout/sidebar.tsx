@@ -249,8 +249,8 @@ export function Sidebar({
             className={cn(
               "flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
               locale === "es"
-                ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
-                : "text-[var(--fg-faint)] hover:bg-white/5"
+                ? "bg-[var(--accent)] text-[#081018]"
+                : "text-[var(--fg-muted)] hover:bg-white/5"
             )}
           >
             ES
@@ -262,8 +262,8 @@ export function Sidebar({
             className={cn(
               "flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors",
               locale === "en"
-                ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
-                : "text-[var(--fg-faint)] hover:bg-white/5"
+                ? "bg-[var(--accent)] text-[#081018]"
+                : "text-[var(--fg-muted)] hover:bg-white/5"
             )}
           >
             EN
@@ -274,13 +274,13 @@ export function Sidebar({
             href="/?catchup=1"
             prefetch={!offline}
             onClick={(e) => handleNavClick(e, "/?catchup=1")}
-            className="flex w-full items-center gap-2 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-2 text-xs text-[var(--nav-active-fg)] hover:bg-[var(--accent)]/15"
+            className="flex w-full items-center gap-2 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent)]/15 px-3 py-2 text-xs font-medium text-[var(--fg)] hover:bg-[var(--accent)]/20"
           >
             <CalendarClock className="h-3.5 w-3.5" aria-hidden />
             {t.nav.catchUp}
           </Link>
         )}
-        <div className="px-1 text-[11px] text-[var(--fg-faint)]">
+        <div className="px-1 text-xs text-[var(--fg-muted)]">
           {userName}
           {role ? ` · ${t.roles[role as keyof typeof t.roles] || role}` : ""}
         </div>

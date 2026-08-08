@@ -19,6 +19,7 @@ import {
   type CarryoverJson,
   type CloseLineInput,
 } from "./budget-math";
+import { allocationsForPeriod, loadGoalAllocations } from "./goal-budget";
 
 export type CloseLine = {
   categoryId: string;
@@ -94,12 +95,17 @@ export async function getCloseStatus(
     where: { householdId, period },
     include: { category: { select: { name: true, icon: true } } },
   });
-  const spendRows = await loadPeriodSpend(householdId, start, end);
+  const [spendRows, goalAllocRows] = await Promise.all([
+    loadPeriodSpend(householdId, start, end),
+    loadGoalAllocations({ householdId, period }),
+  ]);
   const spentByCat = spentByCategoryInRange(spendRows, start, end);
+  const goalByCat = allocationsForPeriod(goalAllocRows, period);
 
   const carryovers: CloseLine[] = budgets
     .map((b) => {
       const spentCents = spentByCat[b.categoryId] || 0;
+      const goalAllocatedCents = goalByCat[b.categoryId] || 0;
       return {
         categoryId: b.categoryId,
         categoryName: b.category.name,
@@ -110,7 +116,8 @@ export async function getCloseStatus(
         remainingCents: budgetRemainingCents(
           b.amountCents,
           b.emergencyCents,
-          spentCents
+          spentCents,
+          goalAllocatedCents
         ),
       };
     })

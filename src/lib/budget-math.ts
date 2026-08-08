@@ -15,51 +15,75 @@ export function budgetAvailableCents(
   return Math.max(0, amountCents) + Math.max(0, emergencyCents);
 }
 
-/** Leftover after spend: first consumes the planned amount, then emergency. */
+/** Spend + envelope money already sent to goals (not cash movement). */
+export function budgetCommittedCents(
+  spentCents: number,
+  goalAllocatedCents = 0
+): number {
+  return Math.max(0, spentCents) + Math.max(0, goalAllocatedCents);
+}
+
+/** Leftover after spend and goal deductions: planned first, then emergency. */
 export function budgetRemainingCents(
   amountCents: number,
   emergencyCents: number,
-  spentCents: number
+  spentCents: number,
+  goalAllocatedCents = 0
 ): number {
   return Math.max(
     0,
-    budgetAvailableCents(amountCents, emergencyCents) - Math.max(0, spentCents)
+    budgetAvailableCents(amountCents, emergencyCents) -
+      budgetCommittedCents(spentCents, goalAllocatedCents)
   );
 }
 
 export function spentAgainstBudget(
   amountCents: number,
-  spentCents: number
+  spentCents: number,
+  goalAllocatedCents = 0
 ): number {
-  return Math.min(Math.max(0, spentCents), Math.max(0, amountCents));
+  return Math.min(
+    budgetCommittedCents(spentCents, goalAllocatedCents),
+    Math.max(0, amountCents)
+  );
 }
 
 export function spentAgainstEmergency(
   amountCents: number,
   emergencyCents: number,
-  spentCents: number
+  spentCents: number,
+  goalAllocatedCents = 0
 ): number {
-  const overPlan = Math.max(0, spentCents - Math.max(0, amountCents));
+  const overPlan = Math.max(
+    0,
+    budgetCommittedCents(spentCents, goalAllocatedCents) - Math.max(0, amountCents)
+  );
   return Math.min(overPlan, Math.max(0, emergencyCents));
 }
 
 export function isOverBudget(
   amountCents: number,
   emergencyCents: number,
-  spentCents: number
+  spentCents: number,
+  goalAllocatedCents = 0
 ): boolean {
-  return spentCents > budgetAvailableCents(amountCents, emergencyCents);
+  return (
+    budgetCommittedCents(spentCents, goalAllocatedCents) >
+    budgetAvailableCents(amountCents, emergencyCents)
+  );
 }
 
 export function isUsingEmergency(
   amountCents: number,
   emergencyCents: number,
-  spentCents: number
+  spentCents: number,
+  goalAllocatedCents = 0
 ): boolean {
+  const committed = budgetCommittedCents(spentCents, goalAllocatedCents);
   return (
     emergencyCents > 0 &&
-    spentCents > amountCents &&
-    !isOverBudget(amountCents, emergencyCents, spentCents)
+    committed > amountCents &&
+    !isOverBudget(amountCents, emergencyCents, spentCents, goalAllocatedCents)
   );
 }
 

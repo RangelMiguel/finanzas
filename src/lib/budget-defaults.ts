@@ -13,6 +13,7 @@ import {
   budgetRemainingCents,
   spentByCategoryInRange,
 } from "./budget-math";
+import { loadGoalAllocations } from "./goal-budget";
 
 type PeriodRow = {
   categoryId: string;
@@ -44,7 +45,7 @@ export async function buildBudgetReserveItems(opts: {
   );
   if (periods.length === 0) return [];
 
-  const [defaults, allBudgets, expenses, closes] = await Promise.all([
+  const [defaults, allBudgets, expenses, closes, goalAllocs] = await Promise.all([
     prisma.budgetDefault.findMany({
       where: { householdId },
       select: { categoryId: true, amountCents: true },
@@ -82,7 +83,16 @@ export async function buildBudgetReserveItems(opts: {
       where: { householdId, period: { in: periods } },
       select: { period: true },
     }),
+    loadGoalAllocations({ householdId, period: periods }),
   ]);
+  const allocByPeriodCat = new Map<string, number>();
+  for (const row of goalAllocs) {
+    const key = `${row.period}:${row.categoryId}`;
+    allocByPeriodCat.set(
+      key,
+      (allocByPeriodCat.get(key) || 0) + row.amountCents
+    );
+  }
 
   const closed = new Set(closes.map((c) => c.period));
   const budgetsByPeriod = new Map<string, PeriodRow[]>();
@@ -145,7 +155,8 @@ export async function buildBudgetReserveItems(opts: {
           const leftover = budgetRemainingCents(
             r.amountCents,
             r.emergencyCents,
-            spentByCat[r.categoryId] || 0
+            spentByCat[r.categoryId] || 0,
+            allocByPeriodCat.get(`${period}:${r.categoryId}`) || 0
           );
           if (leftover > 0) {
             pendingLeftover.set(
@@ -164,8 +175,15 @@ export async function buildBudgetReserveItems(opts: {
       let emergencyLeft = 0;
       for (const r of rows) {
         const spent = spentByCat[r.categoryId] || 0;
-        const rem = budgetRemainingCents(r.amountCents, r.emergencyCents, spent);
-        const afterPlan = Math.max(0, r.amountCents - spent);
+        const goalAlloc =
+          allocByPeriodCat.get(`${period}:${r.categoryId}`) || 0;
+        const rem = budgetRemainingCents(
+          r.amountCents,
+          r.emergencyCents,
+          spent,
+          goalAlloc
+        );
+        const afterPlan = Math.max(0, r.amountCents - spent - goalAlloc);
         plannedLeft += afterPlan;
         emergencyLeft += Math.max(0, rem - afterPlan);
       }

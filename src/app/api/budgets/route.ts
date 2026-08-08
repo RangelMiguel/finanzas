@@ -26,6 +26,7 @@ import {
   budgetAvailableCents,
   budgetRemainingCents,
 } from "@/lib/budget-math";
+import { allocationsForPeriod, loadGoalAllocations } from "@/lib/goal-budget";
 
 export async function GET(req: Request) {
   try {
@@ -48,19 +49,22 @@ export async function GET(req: Request) {
     const { start, end } = budgetPeriodBounds(period);
     const meta = parseBudgetPeriod(period);
 
-    const [budgets, defaults, close, pendingClose] = await Promise.all([
-      prisma.budget.findMany({
-        where: { householdId: m.householdId, period },
-        include: { category: true },
-      }),
-      prisma.budgetDefault.findMany({
-        where: { householdId: m.householdId },
-        include: { category: true },
-        orderBy: { category: { name: "asc" } },
-      }),
-      getCloseStatus(m.householdId, period, todayISO()),
-      findPendingClose(m.householdId, todayISO()),
-    ]);
+    const [budgets, defaults, close, pendingClose, goalAllocRows] =
+      await Promise.all([
+        prisma.budget.findMany({
+          where: { householdId: m.householdId, period },
+          include: { category: true },
+        }),
+        prisma.budgetDefault.findMany({
+          where: { householdId: m.householdId },
+          include: { category: true },
+          orderBy: { category: { name: "asc" } },
+        }),
+        getCloseStatus(m.householdId, period, todayISO()),
+        findPendingClose(m.householdId, todayISO()),
+        loadGoalAllocations({ householdId: m.householdId, period }),
+      ]);
+    const goalByCat = allocationsForPeriod(goalAllocRows, period);
 
     // Expenses + categorized transfers (purpose spend, e.g. school allowance)
     const spendRows = await prisma.transaction.findMany({
@@ -116,14 +120,17 @@ export async function GET(req: Request) {
       budgets: visibleBudgets.map((b) => {
         const spentCents = spentByCat[b.categoryId] || 0;
         const emergencyCents = b.emergencyCents || 0;
+        const goalAllocatedCents = goalByCat[b.categoryId] || 0;
         return {
           ...b,
           emergencyCents,
           spentCents,
+          goalAllocatedCents,
           remainingCents: budgetRemainingCents(
             b.amountCents,
             emergencyCents,
-            spentCents
+            spentCents,
+            goalAllocatedCents
           ),
           availableCents: budgetAvailableCents(b.amountCents, emergencyCents),
           isFromDefault: defaults.some(

@@ -48,7 +48,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           autoComplete ?? (money || numeric ? "off" : undefined)
         }
         className={cn(
-          "flex h-10 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-[var(--fg)] shadow-inner shadow-black/20 placeholder:text-[var(--fg-faint)] transition-[border-color,box-shadow,background] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]/45 focus-visible:border-[var(--accent)]/50 focus-visible:bg-black/40",
+          "flex h-10 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-[var(--fg)] shadow-inner shadow-black/20 placeholder:text-[var(--fg-muted)] transition-[border-color,box-shadow,background] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]/45 focus-visible:border-[var(--accent)]/50 focus-visible:bg-black/55",
           (money || numeric) && "tabular-nums",
           className
         )}

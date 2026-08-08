@@ -192,7 +192,7 @@ const es: HelpContent = {
             "Controla cuánto planeas gastar por categoría. El periodo del hogar usa dos quincenas al mes: del 1 al 15 y del 16 al fin de mes.",
             "Cada presupuesto muestra gastado vs límite. Si te pasas, verás alerta (también en el inicio).",
             "Puedes copiar la quincena anterior, guardar una plantilla default y aplicarla a este periodo, a ambas quincenas del mes, o al año siguiente.",
-            "Al terminar la quincena (día 15 o último día del mes) cierra el periodo. Puedes enviar el sobrante a emergencia de la siguiente quincena (sin subir el presupuesto planeado), a otra categoría, a una meta, o marcarlo como gastado.",
+            "Durante la quincena puedes enviar restante de una categoría a una meta (no mueve saldos de cuentas; solo baja el restante del presupuesto y sube el progreso). Al terminar (día 15 o último día del mes) cierra el periodo: el sobrante puede ir a emergencia de la siguiente quincena, a otra categoría, a una meta, o marcarse gastado.",
             "Las quincenas ya pasadas se cierran por defecto sin efecto futuro: no tocan el presupuesto actual ni los saldos. Así evitas que un cierre viejo “empuje” sobrante al periodo de hoy.",
             "La opción “Reservar presupuestos” en ¿Cuánto gastar? aparta lo no gastado del presupuesto y del fondo de emergencia (como si lo fueras a gastar todo), más las quincenas futuras. Un periodo cerrado ya no arrastra sobrante implícito.",
           ],
@@ -211,7 +211,7 @@ const es: HelpContent = {
             },
             {
               title: "Cierre y destinos",
-              body: "Elige destino por categoría. Emergencia es un colchón, no un límite más grande. Marcar gastado cierra la quincena sin mover nada adelante. Enviar a una meta suma progreso sin mover saldos de cuentas.",
+              body: "Elige destino por categoría. Emergencia es un colchón, no un límite más grande. Marcar gastado cierra la quincena sin mover nada adelante. Enviar a una meta (en el cierre o con “A meta” durante la quincena) suma progreso sin mover saldos de cuentas.",
             },
           ],
         },
@@ -284,12 +284,12 @@ const es: HelpContent = {
         {
           id: "goals",
           title: "Metas de ahorro",
-          summary: "Objetivos con reservas desde una cuenta al cierre de quincena.",
+          summary: "Objetivos con aportes desde una cuenta o el restante del presupuesto.",
           href: "/goals",
           paragraphs: [
             "Defines una meta (vacaciones, enganche, emergencia) con monto objetivo.",
-            "Al terminar la quincena (día 15 o fin de mes), reservas dinero desde una cuenta con saldo hacia la meta. Eso baja el saldo de la cuenta y sube el progreso de la meta.",
-            "Puedes deshacer una reserva (el dinero vuelve a la cuenta), marcar la meta completada o cancelarla. Eliminar la meta revierte reservas.",
+            "Puedes aportar desde una cuenta (baja el saldo) o desde el restante de una categoría del presupuesto de la quincena (no mueve cuentas; reduce lo que queda por gastar ahí).",
+            "Al cerrar la quincena también puedes enviar sobrante a metas. Deshacer una reserva de cuenta reintegra el saldo; deshacer un aporte de presupuesto solo baja el progreso (si la quincena no está cerrada).",
           ],
           tips: [
             "Las reservas de metas pueden incluirse en el cálculo del plan de retiro si activas esa opción.",
@@ -690,7 +690,7 @@ const en: HelpContent = {
             "Plan spending by category. The household uses two half-months: 1–15 and 16–end of month.",
             "Each budget shows spent vs limit. Overages surface here and on Home.",
             "Copy the previous half-month, save a default template, and apply to this period, both halves of the month, or the next year.",
-            "When a half-month ends (day 15 or the last day of the month), close it. Leftover can go to next-period emergency (without raising the planned budget), another category’s emergency, a savings goal, or be marked as spent.",
+            "During the half-month you can send leftover from a category to a goal (no account cash moves; remaining in that envelope drops). When the half-month ends (day 15 or the last day of the month), close it. Leftover can go to next-period emergency (without raising the planned budget), another category’s emergency, a savings goal, or be marked as spent.",
             "Past periods close with no future effect by default: they do not change the current budget or account balances. That keeps an old close from pushing leftover into today’s envelopes.",
             "“Reserve budgets” on Safe to spend holds unspent budget and emergency funding as if you will spend it all, plus future half-months. A closed period no longer implicitly carries leftover forward.",
           ],
@@ -709,7 +709,7 @@ const en: HelpContent = {
             },
             {
               title: "Close destinations",
-              body: "Choose per category. Emergency is a cushion, not a bigger limit. Mark spent to close without moving anything forward. Sending leftover to a goal increases progress without moving account cash.",
+              body: "Choose per category. Emergency is a cushion, not a bigger limit. Mark spent to close without moving anything forward. Sending leftover to a goal (at close or with “To goal” during the period) increases progress without moving account cash.",
             },
           ],
         },
@@ -782,12 +782,12 @@ const en: HelpContent = {
         {
           id: "goals",
           title: "Savings goals",
-          summary: "Targets with half-month reserves from an account.",
+          summary: "Targets funded from an account or leftover budget.",
           href: "/goals",
           paragraphs: [
             "Define a goal (vacation, down payment, emergency) with a target amount.",
-            "At the end of a half-month (day 15 or month end), reserve money from an account into the goal. Account balance drops; goal progress rises.",
-            "Undo a reserve (money returns), mark complete, or cancel. Deleting a goal reverses reserves.",
+            "Fund from an account (balance drops) or from leftover in a budget category this period (no cash movement; that envelope’s remaining goes down).",
+            "Period close can also send leftover to goals. Undoing an account reserve returns cash; undoing a budget contribution only lowers progress (if the period is still open).",
           ],
           tips: [
             "Goal reserves can feed the retirement planner if you enable that option.",

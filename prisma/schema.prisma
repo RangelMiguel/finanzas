@@ -204,6 +204,7 @@ model Category {
   installmentPlans InstallmentPlan[]
   recurringIncomes RecurringIncome[]
   allowances       Allowance[]
+  goalReserves     GoalReserve[]
 
   @@index([householdId])
 }
@@ -664,13 +665,16 @@ model Goal {
 
 /// Money reserved toward a goal for a given quincena.
 /// `account` source: cash reserved from an account (linked expense txn).
+/// `budget` source: leftover taken from a category envelope mid-period — no cash movement.
 /// `budget_close` source: leftover assigned at period close — no cash movement.
 model GoalReserve {
   id            String   @id @default(cuid())
   householdId   String
   goalId        String
   accountId     String?
-  /// account | budget_close
+  /// Category envelope when source is `budget` (mid-period deduction).
+  categoryId    String?
+  /// account | budget | budget_close
   source        String   @default("account")
   amountCents   Int
   /// Budget period: YYYY-MM-1 | YYYY-MM-2
@@ -685,11 +689,14 @@ model GoalReserve {
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
   goal      Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
   account   Account?  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([householdId, period])
   @@index([goalId])
   @@index([accountId])
+  @@index([categoryId])
+  @@index([householdId, period, source])
 }
 
 

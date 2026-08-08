@@ -7,6 +7,10 @@ import { accountBalance } from "@/lib/money";
 import { logActivity } from "@/lib/household";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
+import {
+  allocateBudgetToGoal,
+  assertBudgetReserveUndoable,
+} from "@/lib/goal-budget";
 
 function mapGoal(
   g: {
@@ -18,7 +22,19 @@ function mapGoal(
     status: string;
     createdAt: Date;
     updatedAt: Date;
-    reserves: { amountCents: number; period: string; id: string; accountId: string | null; source?: string; date: string; notes: string | null; createdAt: Date; account: { id: string; name: string; icon: string } | null }[];
+    reserves: {
+      amountCents: number;
+      period: string;
+      id: string;
+      accountId: string | null;
+      categoryId?: string | null;
+      source?: string;
+      date: string;
+      notes: string | null;
+      createdAt: Date;
+      account: { id: string; name: string; icon: string } | null;
+      category?: { id: string; name: string; icon: string } | null;
+    }[];
   }
 ) {
   const reservedCents = g.reserves.reduce((s, r) => s + r.amountCents, 0);
@@ -55,6 +71,7 @@ export async function GET(req: Request) {
         reserves: {
           include: {
             account: { select: { id: true, name: true, icon: true } },
+            category: { select: { id: true, name: true, icon: true } },
           },
           orderBy: { createdAt: "desc" },
         },
@@ -149,7 +166,10 @@ export async function POST(req: Request) {
       },
       include: {
         reserves: {
-          include: { account: { select: { id: true, name: true, icon: true } } },
+          include: {
+            account: { select: { id: true, name: true, icon: true } },
+            category: { select: { id: true, name: true, icon: true } },
+          },
         },
       },
     });
@@ -185,10 +205,12 @@ export async function PATCH(req: Request) {
         icon: z.string().max(8).optional(),
         notes: z.string().max(500).optional().nullable(),
         status: z.enum(["active", "completed", "cancelled"]).optional(),
-        /** Reserve money from an account for a quincena */
+        /** Reserve money from an account or leftover budget envelope */
         reserve: z
           .object({
-            accountId: z.string(),
+            source: z.enum(["account", "budget"]).optional(),
+            accountId: z.string().optional(),
+            categoryId: z.string().optional(),
             amount: z.union([z.number(), z.string()]),
             period: z.string().optional(),
             date: z.string().optional(),
@@ -212,6 +234,44 @@ export async function PATCH(req: Request) {
       const amountCents = pesosToCents(body.reserve.amount);
       if (amountCents <= 0) throw new Error("Monto inválido");
 
+      const period = body.reserve.period || budgetPeriodKey();
+      const fromBudget =
+        body.reserve.source === "budget" ||
+        (!body.reserve.accountId && Boolean(body.reserve.categoryId));
+
+      if (fromBudget) {
+        if (!canSeeModule(m.visibility, "budgets")) {
+          throw new ForbiddenError("Sin acceso a presupuestos");
+        }
+        if (!body.reserve.categoryId) {
+          throw new Error("Elige una categoría del presupuesto");
+        }
+        await allocateBudgetToGoal({
+          householdId: m.householdId,
+          userId: session.userId,
+          goalId: goal.id,
+          categoryId: body.reserve.categoryId,
+          amountCents,
+          period,
+          notes: body.reserve.notes,
+          date: body.reserve.date,
+        });
+        const refreshedBudget = await prisma.goal.findFirstOrThrow({
+          where: { id: goal.id },
+          include: {
+            reserves: {
+              include: {
+                account: { select: { id: true, name: true, icon: true } },
+                category: { select: { id: true, name: true, icon: true } },
+              },
+              orderBy: { createdAt: "desc" },
+            },
+          },
+        });
+        return jsonOk({ goal: mapGoal(refreshedBudget) });
+      }
+
+      if (!body.reserve.accountId) throw new Error("Cuenta no encontrada");
       const account = await prisma.account.findFirst({
         where: { id: body.reserve.accountId, householdId: m.householdId },
       });
@@ -243,7 +303,6 @@ export async function PATCH(req: Request) {
         );
       }
 
-      const period = body.reserve.period || budgetPeriodKey();
       const date = body.reserve.date || todayISO();
       const desc = `Reserva meta: ${goal.name} (${period})`;
 
@@ -274,6 +333,7 @@ export async function PATCH(req: Request) {
           },
           include: {
             account: { select: { id: true, name: true, icon: true } },
+            category: { select: { id: true, name: true, icon: true } },
           },
         });
 
@@ -306,6 +366,7 @@ export async function PATCH(req: Request) {
           reserves: {
             include: {
               account: { select: { id: true, name: true, icon: true } },
+              category: { select: { id: true, name: true, icon: true } },
             },
             orderBy: { createdAt: "desc" },
           },
@@ -343,6 +404,7 @@ export async function PATCH(req: Request) {
         reserves: {
           include: {
             account: { select: { id: true, name: true, icon: true } },
+            category: { select: { id: true, name: true, icon: true } },
           },
           orderBy: { createdAt: "desc" },
         },
@@ -386,6 +448,13 @@ export async function DELETE(req: Request) {
         include: { goal: true },
       });
       if (!reserve) throw new Error("Reserva no encontrada");
+
+      if (reserve.source === "budget") {
+        await assertBudgetReserveUndoable({
+          householdId: m.householdId,
+          period: reserve.period,
+        });
+      }
 
       await prisma.$transaction(async (tx) => {
         if (reserve.transactionId) {

@@ -26,6 +26,8 @@ assert(budgetAvailableCents(10000, 3000) === 13000, "available");
 assert(budgetRemainingCents(10000, 3000, 7000) === 6000, "remaining under plan");
 assert(budgetRemainingCents(10000, 3000, 11000) === 2000, "remaining in emergency");
 assert(budgetRemainingCents(10000, 3000, 14000) === 0, "remaining over");
+assert(budgetRemainingCents(10000, 3000, 4000, 2000) === 7000, "goal alloc reduces remaining");
+assert(budgetRemainingCents(10000, 3000, 9000, 4000) === 0, "goal alloc + spend can empty envelope");
 assert(spentAgainstEmergency(10000, 3000, 11000) === 1000, "em used");
 assert(isUsingEmergency(10000, 3000, 11000), "using em");
 assert(!isUsingEmergency(10000, 3000, 9000), "not using em");

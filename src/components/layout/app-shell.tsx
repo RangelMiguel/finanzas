@@ -104,10 +104,10 @@ export function AppShell({
               {t.appName}
             </div>
             <div className="hidden truncate text-sm text-[var(--fg-muted)] md:block">
-              <span className="text-[var(--fg-faint)]">{t.appName}</span>
+              <span>{t.appName}</span>
               {householdName ? (
                 <>
-                  <span className="mx-2 text-[var(--fg-faint)]">/</span>
+                  <span className="mx-2 text-[var(--fg-muted)]">/</span>
                   <span className="text-[var(--fg)]">{householdName}</span>
                 </>
               ) : null}
@@ -115,7 +115,7 @@ export function AppShell({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <SecurityNotifications />
-            <div className="hidden max-w-[10rem] truncate rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-[var(--fg-muted)] sm:block">
+            <div className="hidden max-w-[10rem] truncate rounded-full border border-white/20 bg-white/[0.08] px-2.5 py-1 text-xs text-[var(--fg)] sm:block">
               {userName}
             </div>
           </div>

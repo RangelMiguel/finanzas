@@ -20,10 +20,10 @@ import {
   BudgetCloseDialog,
   type CloseStatus,
 } from "@/components/budget-close-dialog";
+import { BudgetToGoalDialog } from "@/components/budget-to-goal-dialog";
 import { toast } from "sonner";
 import { addMonths, format, parse, subMonths } from "date-fns";
 import {
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -41,6 +41,7 @@ type Budget = {
   spentCents: number;
   remainingCents: number;
   availableCents: number;
+  goalAllocatedCents?: number;
   categoryId: string;
   period: string;
   category: { id: string; name: string; icon: string };
@@ -79,6 +80,8 @@ export default function BudgetsPage() {
   const [showDefaults, setShowDefaults] = useState(false);
   const [closing, setClosing] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [toGoalFor, setToGoalFor] = useState<Budget | null>(null);
+  const [toGoalBusy, setToGoalBusy] = useState(false);
 
   const period = `${month}-${half}`;
 
@@ -275,6 +278,37 @@ export default function BudgetsPage() {
     }
   }
 
+  async function sendToGoal(body: {
+    goalId: string;
+    amount: string;
+    notes?: string;
+  }) {
+    if (!toGoalFor) return;
+    setToGoalBusy(true);
+    try {
+      await api("/api/goals", {
+        method: "PATCH",
+        json: {
+          id: body.goalId,
+          reserve: {
+            source: "budget",
+            categoryId: toGoalFor.categoryId || toGoalFor.category.id,
+            amount: body.amount,
+            period,
+            notes: body.notes || null,
+          },
+        },
+      });
+      toast.success(t.budgets.toGoalSuccess);
+      setToGoalFor(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    } finally {
+      setToGoalBusy(false);
+    }
+  }
+
   async function doUndoClose() {
     const nothingMoved = (close?.appliedSummary?.movedCents || 0) === 0;
     const ok = await confirm({
@@ -303,14 +337,18 @@ export default function BudgetsPage() {
   const totalSpent = budgets.reduce((s, b) => s + b.spentCents, 0);
   const totalEmergency = budgets.reduce((s, b) => s + (b.emergencyCents || 0), 0);
   const totalRemaining = budgets.reduce(
-    (s, b) => s + (b.remainingCents ?? Math.max(0, b.amountCents + (b.emergencyCents || 0) - b.spentCents)),
+    (s, b) =>
+      s +
+      (b.remainingCents ??
+        Math.max(
+          0,
+          b.amountCents +
+            (b.emergencyCents || 0) -
+            b.spentCents -
+            (b.goalAllocatedCents || 0)
+        )),
     0
   );
-  const halfLabel =
-    half === 1
-      ? t.budgets.half1 || "1st half (1–15)"
-      : t.budgets.half2 || "2nd half (16–end)";
-
   const showOtherPending =
     pendingClose &&
     pendingClose.canClose &&
@@ -324,7 +362,7 @@ export default function BudgetsPage() {
         subtitle={t.budgets.twoPerMonthHint || t.budgets.subtitle}
       />
 
-      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/25 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[var(--line-strong)] bg-[var(--bg-elevated)] p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
@@ -342,17 +380,17 @@ export default function BudgetsPage() {
             aria-label={t.period}
           />
           <div
-            className="flex rounded-xl border border-white/10 bg-black/30 p-0.5"
+            className="flex rounded-xl border border-[var(--line-strong)] bg-black/40 p-0.5"
             role="group"
             aria-label={t.budgets.periodHalf || "Half of month"}
           >
             <button
               type="button"
               onClick={() => setHalf(1)}
-              className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+              className={`rounded-lg px-3 py-2 text-sm font-semibold ${
                 half === 1
-                  ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
-                  : "text-[var(--fg-faint)]"
+                  ? "bg-[var(--accent)] text-[#081018]"
+                  : "text-[var(--fg-muted)]"
               }`}
             >
               {t.budgets.half1Short || "1–15"}
@@ -360,10 +398,10 @@ export default function BudgetsPage() {
             <button
               type="button"
               onClick={() => setHalf(2)}
-              className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+              className={`rounded-lg px-3 py-2 text-sm font-semibold ${
                 half === 2
-                  ? "bg-[var(--accent)]/20 text-[var(--nav-active-fg)]"
-                  : "text-[var(--fg-faint)]"
+                  ? "bg-[var(--accent)] text-[#081018]"
+                  : "text-[var(--fg-muted)]"
               }`}
             >
               {t.budgets.half2Short || "16–end"}
@@ -377,14 +415,13 @@ export default function BudgetsPage() {
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <span className="stat-pill">{halfLabel}</span>
           {bounds && (
             <span className="stat-pill">
               {bounds.start} → {bounds.end}
             </span>
           )}
           {close?.closed && (
-            <span className="stat-pill border-amber-400/30 bg-amber-400/10 text-amber-100">
+            <span className="stat-pill border-amber-400/40 bg-amber-400/15 text-amber-50">
               <Lock className="h-3 w-3" aria-hidden />
               {t.budgets.closedBadge}
             </span>
@@ -435,115 +472,48 @@ export default function BudgetsPage() {
         </button>
       )}
 
-      {close && (
-        <Card premium className="close-banner mb-4">
-          <CardContent className="space-y-3 py-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-semibold text-amber-50">
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  {t.budgets.closePeriodTitle}
-                </p>
-                <p className="mt-1 text-sm text-[var(--fg-muted)]">
-                  {close.closed
-                    ? closeDoneCopy(close, t, tr, money)
-                    : close.canClose
-                      ? close.isStale
-                        ? t.budgets.closePeriodReadyStale
-                        : tr(t.budgets.closePeriodReady, {
-                            next: close.toPeriod,
-                          })
-                      : tr(t.budgets.closePeriodTooEarly, {
-                          end: close.bounds.end,
-                        })}
-                </p>
-                <p className="mt-1 text-xs text-[var(--fg-faint)]">
-                  {close.isStale
-                    ? t.budgets.staleBanner
-                    : t.budgets.emergencyHint}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {close.canClose && (
-                  <Button
-                    onClick={() => setCloseDialogOpen(true)}
-                    disabled={closing}
-                  >
-                    {t.budgets.closePeriod}
-                  </Button>
-                )}
-                {close.canUndo && (
-                  <Button
-                    variant="secondary"
-                    onClick={doUndoClose}
-                    disabled={closing}
-                  >
-                    <Undo2 className="h-4 w-4" />
-                    {t.budgets.undoClose}
-                  </Button>
-                )}
-              </div>
-            </div>
-            {close.carryovers.length > 0 ? (
-              <ul className="grid gap-1.5 sm:grid-cols-2">
-                {close.carryovers.map((line) => (
-                  <li
-                    key={line.categoryId}
-                    className="flex items-center justify-between rounded-xl bg-black/20 px-3 py-2 text-sm"
-                  >
-                    <span>
-                      {line.icon} {line.categoryName}
-                    </span>
-                    <span className="text-amber-100">
-                      {money(line.remainingCents)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-[var(--fg-faint)]">
-                {t.budgets.noCarry}
-              </p>
-            )}
-            {close.canClose && close.totalRemainingCents === 0 && (
-              <p className="text-xs text-[var(--fg-faint)]">
-                {t.budgets.closeNothing}
-              </p>
-            )}
-            {close.closed && close.appliedSummary && close.totalRemainingCents > 0 && (
-              <p className="text-xs text-amber-100/80">
-                {t.budgets.appliedSummary}:{" "}
-                {[
-                  close.appliedSummary.emergencyCents > 0
-                    ? tr(t.budgets.allocSummaryEmergency, {
-                        amount: money(close.appliedSummary.emergencyCents),
-                      })
-                    : null,
-                  close.appliedSummary.goalCents > 0
-                    ? tr(t.budgets.allocSummaryGoal, {
-                        amount: money(close.appliedSummary.goalCents),
-                      })
-                    : null,
-                  close.appliedSummary.spentCents > 0
-                    ? tr(t.budgets.allocSummarySpent, {
-                        amount: money(close.appliedSummary.spentCents),
-                      })
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            )}
-            {!close.closed &&
-              close.totalRemainingCents > 0 &&
-              !close.isStale && (
-                <p className="text-xs text-amber-100/80">
-                  {tr(t.budgets.carryTo, { period: close.toPeriod })} ·{" "}
-                  {money(close.totalRemainingCents)}
-                </p>
+      {close && (close.canClose || close.closed) && (
+        <div className="close-banner mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-semibold text-amber-50">
+              {close.closed ? (
+                <Lock className="h-4 w-4 shrink-0" aria-hidden />
+              ) : (
+                <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
               )}
-          </CardContent>
-        </Card>
+              <span>
+                {close.closed
+                  ? closeDoneCopy(close, t, tr, money)
+                  : t.budgets.closePeriodTitle}
+              </span>
+            </p>
+            {!close.closed && (
+              <p className="mt-0.5 text-sm text-amber-50/90">
+                {money(close.totalRemainingCents)} {t.budgets.remaining}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {close.canClose && (
+              <Button
+                onClick={() => setCloseDialogOpen(true)}
+                disabled={closing}
+              >
+                {t.budgets.closePeriod}
+              </Button>
+            )}
+            {close.canUndo && (
+              <Button
+                variant="secondary"
+                onClick={doUndoClose}
+                disabled={closing}
+              >
+                <Undo2 className="h-4 w-4" />
+                {t.budgets.undoClose}
+              </Button>
+            )}
+          </div>
+        </div>
       )}
 
       {close && (
@@ -556,6 +526,19 @@ export default function BudgetsPage() {
           onConfirm={(body) => void doClose(body)}
         />
       )}
+
+      <BudgetToGoalDialog
+        open={!!toGoalFor}
+        categoryName={
+          toGoalFor
+            ? `${toGoalFor.category.icon} ${toGoalFor.category.name}`
+            : ""
+        }
+        remainingCents={toGoalFor?.remainingCents || 0}
+        loading={toGoalBusy}
+        onCancel={() => setToGoalFor(null)}
+        onConfirm={(body) => void sendToGoal(body)}
+      />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryStat
@@ -691,58 +674,54 @@ export default function BudgetsPage() {
         {budgets.map((b) => {
           const emergency = b.emergencyCents || 0;
           const available = b.availableCents ?? b.amountCents + emergency;
+          const goalAlloc = b.goalAllocatedCents || 0;
           const remaining =
-            b.remainingCents ?? Math.max(0, available - b.spentCents);
-          const over = b.spentCents > available;
+            b.remainingCents ??
+            Math.max(0, available - b.spentCents - goalAlloc);
+          const committed = b.spentCents + goalAlloc;
+          const over = committed > available;
           const usingEm =
-            emergency > 0 && b.spentCents > b.amountCents && !over;
-          const planPct =
+            emergency > 0 && committed > b.amountCents && !over;
+          const usedPct =
             available > 0
-              ? (Math.min(b.spentCents, b.amountCents) / available) * 100
+              ? (Math.min(committed, available) / available) * 100
               : 0;
-          const emPct =
-            available > 0 && b.spentCents > b.amountCents
-              ? (Math.min(b.spentCents, available) / available) * 100
-              : planPct;
           return (
             <Card key={b.id}>
               <CardContent className="py-4">
-                <div className="mb-2 flex flex-wrap items-start justify-between gap-2 text-sm">
-                  <div>
-                    <span className="font-medium">
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-[var(--fg)]">
                       {b.category.icon} {b.category.name}
-                    </span>
-                    {b.isFromDefault && (
-                      <span className="ml-2 text-[10px] uppercase tracking-wider text-teal-300/80">
-                        {t.budgets.fromDefault}
-                      </span>
-                    )}
-                    <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] text-[var(--fg-faint)]">
-                      <span>
-                        {t.budgets.planned}: {money(b.amountCents)}
-                      </span>
-                      {emergency > 0 && (
-                        <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-amber-100">
-                          {t.budgets.emergencyShort} {money(emergency)}
-                        </span>
-                      )}
-                      <span>
-                        {t.budgets.remaining}: {money(remaining)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={
+                    </p>
+                    <p
+                      className={`mt-0.5 font-display text-xl tabular-nums ${
                         over
                           ? "money-expense"
                           : usingEm
-                            ? "text-amber-200"
-                            : ""
-                      }
+                            ? "text-amber-100"
+                            : "text-[var(--fg)]"
+                      }`}
                     >
-                      {money(b.spentCents)} / {money(available)}
-                    </span>
+                      {money(remaining)}
+                      <span className="ml-1.5 font-sans text-sm font-normal text-[var(--fg-muted)]">
+                        {t.budgets.remaining}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--fg-muted)]">
+                      {money(b.spentCents)}
+                      {goalAlloc > 0
+                        ? ` · ${money(goalAlloc)} ${t.budgets.toGoalsShort}`
+                        : ""}{" "}
+                      / {money(available)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {remaining > 0 && !close?.closed && (
+                      <Button size="sm" onClick={() => setToGoalFor(b)}>
+                        {t.budgets.toGoal}
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       size="sm"
@@ -759,28 +738,18 @@ export default function BudgetsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="progress-track progress-track-split h-2">
+                <div className="progress-track h-2.5">
                   <div
-                    className="progress-fill progress-fill-emergency h-full"
-                    style={{ width: `${Math.min(emPct, 100)}%` }}
-                  />
-                  <div
-                    className={`progress-fill h-full ${over ? "bg-[var(--expense)]" : ""}`}
-                    style={{ width: `${Math.min(planPct, 100)}%` }}
+                    className={`progress-fill h-full ${over ? "bg-[var(--expense)]" : usingEm ? "progress-fill-emergency" : ""}`}
+                    style={{ width: `${Math.min(usedPct, 100)}%` }}
                   />
                 </div>
                 {over && (
-                  <p className="mt-1 flex items-center gap-1 text-xs money-expense">
-                    <ShieldAlert className="h-3 w-3" aria-hidden />
+                  <p className="mt-2 flex items-center gap-1 text-sm money-expense">
+                    <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
                     {tr(t.budgets.overBy, {
-                      amount: money(b.spentCents - available),
+                      amount: money(committed - available),
                     })}
-                  </p>
-                )}
-                {usingEm && (
-                  <p className="mt-1 flex items-center gap-1 text-xs text-amber-200">
-                    <CheckCircle2 className="h-3 w-3" aria-hidden />
-                    {t.budgets.usingEmergency}
                   </p>
                 )}
               </CardContent>
@@ -823,8 +792,8 @@ function SummaryStat({
   gold?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-wider text-[var(--fg-faint)]">
+    <div className="rounded-2xl border border-[var(--line-strong)] bg-[var(--bg-elevated)] px-4 py-3">
+      <p className="text-xs font-medium text-[var(--fg-muted)]">
         {label}
       </p>
       <p
