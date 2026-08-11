@@ -81,6 +81,7 @@ model Household {
   creditCards      CreditCard[]
   installmentPlans InstallmentPlan[]
   recurringIncomes RecurringIncome[]
+  recurringExpenses RecurringExpense[]
   debts            Debt[]
   debtPayments     DebtPayment[]
   activityEvents   ActivityEvent[]
@@ -178,6 +179,7 @@ model Account {
   transactionsFrom   Transaction[]     @relation("TxnAccount")
   transactionsTo     Transaction[]     @relation("TxnToAccount")
   recurringIncomes   RecurringIncome[]
+  recurringExpenses  RecurringExpense[]
   debtPayments       DebtPayment[]
   goalReserves       GoalReserve[]
   fundings           TransactionFunding[]
@@ -203,6 +205,7 @@ model Category {
   budgetDefaults   BudgetDefault[]
   installmentPlans InstallmentPlan[]
   recurringIncomes RecurringIncome[]
+  recurringExpenses RecurringExpense[]
   allowances       Allowance[]
   goalReserves     GoalReserve[]
 
@@ -336,6 +339,7 @@ model CreditCard {
   transactions     Transaction[]
   installmentPlans InstallmentPlan[]
   fundings         TransactionFunding[]
+  recurringExpenses RecurringExpense[]
 
   @@index([householdId])
 }
@@ -377,6 +381,27 @@ model RecurringIncome {
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
   category  Category? @relation(fields: [categoryId], references: [id])
   account   Account?  @relation(fields: [accountId], references: [id])
+
+  @@index([householdId])
+}
+
+model RecurringExpense {
+  id           String   @id @default(cuid())
+  householdId  String
+  description  String
+  amountCents  Int
+  categoryId   String?
+  accountId    String?
+  creditCardId String?
+  dayOfMonth   Int
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  household  Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id])
+  account    Account?    @relation(fields: [accountId], references: [id])
+  creditCard CreditCard? @relation(fields: [creditCardId], references: [id])
 
   @@index([householdId])
 }

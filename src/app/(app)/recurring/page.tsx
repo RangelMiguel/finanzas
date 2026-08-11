@@ -19,8 +19,12 @@ type Rec = {
   amountCents: number;
   dayOfMonth: number;
   active: boolean;
+  categoryId?: string | null;
+  accountId?: string | null;
+  creditCardId?: string | null;
   category?: { name: string; icon: string } | null;
   account?: { name: string } | null;
+  creditCard?: { name: string; lastFour?: string } | null;
 };
 type Plan = {
   id: string;
@@ -33,15 +37,20 @@ type Plan = {
 };
 type Cat = { id: string; name: string; type: string };
 type Acc = { id: string; name: string };
+type CardT = { id: string; name: string; lastFour?: string };
+type Kind = "income" | "expense";
 
 export default function RecurringPage() {
   const { money, t, tr } = useApp();
   const { confirm } = useConfirm();
   const [items, setItems] = useState<Rec[]>([]);
+  const [expenses, setExpenses] = useState<Rec[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
   const [accounts, setAccounts] = useState<Acc[]>([]);
+  const [cards, setCards] = useState<CardT[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
+  const [kind, setKind] = useState<Kind>("income");
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({
     description: "",
@@ -49,40 +58,66 @@ export default function RecurringPage() {
     dayOfMonth: "1",
     categoryId: "",
     accountId: "",
+    creditCardId: "",
   });
 
   async function load() {
-    const [r, p, c, a] = await Promise.all([
+    const emptyCc = { creditCards: [] as CardT[] };
+    const [r, e, p, c, a, cc] = await Promise.all([
       api<{ recurringIncomes: Rec[] }>("/api/recurring"),
+      api<{ recurringExpenses: Rec[] }>("/api/recurring-expenses"),
       api<{ installmentPlans: Plan[] }>("/api/installments"),
       api<{ categories: Cat[] }>("/api/categories"),
       api<{ accounts: Acc[] }>("/api/accounts"),
+      api<{ creditCards: CardT[] }>("/api/credit-cards").catch(() => emptyCc),
     ]);
     setItems(r.recurringIncomes);
+    setExpenses(e.recurringExpenses);
     setPlans(p.installmentPlans);
-    setCategories(c.categories.filter((x) => x.type === "income"));
+    setCategories(c.categories);
     setAccounts(a.accounts);
+    setCards(cc.creditCards || []);
   }
 
   useEffect(() => {
     load().catch((e) => toast.error(e.message));
   }, []);
 
+  function resetForm(nextKind: Kind) {
+    setKind(nextKind);
+    setForm({
+      description: "",
+      amount: "",
+      dayOfMonth: "1",
+      categoryId: "",
+      accountId: accounts[0]?.id || "",
+      creditCardId: "",
+    });
+  }
+
   async function save() {
     try {
+      const path = kind === "expense" ? "/api/recurring-expenses" : "/api/recurring";
       const payload = {
         description: form.description,
         amount: form.amount,
         dayOfMonth: parseInt(form.dayOfMonth, 10),
         categoryId: form.categoryId || null,
-        accountId: form.accountId || null,
+        accountId: form.creditCardId ? null : form.accountId || null,
+        creditCardId: kind === "expense" ? form.creditCardId || null : undefined,
       };
       if (mode === "edit" && editId) {
-        await api("/api/recurring", { method: "PATCH", json: { id: editId, ...payload } });
-        toast.success(t.recurring.updated || t.success);
+        await api(path, { method: "PATCH", json: { id: editId, ...payload } });
+        toast.success(
+          kind === "expense"
+            ? t.recurring.expenseUpdated
+            : t.recurring.updated || t.success
+        );
       } else {
-        await api("/api/recurring", { method: "POST", json: payload });
-        toast.success(t.recurring.created);
+        await api(path, { method: "POST", json: payload });
+        toast.success(
+          kind === "expense" ? t.recurring.expenseCreated : t.recurring.created
+        );
       }
       setMode("none");
       setEditId(null);
@@ -92,20 +127,26 @@ export default function RecurringPage() {
     }
   }
 
-  function openEdit(i: Rec) {
+  function openEdit(i: Rec, nextKind: Kind) {
+    setKind(nextKind);
     setEditId(i.id);
     setForm({
       description: i.description,
       amount: centsToInput(i.amountCents),
       dayOfMonth: String(i.dayOfMonth),
-      categoryId: "",
-      accountId: "",
+      categoryId: i.categoryId || "",
+      accountId: i.accountId || "",
+      creditCardId: i.creditCardId || "",
     });
     setMode("edit");
   }
 
-  async function removeRec(id: string) {
-    await api(`/api/recurring?id=${id}`, { method: "DELETE" });
+  async function removeRec(id: string, nextKind: Kind) {
+    const path =
+      nextKind === "expense"
+        ? `/api/recurring-expenses?id=${id}`
+        : `/api/recurring?id=${id}`;
+    await api(path, { method: "DELETE" });
     await load();
   }
 
@@ -129,14 +170,40 @@ export default function RecurringPage() {
         title={t.recurring.title}
         subtitle={t.recurring.subtitle}
         actions={
-          <Button onClick={() => { setMode("new"); setEditId(null); }}>{t.recurring.newIncome}</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                resetForm("income");
+                setEditId(null);
+                setMode("new");
+              }}
+            >
+              {t.recurring.newIncome}
+            </Button>
+            <Button
+              onClick={() => {
+                resetForm("expense");
+                setEditId(null);
+                setMode("new");
+              }}
+            >
+              {t.recurring.newExpense}
+            </Button>
+          </div>
         }
       />
 
       {mode !== "none" && (
         <Card premium>
           <CardHeader>
-            <CardTitle>{mode === "edit" ? t.edit : t.recurring.newIncome}</CardTitle>
+            <CardTitle>
+              {mode === "edit"
+                ? t.edit
+                : kind === "expense"
+                  ? t.recurring.newExpense
+                  : t.recurring.newIncome}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -173,27 +240,82 @@ export default function RecurringPage() {
                 onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
               >
                 <option value="">{t.none}</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {categories
+                  .filter((c) => c.type === kind)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
               </Select>
             </div>
             <div>
-              <Label>{t.account}</Label>
-              <Select
-                className="mt-1"
-                value={form.accountId}
-                onChange={(e) => setForm({ ...form, accountId: e.target.value })}
-              >
-                <option value="">{t.none}</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </Select>
+              <Label>
+                {kind === "expense" ? t.recurring.paidWith : t.account}
+              </Label>
+              {kind === "expense" ? (
+                <Select
+                  className="mt-1"
+                  value={
+                    form.creditCardId
+                      ? `card:${form.creditCardId}`
+                      : form.accountId
+                        ? `account:${form.accountId}`
+                        : ""
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v.startsWith("card:")) {
+                      setForm({
+                        ...form,
+                        creditCardId: v.slice(5),
+                        accountId: "",
+                      });
+                    } else {
+                      setForm({
+                        ...form,
+                        accountId: v.replace(/^account:/, ""),
+                        creditCardId: "",
+                      });
+                    }
+                  }}
+                >
+                  <option value="">{t.none}</option>
+                  {accounts.length > 0 && (
+                    <optgroup label={t.transactions.sourceAccounts}>
+                      {accounts.map((a) => (
+                        <option key={a.id} value={`account:${a.id}`}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {cards.length > 0 && (
+                    <optgroup label={t.transactions.sourceCards}>
+                      {cards.map((c) => (
+                        <option key={c.id} value={`card:${c.id}`}>
+                          {c.lastFour ? `${c.name} · ${c.lastFour}` : c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </Select>
+              ) : (
+                <Select
+                  className="mt-1"
+                  value={form.accountId}
+                  onChange={(e) =>
+                    setForm({ ...form, accountId: e.target.value, creditCardId: "" })
+                  }
+                >
+                  <option value="">{t.none}</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
             </div>
             <div className="flex gap-2">
               <Button onClick={save}>{t.save}</Button>
@@ -228,10 +350,65 @@ export default function RecurringPage() {
                 <span className="money-income font-display text-lg">
                   {money(i.amountCents)}
                 </span>
-                <Button variant="secondary" size="sm" onClick={() => openEdit(i)}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openEdit(i, "income")}
+                >
                   {t.edit}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => removeRec(i.id)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeRec(i.id, "income")}
+                >
+                  {t.delete}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="rec-expenses">
+        <h2 id="rec-expenses" className="font-display text-xl">
+          {t.recurring.expenses}
+        </h2>
+        <p className="text-xs text-[var(--fg-faint)]">{t.recurring.expensesHint}</p>
+        {expenses.length === 0 && (
+          <p className="text-sm text-[var(--fg-faint)]">{t.recurring.noExpenses}</p>
+        )}
+        {expenses.map((i) => (
+          <Card key={i.id}>
+            <CardContent className="flex items-center justify-between py-4">
+              <div>
+                <div className="font-medium">{i.description}</div>
+                <div className="text-xs text-[var(--fg-faint)]">
+                  {t.recurring.dayOfMonth} {i.dayOfMonth}
+                  {i.category ? ` · ${i.category.icon} ${i.category.name}` : ""}
+                  {i.creditCard
+                    ? ` · ${i.creditCard.name}`
+                    : i.account
+                      ? ` · ${i.account.name}`
+                      : ""}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="money-expense font-display text-lg">
+                  {money(i.amountCents)}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openEdit(i, "expense")}
+                >
+                  {t.edit}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeRec(i.id, "expense")}
+                >
                   {t.delete}
                 </Button>
               </div>

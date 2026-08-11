@@ -233,6 +233,8 @@ export const es = {
     filterUnassigned: "Sin asignar",
     filterClear: "Limpiar filtros",
     emptyFiltered: "Ningún movimiento coincide con los filtros",
+    makeRecurring: "Hacer recurrente",
+    madeRecurring: "Pago marcado como recurrente cada mes",
     created: "Transacción creada",
     updated: "Transacción actualizada",
     empty: "No hay transacciones en este periodo",
@@ -441,8 +443,16 @@ export const es = {
 
   recurring: {
     title: "Recurrentes",
-    subtitle: "Ingresos recurrentes y pagos diferidos (MSI)",
+    subtitle: "Ingresos, pagos fijos (Spotify, internet…) y MSI",
     newIncome: "Nuevo ingreso recurrente",
+    newExpense: "Nuevo pago recurrente",
+    expenses: "Pagos recurrentes",
+    expensesHint:
+      "Suscripciones y servicios del mes (Spotify, internet, renta). Se registran solos el día que indiques, en la cuenta o tarjeta elegida. Si borras un cargo auto-registrado, ese día no se vuelve a crear.",
+    noExpenses: "Sin pagos recurrentes",
+    expenseCreated: "Pago recurrente creado",
+    expenseUpdated: "Pago recurrente actualizado",
+    paidWith: "Pagar con",
     incomes: "Ingresos recurrentes",
     incomesHint:
       "Se registran solos en la fecha (p. ej. día 30) y entran al saldo y a ¿Cuánto gastar?. Si abres la app después, se publican los pendientes de meses recientes. Si borras un sueldo auto-registrado, no se vuelve a crear ese día.",
@@ -1381,6 +1391,8 @@ export const en: Dictionary = {
     filterUnassigned: "Unassigned",
     filterClear: "Clear filters",
     emptyFiltered: "No movements match these filters",
+    makeRecurring: "Make recurring",
+    madeRecurring: "Payment will repeat every month",
     created: "Transaction created",
     updated: "Transaction updated",
     empty: "No transactions in this period",
@@ -1589,8 +1601,16 @@ export const en: Dictionary = {
 
   recurring: {
     title: "Recurring",
-    subtitle: "Recurring income and installment plans",
+    subtitle: "Income, fixed payments (Spotify, internet…), and installments",
     newIncome: "New recurring income",
+    newExpense: "New recurring payment",
+    expenses: "Recurring payments",
+    expensesHint:
+      "Monthly subscriptions and bills (Spotify, internet, rent). Posted automatically on the day you set, from the chosen account or card. Deleting an auto-posted charge dismisses that day so it won’t come back.",
+    noExpenses: "No recurring payments",
+    expenseCreated: "Recurring payment created",
+    expenseUpdated: "Recurring payment updated",
+    paidWith: "Pay with",
     incomes: "Recurring income",
     incomesHint:
       "Posted automatically on the due day (e.g. day 30) into your balance and Safe to spend. If you open the app later, recent missed paydays are backfilled. Deleting an auto-posted salary dismisses that payday so it won’t come back.",

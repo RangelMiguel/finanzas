@@ -356,6 +356,32 @@ export default function TransactionsPage() {
     }
   }
 
+  async function makeRecurring(txn: Txn) {
+    try {
+      const day = parseInt(txn.date.slice(8, 10), 10) || 1;
+      const funding = txn.fundings?.[0];
+      const creditCardId =
+        funding?.creditCardId || txn.creditCardId || null;
+      const accountId = creditCardId
+        ? null
+        : funding?.accountId || txn.accountId || null;
+      await api("/api/recurring-expenses", {
+        method: "POST",
+        json: {
+          description: txn.description,
+          amount: centsToInput(txn.amountCents),
+          dayOfMonth: day,
+          categoryId: txn.categoryId || null,
+          accountId,
+          creditCardId,
+        },
+      });
+      toast.success(t.transactions.madeRecurring);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
   async function remove(id: string) {
     const ok = await confirm({
       title: t.delete,
@@ -740,6 +766,15 @@ export default function TransactionsPage() {
                       onClick={() => openEdit(txn)}
                     >
                       {t.edit}
+                    </Button>
+                  )}
+                  {txn.type === "expense" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => makeRecurring(txn)}
+                    >
+                      {t.transactions.makeRecurring}
                     </Button>
                   )}
                   <Button

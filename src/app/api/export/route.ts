@@ -22,6 +22,7 @@ export async function POST(req: Request) {
       creditCards,
       installmentPlans,
       recurringIncomes,
+      recurringExpenses,
       debts,
       debtPayments,
     ] = await Promise.all([
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
       prisma.creditCard.findMany({ where: { householdId: m.householdId } }),
       prisma.installmentPlan.findMany({ where: { householdId: m.householdId } }),
       prisma.recurringIncome.findMany({ where: { householdId: m.householdId } }),
+      prisma.recurringExpense.findMany({ where: { householdId: m.householdId } }),
       prisma.debt.findMany({ where: { householdId: m.householdId } }),
       prisma.debtPayment.findMany({ where: { householdId: m.householdId } }),
     ]);
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
       creditCards,
       installmentPlans,
       recurringIncomes,
+      recurringExpenses,
       debts,
       debtPayments,
     };

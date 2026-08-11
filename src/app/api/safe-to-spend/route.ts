@@ -13,10 +13,11 @@ import {
   recordedForCard,
 } from "@/lib/cc-payment";
 import {
-  ensureRecurringIncomesPosted,
   listFutureRecurringDates,
   recurringOccurrenceHandled,
 } from "@/lib/recurring-income";
+import { recurringExpenseOccurrenceHandled } from "@/lib/recurring-expense";
+import { ensureRecurringPosted } from "@/lib/recurring";
 import { addMonths, format, setDate, differenceInCalendarDays } from "date-fns";
 
 async function buildFutureItems(opts: {
@@ -65,6 +66,35 @@ async function buildFutureItems(opts: {
           label: r.description,
         });
       }
+    }
+  }
+
+  const recurringExpenses = await prisma.recurringExpense.findMany({
+    where: { householdId: opts.householdId, active: true },
+  });
+  for (const r of recurringExpenses) {
+    const dates = listFutureRecurringDates({
+      dayOfMonth: r.dayOfMonth,
+      fromDate: todayStr,
+      untilDate,
+      monthsAhead,
+    });
+    for (const date of dates) {
+      const handled = await recurringExpenseOccurrenceHandled({
+        householdId: opts.householdId,
+        date,
+        amountCents: r.amountCents,
+        description: r.description,
+        accountId: r.accountId,
+        creditCardId: r.creditCardId,
+      });
+      if (handled) continue;
+      futureItems.push({
+        date,
+        amountCents: r.amountCents,
+        type: "expense",
+        label: r.description,
+      });
     }
   }
 
@@ -238,7 +268,7 @@ export async function GET(req: Request) {
     }
 
     // Post due recurring salaries (incl. last month day-30) before projecting
-    await ensureRecurringIncomesPosted(m.householdId, {
+    await ensureRecurringPosted(m.householdId, {
       userId: session.userId,
     });
 
@@ -332,7 +362,7 @@ export async function POST(req: Request) {
     }
     if (targetAmount) horizonDays = Math.max(horizonDays, 730);
 
-    await ensureRecurringIncomesPosted(m.householdId, {
+    await ensureRecurringPosted(m.householdId, {
       userId: session.userId,
     });
 

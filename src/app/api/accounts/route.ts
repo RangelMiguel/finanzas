@@ -18,7 +18,7 @@ import {
   filterTransaction,
 } from "@/lib/visibility";
 import { ensureAllPersonalAccounts } from "@/lib/personal";
-import { ensureRecurringIncomesPosted } from "@/lib/recurring-income";
+import { ensureRecurringPosted } from "@/lib/recurring";
 
 export async function GET() {
   try {
@@ -30,7 +30,7 @@ export async function GET() {
     }
     await ensureAllPersonalAccounts(m.householdId);
     // Keep balances current with due recurring income (e.g. day-30 salary)
-    await ensureRecurringIncomesPosted(m.householdId, {
+    await ensureRecurringPosted(m.householdId, {
       userId: session.userId,
     });
     const accounts = await prisma.account.findMany({

@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       creditCards?: unknown[];
       installmentPlans?: unknown[];
       recurringIncomes?: unknown[];
+      recurringExpenses?: unknown[];
       debts?: unknown[];
       debtPayments?: unknown[];
     };
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
         prisma.debt.deleteMany({ where: { householdId: m.householdId } }),
         prisma.installmentPlan.deleteMany({ where: { householdId: m.householdId } }),
         prisma.recurringIncome.deleteMany({ where: { householdId: m.householdId } }),
+        prisma.recurringExpense.deleteMany({ where: { householdId: m.householdId } }),
         prisma.creditCard.deleteMany({ where: { householdId: m.householdId } }),
         prisma.account.deleteMany({ where: { householdId: m.householdId } }),
         prisma.category.deleteMany({ where: { householdId: m.householdId } }),
@@ -221,6 +223,25 @@ export async function POST(req: Request) {
             ? catMap.get(String(r.categoryId)) || null
             : null,
           accountId: r.accountId ? accMap.get(String(r.accountId)) || null : null,
+          dayOfMonth: Number(r.dayOfMonth || 1),
+          active: r.active !== false,
+        },
+      });
+    }
+
+    for (const r of (data.recurringExpenses || []) as AnyRec[]) {
+      await prisma.recurringExpense.create({
+        data: {
+          householdId: m.householdId,
+          description: String(r.description),
+          amountCents: Number(r.amountCents || 0),
+          categoryId: r.categoryId
+            ? catMap.get(String(r.categoryId)) || null
+            : null,
+          accountId: r.accountId ? accMap.get(String(r.accountId)) || null : null,
+          creditCardId: r.creditCardId
+            ? cardMap.get(String(r.creditCardId)) || null
+            : null,
           dayOfMonth: Number(r.dayOfMonth || 1),
           active: r.active !== false,
         },
