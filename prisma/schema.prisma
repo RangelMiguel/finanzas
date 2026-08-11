@@ -124,6 +124,13 @@ model PropertyItem {
   /// home | vehicle | land | jewelry | electronics | furniture | mortgage | loan | other
   category    String   @default("other")
   valueCents  Int      @default(0)
+  /// none | appreciate | depreciate
+  valueChange String   @default("none")
+  annualRatePercent Float @default(0)
+  /// compound | straight
+  method      String   @default("compound")
+  usefulLifeYears Float?
+  salvageCents Int     @default(0)
   notes       String?
   acquiredOn  String?
   createdAt   DateTime @default(now())

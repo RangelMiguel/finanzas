@@ -12,10 +12,24 @@ import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
-import { centsToInput } from "@/lib/utils";
+import { amountToCents, centsToInput } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  defaultValuePolicy,
+  valueItem,
+  type ValueChange,
+  type ValueMethod,
+} from "@/lib/properties/valuation";
 
 type Kind = "asset" | "liability";
+
+type Valuation = {
+  originalCents: number;
+  currentCents: number;
+  deltaCents: number;
+  deltaPercent: number | null;
+  yearsHeld: number;
+};
 
 type Item = {
   id: string;
@@ -23,8 +37,14 @@ type Item = {
   kind: Kind;
   category: string;
   valueCents: number;
+  valueChange: ValueChange;
+  annualRatePercent: number;
+  method: ValueMethod;
+  usefulLifeYears: number | null;
+  salvageCents: number;
   notes: string | null;
   acquiredOn: string | null;
+  valuation: Valuation;
 };
 
 const ASSET_CATS = [
@@ -38,8 +58,18 @@ const ASSET_CATS = [
 ] as const;
 const LIAB_CATS = ["mortgage", "loan", "other"] as const;
 
+function policyToForm(p: ReturnType<typeof defaultValuePolicy>) {
+  return {
+    valueChange: p.valueChange,
+    annualRatePercent: String(p.annualRatePercent),
+    method: p.method,
+    usefulLifeYears: p.usefulLifeYears != null ? String(p.usefulLifeYears) : "",
+    salvage: "",
+  };
+}
+
 export default function PropertiesPage() {
-  const { money, t } = useApp();
+  const { money, t, tr } = useApp();
   const { confirm } = useConfirm();
   const [items, setItems] = useState<Item[]>([]);
   const [totals, setTotals] = useState({
@@ -54,6 +84,11 @@ export default function PropertiesPage() {
     kind: "asset" as Kind,
     category: "home",
     value: "",
+    valueChange: "none" as ValueChange,
+    annualRatePercent: "0",
+    method: "compound" as ValueMethod,
+    usefulLifeYears: "",
+    salvage: "",
     notes: "",
     acquiredOn: "",
   });
@@ -81,6 +116,7 @@ export default function PropertiesPage() {
       kind,
       category: kind === "asset" ? "home" : "mortgage",
       value: "",
+      ...policyToForm(defaultValuePolicy(kind, kind === "asset" ? "home" : "mortgage")),
       notes: "",
       acquiredOn: "",
     });
@@ -94,6 +130,12 @@ export default function PropertiesPage() {
       kind: item.kind,
       category: item.category,
       value: centsToInput(item.valueCents),
+      valueChange: item.valueChange || "none",
+      annualRatePercent: String(item.annualRatePercent ?? 0),
+      method: item.method || "compound",
+      usefulLifeYears:
+        item.usefulLifeYears != null ? String(item.usefulLifeYears) : "",
+      salvage: item.salvageCents ? centsToInput(item.salvageCents) : "",
       notes: item.notes || "",
       acquiredOn: item.acquiredOn || "",
     });
@@ -106,6 +148,13 @@ export default function PropertiesPage() {
         kind: form.kind,
         category: form.category,
         value: form.value,
+        valueChange: form.valueChange,
+        annualRatePercent: parseFloat(form.annualRatePercent) || 0,
+        method: form.method,
+        usefulLifeYears: form.usefulLifeYears
+          ? parseFloat(form.usefulLifeYears)
+          : null,
+        salvage: form.salvage || 0,
         notes: form.notes || null,
         acquiredOn: form.acquiredOn || null,
       };
@@ -138,6 +187,18 @@ export default function PropertiesPage() {
     await api(`/api/properties?id=${id}`, { method: "DELETE" });
     await load();
   }
+
+  const formPreview = valueItem({
+    originalCents: amountToCents(form.value || 0),
+    acquiredOn: form.acquiredOn || null,
+    valueChange: form.valueChange,
+    annualRatePercent: parseFloat(form.annualRatePercent) || 0,
+    method: form.method,
+    usefulLifeYears: form.usefulLifeYears
+      ? parseFloat(form.usefulLifeYears)
+      : null,
+    salvageCents: amountToCents(form.salvage || 0),
+  });
 
   const categoryOptions = form.kind === "asset" ? ASSET_CATS : LIAB_CATS;
   const assets = items.filter((i) => i.kind === "asset");
@@ -215,10 +276,12 @@ export default function PropertiesPage() {
                 value={form.kind}
                 onChange={(e) => {
                   const kind = e.target.value as Kind;
+                  const category = kind === "asset" ? "home" : "mortgage";
                   setForm({
                     ...form,
                     kind,
-                    category: kind === "asset" ? "home" : "mortgage",
+                    category,
+                    ...policyToForm(defaultValuePolicy(kind, category)),
                   });
                 }}
               >
@@ -231,7 +294,14 @@ export default function PropertiesPage() {
               <Select
                 className="mt-1"
                 value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                onChange={(e) => {
+                  const category = e.target.value;
+                  setForm({
+                    ...form,
+                    category,
+                    ...policyToForm(defaultValuePolicy(form.kind, category)),
+                  });
+                }}
               >
                 {categoryOptions.map((c) => (
                   <option key={c} value={c}>
@@ -264,6 +334,100 @@ export default function PropertiesPage() {
                 }
               />
             </div>
+            <div>
+              <Label>{t.properties.valueChange}</Label>
+              <Select
+                className="mt-1"
+                value={form.valueChange}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    valueChange: e.target.value as ValueChange,
+                  })
+                }
+              >
+                <option value="none">{t.properties.changeNone}</option>
+                <option value="appreciate">{t.properties.changeUp}</option>
+                <option value="depreciate">{t.properties.changeDown}</option>
+              </Select>
+            </div>
+            {form.valueChange !== "none" && (
+              <>
+                <div>
+                  <Label>{t.properties.annualRate}</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    className="mt-1"
+                    value={form.annualRatePercent}
+                    onChange={(e) =>
+                      setForm({ ...form, annualRatePercent: e.target.value })
+                    }
+                  />
+                </div>
+                {form.valueChange === "depreciate" && (
+                  <>
+                    <div>
+                      <Label>{t.properties.method}</Label>
+                      <Select
+                        className="mt-1"
+                        value={form.method}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            method: e.target.value as ValueMethod,
+                          })
+                        }
+                      >
+                        <option value="compound">
+                          {t.properties.methodCompound}
+                        </option>
+                        <option value="straight">
+                          {t.properties.methodStraight}
+                        </option>
+                      </Select>
+                    </div>
+                    {form.method === "straight" && (
+                      <>
+                        <div>
+                          <Label>{t.properties.usefulLife}</Label>
+                          <Input
+                            type="number"
+                            step="0.5"
+                            className="mt-1"
+                            value={form.usefulLifeYears}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                usefulLifeYears: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>{t.properties.salvage}</Label>
+                          <Input
+                            money
+                            className="mt-1"
+                            value={form.salvage}
+                            onChange={(e) =>
+                              setForm({ ...form, salvage: e.target.value })
+                            }
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+                <p className="sm:col-span-2 text-xs text-[var(--fg-muted)]">
+                  {form.acquiredOn
+                    ? tr(t.properties.previewToday, {
+                        amount: money(formPreview.currentCents),
+                      })
+                    : t.properties.needsDate}
+                </p>
+              </>
+            )}
             <div className="sm:col-span-2">
               <Label>{t.notes}</Label>
               <Textarea
@@ -338,7 +502,7 @@ function ItemCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const { money, t } = useApp();
+  const { money, t, tr } = useApp();
   return (
     <Card>
       <CardContent className="flex items-center justify-between py-4">
@@ -347,17 +511,40 @@ function ItemCard({
           <div className="text-xs text-[var(--fg-faint)]">
             {categoryLabel}
             {item.acquiredOn ? ` · ${item.acquiredOn}` : ""}
+            {item.valuation && item.valuation.deltaCents !== 0
+              ? ` · ${tr(t.properties.original, {
+                  amount: money(item.valuation.originalCents),
+                })}`
+              : ""}
             {item.notes ? ` · ${item.notes}` : ""}
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span
-            className={`font-display text-lg ${
-              item.kind === "asset" ? "text-emerald-300" : "money-expense"
-            }`}
-          >
-            {money(item.valueCents)}
-          </span>
+          <div className="text-right">
+            <span
+              className={`font-display text-lg ${
+                item.kind === "asset" ? "text-emerald-300" : "money-expense"
+              }`}
+            >
+              {money(item.valuation?.currentCents ?? item.valueCents)}
+            </span>
+            {item.valuation &&
+              item.valuation.deltaPercent != null &&
+              item.valuation.deltaCents !== 0 && (
+                <div
+                  className={`text-[11px] ${
+                    item.valuation.deltaCents > 0
+                      ? "text-emerald-300"
+                      : "text-amber-200"
+                  }`}
+                >
+                  {tr(t.properties.changeVsOriginal, {
+                    sign: item.valuation.deltaCents > 0 ? "+" : "",
+                    pct: item.valuation.deltaPercent.toFixed(1),
+                  })}
+                </div>
+              )}
+          </div>
           <Button variant="secondary" size="sm" onClick={onEdit}>
             {t.edit}
           </Button>

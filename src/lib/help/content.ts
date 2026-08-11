@@ -465,7 +465,7 @@ const es: HelpContent = {
           summary: "Activos y pasivos: patrimonio del hogar.",
           href: "/properties",
           paragraphs: [
-            "Instálalo desde el Marketplace. Ahí registras bienes (casa, auto, joyas) y deudas asociadas (hipoteca, préstamos) con un valor estimado.",
+            "Instálalo desde el Marketplace. Ahí registras bienes (casa, auto, joyas) y deudas asociadas (hipoteca, préstamos) con un valor de compra y plusvalía o depreciación anual.",
             "El patrimonio neto es activos menos pasivos. No mueve saldos de cuentas ni sustituye el módulo de Deudas.",
           ],
         },
@@ -996,7 +996,7 @@ const en: HelpContent = {
           summary: "Assets and liabilities: household net worth.",
           href: "/properties",
           paragraphs: [
-            "Install it from the Marketplace. Track valuables (home, car, jewelry) and related liabilities (mortgage, loans) with an estimated value.",
+            "Install it from the Marketplace. Track valuables (home, car, jewelry) and related liabilities (mortgage, loans) with a purchase value plus yearly appreciation or depreciation.",
             "Net worth is assets minus liabilities. It does not move account balances or replace the Debts module.",
           ],
         },
