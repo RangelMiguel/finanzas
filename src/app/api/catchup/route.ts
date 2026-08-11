@@ -34,6 +34,7 @@ export async function POST(req: Request) {
               description: z.string(),
               type: z.enum(["income", "expense"]),
               accountId: z.string().optional().nullable(),
+              creditCardId: z.string().optional().nullable(),
               categoryId: z.string().optional().nullable(),
             })
           )
@@ -77,17 +78,32 @@ export async function POST(req: Request) {
           if (cat) categoryId = cat.id;
         }
       }
+      const amountCents = pesosToCents(t.amount);
+      const accountId = t.accountId || null;
+      const creditCardId = t.creditCardId || null;
       await prisma.transaction.create({
         data: {
           householdId: m.householdId,
           date: t.date,
-          amountCents: pesosToCents(t.amount),
+          amountCents,
           description: t.description,
           type: t.type,
           categoryId,
-          accountId: t.accountId || null,
+          accountId: creditCardId ? null : accountId,
+          creditCardId,
           createdById: session.userId,
           spentById: session.userId,
+          ...(t.type === "expense" && (accountId || creditCardId)
+            ? {
+                fundings: {
+                  create: {
+                    amountCents,
+                    accountId: creditCardId ? null : accountId,
+                    creditCardId,
+                  },
+                },
+              }
+            : {}),
         },
       });
       created++;

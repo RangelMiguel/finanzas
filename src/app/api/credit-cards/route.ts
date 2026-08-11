@@ -8,6 +8,7 @@ import { ForbiddenError } from "@/lib/auth";
 import { monthBounds } from "@/lib/money";
 import {
   addDaysISO,
+  detailedCardPaymentSchedule,
   summarizeCardPayments,
 } from "@/lib/credit-card-cycles";
 import {
@@ -40,6 +41,7 @@ export async function GET() {
           monthSpendCents: 0,
           nextPayment: null,
           followingPayment: null,
+          outstandingCents: null,
           namesOnly: true,
         })),
       });
@@ -101,6 +103,7 @@ export async function GET() {
 
     return jsonOk({
       creditCards: visible.map((c) => {
+        const recorded = recordedForCard(recordedAll, c.id);
         const summary = summarizeCardPayments({
           creditCardId: c.id,
           cutoffDay: c.cutoffDay,
@@ -110,13 +113,23 @@ export async function GET() {
           monthEnd,
           transactions: spend,
           installments,
-          recordedPayments: recordedForCard(recordedAll, c.id),
+          recordedPayments: recorded,
+        });
+        const schedule = detailedCardPaymentSchedule({
+          creditCardId: c.id,
+          cutoffDay: c.cutoffDay,
+          graceDays: c.graceDays,
+          asOf,
+          transactions: spend,
+          installments,
+          recordedPayments: recorded,
         });
         return {
           ...c,
           monthSpendCents: summary.monthSpendCents,
           nextPayment: summary.nextPayment,
           followingPayment: summary.followingPayment,
+          outstandingCents: schedule.totalPendingCents,
         };
       }),
     });

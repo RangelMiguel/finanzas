@@ -475,6 +475,8 @@ const es: HelpContent = {
           href: "/?catchup=1",
           paragraphs: [
             "Acceso rápido desde el menú inferior. Te ayuda a revisar novedades del hogar sin buscar pantalla por pantalla.",
+            "Puedes capturar el saldo real de cuentas y tarjetas. La diferencia contra la app muestra gastos (o ingresos) que aún no registraste.",
+            "Si falta dinero en una cuenta o sobra deuda en una tarjeta, vuelve a gastos e ingresos y agrégalos — también puedes marcar que se pagó con tarjeta.",
           ],
         },
       ],
@@ -974,6 +976,8 @@ const en: HelpContent = {
           href: "/?catchup=1",
           paragraphs: [
             "Quick link at the bottom of the menu. Helps you scan household updates without opening every screen.",
+            "Enter the real balance of accounts and cards. The gap vs the app shows expenses (or income) you still need to log.",
+            "If an account is short or a card shows extra debt, go back to expenses and add them — you can also mark a charge as paid with a card.",
           ],
         },
       ],
