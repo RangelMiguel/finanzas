@@ -756,3 +756,13 @@ model RetirementPlan {
   @@unique([householdId, userId])
   @@index([userId])
 }
+
+/// Latest fetched reference rates (refreshed once per calendar month).
+model MarketRateSnapshot {
+  id         String   @id @default("global")
+  /// YYYY-MM in America/Mexico_City
+  monthKey   String
+  fetchedAt  DateTime
+  quotesJson String
+  statusJson String   @default("{}")
+}

@@ -612,6 +612,41 @@ export const es = {
     todayMoney: "En pesos de hoy",
     contrib: "Aportaciones",
     withdraw: "Retiros",
+    rates: {
+      title: "Tasas de referencia",
+      subtitle:
+        "Instrumentos principales por país. Las tasas se actualizan solas el día 1 de cada mes. Elige una para copiarla a los supuestos del plan.",
+      country: "País",
+      instrument: "Instrumento",
+      pickInstrument: "Elegir instrumento…",
+      asOf: "Al {date}",
+      source: "Fuente: {source}",
+      applyPre: "Usar antes del retiro",
+      applyPost: "Usar en retiro",
+      applyInflation: "Usar como inflación",
+      appliedPre: "Rendimiento pre-retiro actualizado a {pct}%",
+      appliedPost: "Rendimiento en retiro actualizado a {pct}%",
+      appliedInflation: "Inflación actualizada a {pct}%",
+      realRate: "tasa real + inflación",
+      realShort: "real + inflación",
+      realAppliedAs:
+        "Udibono: se aplicó el equivalente nominal ≈ {pct}% (tasa real + inflación del plan)",
+      disclaimer:
+        "Tasas indicativas (no son oferta ni asesoría). Se actualizan solas el día 1 de cada mes desde Banxico, CETES Directo y CONSAR. Recalcula el plan después de aplicar una tasa.",
+      refreshing: "Actualizando tasas del mes…",
+      lastRefresh: "Última actualización: {date}",
+      nextRefresh: "próxima el 1 de {month}",
+      usingBundled: "Mostrando la última captura conocida",
+      categories: {
+        policy: "Política monetaria",
+        money: "Mercado de dinero",
+        bills: "CETES",
+        bonds: "Bonos M",
+        udibonos: "Udibonos",
+        afore: "AFORE / SIEFORE",
+        inflation: "Inflación",
+      },
+    },
   },
 
   safe: {
@@ -1692,6 +1727,41 @@ export const en: Dictionary = {
     todayMoney: "In today's money",
     contrib: "Contributions",
     withdraw: "Withdrawals",
+    rates: {
+      title: "Reference rates",
+      subtitle:
+        "Main instruments by country. Rates refresh automatically on the 1st of each month. Pick one to copy it into the plan assumptions.",
+      country: "Country",
+      instrument: "Instrument",
+      pickInstrument: "Choose an instrument…",
+      asOf: "As of {date}",
+      source: "Source: {source}",
+      applyPre: "Use before retirement",
+      applyPost: "Use in retirement",
+      applyInflation: "Use as inflation",
+      appliedPre: "Pre-retirement return updated to {pct}%",
+      appliedPost: "Retirement return updated to {pct}%",
+      appliedInflation: "Inflation updated to {pct}%",
+      realRate: "real rate + inflation",
+      realShort: "real + inflation",
+      realAppliedAs:
+        "Udibono: applied nominal equivalent ≈ {pct}% (real rate + plan inflation)",
+      disclaimer:
+        "Indicative rates only—not an offer or advice. They refresh automatically on the 1st of each month from Banxico, CETES Directo, and CONSAR. Recalculate the plan after applying a rate.",
+      refreshing: "Updating this month's rates…",
+      lastRefresh: "Last updated: {date}",
+      nextRefresh: "next on the 1st of {month}",
+      usingBundled: "Showing the last known snapshot",
+      categories: {
+        policy: "Monetary policy",
+        money: "Money market",
+        bills: "CETES",
+        bonds: "M-Bonds",
+        udibonos: "Udibonos",
+        afore: "AFORE / SIEFORE",
+        inflation: "Inflation",
+      },
+    },
   },
 
   safe: {

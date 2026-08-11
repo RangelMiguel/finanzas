@@ -20,6 +20,8 @@ import {
   Info,
 } from "lucide-react";
 import type { RetirementResult } from "@/lib/retirement";
+import { RetirementRatesCard } from "@/components/retirement-rates-card";
+import { formatRatePercent } from "@/lib/market-instruments";
 
 type Plan = {
   id: string;
@@ -666,6 +668,15 @@ export default function RetirementPage() {
           </CardContent>
         </Card>
       </div>
+
+      <RetirementRatesCard
+        inflationPercent={parseFloat(form.inflationPercent) || 0}
+        onApplyPre={(pct) => set("returnPrePercent", formatRatePercent(pct))}
+        onApplyPost={(pct) => set("returnPostPercent", formatRatePercent(pct))}
+        onApplyInflation={(pct) =>
+          set("inflationPercent", formatRatePercent(pct))
+        }
+      />
 
       {/* Detail cards */}
       <div className="grid gap-4 lg:grid-cols-3">

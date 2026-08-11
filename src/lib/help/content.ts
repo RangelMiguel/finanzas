@@ -303,6 +303,7 @@ const es: HelpContent = {
           paragraphs: [
             "Simulador de largo plazo: edades, gasto deseado en retiro, rendimientos, inflación, SWR (tasa de retiro seguro), pensión e ingresos extra.",
             "Puedes basar el ahorro actual en saldos del hogar y/o metas, o capturarlo a mano. Ajusta aportación mensual y crecimiento de aportaciones.",
+            "Incluye tasas de referencia de instrumentos en México (CETES, Bonos M, Udibonos, TIIE, AFORE, inflación) agrupadas por país. Se actualizan solas el día 1 de cada mes.",
             "Muestra si vas “en buen camino” o con brecha, mensualidad sugerida para cerrarla, gráfica y tabla año a año.",
             "Es una estimación educativa, no asesoría financiera formal.",
           ],
@@ -801,6 +802,7 @@ const en: HelpContent = {
           paragraphs: [
             "Long-range simulator: ages, desired retirement spend, returns, inflation, safe withdrawal rate, pension, and other income.",
             "Base current savings on household balances and/or goals, or enter manually. Tune monthly contributions and contribution growth.",
+            "Includes Mexico reference rates (CETES, M-Bonds, Udibonos, TIIE, AFORE, inflation) grouped by country. They refresh automatically on the 1st of each month.",
             "Shows on-track vs gap, suggested monthly savings, chart, and year-by-year table.",
             "Educational estimate only—not formal financial advice.",
           ],

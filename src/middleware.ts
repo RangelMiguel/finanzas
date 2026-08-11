@@ -10,6 +10,7 @@ function isPublic(path: string) {
   // WebAuthn login (options + verify) must be reachable without a session
   if (path.startsWith("/api/auth/webauthn/login")) return true;
   if (path.startsWith("/api/invites/peek")) return true;
+  if (path.startsWith("/api/cron/")) return true;
   if (path.startsWith("/_next") || path.startsWith("/favicon")) return true;
   return false;
 }
