@@ -31,7 +31,9 @@ export type AppModuleId =
   | "importExport"
   | "family"
   | "settings"
-  | "properties";
+  | "properties"
+  | "prices"
+  | "investments";
 
 export type AppModuleDef = {
   id: AppModuleId;
@@ -64,6 +66,8 @@ export const APP_MODULES: AppModuleDef[] = [
     href: "/properties",
     priceCents: 0,
   },
+  { id: "prices", kind: "addon", href: "/prices", priceCents: 0 },
+  { id: "investments", kind: "addon", href: "/investments", priceCents: 0 },
 ];
 
 export const ADDON_MODULES = APP_MODULES.filter((m) => m.kind === "addon");

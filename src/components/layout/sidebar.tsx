@@ -25,6 +25,8 @@ import {
   CircleHelp,
   Store,
   Home,
+  ShoppingBasket,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -161,6 +163,20 @@ export function Sidebar({
       label: t.nav.properties,
       icon: Home,
       module: "properties",
+      addon: true,
+    },
+    {
+      href: "/prices",
+      label: t.nav.prices,
+      icon: ShoppingBasket,
+      module: "prices",
+      addon: true,
+    },
+    {
+      href: "/investments",
+      label: t.nav.investments,
+      icon: TrendingUp,
+      module: "investments",
       addon: true,
     },
     {

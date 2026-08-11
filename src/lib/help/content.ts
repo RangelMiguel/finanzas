@@ -474,6 +474,28 @@ const es: HelpContent = {
             "Un pasivo se puede vincular a Deudas o crear la deuda con pago mensual. El dinero no se mueve hasta que en Deudas pulses “Pagar este mes”.",
           ],
         },
+        {
+          id: "prices",
+          title: "Precios por tienda",
+          summary: "Compara productos y vincula compras a movimientos.",
+          href: "/prices",
+          paragraphs: [
+            "Instálalo desde el Marketplace. Registra tiendas (o pulsa tiendas comunes MX) y productos con su unidad.",
+            "Anota el precio unitario que viste, o vincula un gasto de Movimientos: se calcula el precio pagado y se guarda como cotización.",
+            "Si pagaste menos que la tienda más barata conocida, eso es ahorro. Si pagaste más, ves cuánto pudiste ahorrar comprando en el otro lado.",
+          ],
+        },
+        {
+          id: "investments",
+          title: "Inversiones avanzadas",
+          summary: "Mejor opción según riesgo, plazo e ISR.",
+          href: "/investments",
+          paragraphs: [
+            "Elige riesgo, años y tu tasa marginal de ISR. El ranking usa tasas de referencia (CETES, Afore, etc.) cuando hay datos vivos.",
+            "CETES y pagarés se gravan como interés (tu tasa). Acciones/ETFs listados ~10% sobre ganancia. Afore voluntario se trata como diferido.",
+            "Es una guía de planeación, no asesoría fiscal ni recomendación personalizada de inversión.",
+          ],
+        },
       ],
     },
     {
@@ -1008,6 +1030,28 @@ const en: HelpContent = {
             "Net worth is assets minus liabilities. It does not move account balances or replace the Debts module.",
             "You can log improvements (kitchen, roof) with what you invested; the app estimates how much that usually adds or subtracts (default ~70% of cost).",
             "A liability can link to Debts or create the debt with a monthly payment. No cash moves until you tap “Pay this month” on Debts.",
+          ],
+        },
+        {
+          id: "prices",
+          title: "Store prices",
+          summary: "Compare products and link purchases to movements.",
+          href: "/prices",
+          paragraphs: [
+            "Install it from the Marketplace. Add stores (or tap common MX stores) and items with a unit.",
+            "Log a unit price you saw, or link an expense from Activity: we compute the paid unit price and save it as a quote.",
+            "If you paid less than the cheapest known store, that is savings. If you paid more, you see how much you could have saved elsewhere.",
+          ],
+        },
+        {
+          id: "investments",
+          title: "Advanced investments",
+          summary: "Best option by risk, horizon, and ISR.",
+          href: "/investments",
+          paragraphs: [
+            "Pick risk, years, and your marginal ISR rate. The ranking uses reference rates (CETES, Afore, etc.) when live data exists.",
+            "CETES and bank notes are taxed as interest (your rate). Listed stocks/ETFs ~10% on the gain. Voluntary Afore is treated as deferred.",
+            "This is planning guidance, not tax advice or a personalized investment recommendation.",
           ],
         },
       ],

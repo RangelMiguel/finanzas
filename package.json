@@ -14,7 +14,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "prisma migrate deploy && tsx prisma/seed.ts",
     "postinstall": "prisma generate",
-    "build:local": "prisma migrate deploy && next build"
+    "build:local": "prisma migrate deploy && next build",
+    "test": "tsx scripts/verify-budget-math.ts && tsx scripts/verify-cc-payments.ts && tsx scripts/verify-prices.ts && tsx scripts/verify-investments.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

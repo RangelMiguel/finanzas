@@ -43,6 +43,7 @@ model User {
   personalAccounts     Account[]             @relation("PersonalAccountOwner")
   budgetPeriodCloses   BudgetPeriodClose[]
   propertyOwners       PropertyOwner[]
+  investmentProfiles   InvestmentProfile[]
 }
 
 /// Prevents duplicate creates when offline outbox retries a POST.
@@ -99,6 +100,11 @@ model Household {
   visibilityTemplates VisibilityTemplate[]
   installedModules   HouseholdModule[]
   propertyItems      PropertyItem[]
+  priceStores        PriceStore[]
+  priceItems         PriceItem[]
+  priceQuotes        PriceQuote[]
+  pricePurchases     PricePurchase[]
+  investmentProfiles InvestmentProfile[]
 }
 
 /// Add-on modules installed for this household (marketplace).
@@ -337,6 +343,7 @@ model Transaction {
   spentBy         User?                @relation("TxnSpentBy", fields: [spentById], references: [id])
   /// How this expense was paid (one or more bank accounts and/or credit cards)
   fundings        TransactionFunding[]
+  pricePurchases  PricePurchase[]
 
   @@index([householdId, date])
   @@index([householdId, type])
@@ -869,6 +876,100 @@ model RetirementPlan {
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, userId])
+  @@index([userId])
+}
+
+/// Store for the Prices add-on (Walmart, Soriana, …).
+model PriceStore {
+  id          String   @id @default(cuid())
+  householdId String
+  name        String
+  createdAt   DateTime @default(now())
+
+  household  Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  quotes     PriceQuote[]
+  purchases  PricePurchase[]
+
+  @@index([householdId])
+}
+
+/// Catalog product whose price is compared across stores.
+model PriceItem {
+  id          String   @id @default(cuid())
+  householdId String
+  name        String
+  /// pza | kg | L | pack
+  unit        String   @default("pza")
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  household  Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  quotes     PriceQuote[]
+  purchases  PricePurchase[]
+
+  @@index([householdId])
+}
+
+/// Observed unit price of an item at a store on a date.
+model PriceQuote {
+  id          String   @id @default(cuid())
+  householdId String
+  itemId      String
+  storeId     String
+  unitCents   Int
+  observedOn  String
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  household Household  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  item      PriceItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  store     PriceStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+  @@index([itemId, observedOn])
+  @@index([storeId])
+}
+
+/// A movement (transaction) linked to an item + store. Computes save / overpay.
+model PricePurchase {
+  id              String   @id @default(cuid())
+  householdId     String
+  itemId          String
+  storeId         String
+  transactionId   String
+  quantity        Float    @default(1)
+  paidTotalCents  Int
+  purchasedOn     String
+  createdAt       DateTime @default(now())
+
+  household   Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  item        PriceItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  store       PriceStore  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+  @@index([itemId])
+  @@index([transactionId])
+}
+
+/// Risk / tax profile for the Advanced Investments add-on.
+model InvestmentProfile {
+  id                  String   @id @default(cuid())
+  householdId         String
+  userId              String
+  /// low | medium | high
+  risk                String   @default("medium")
+  horizonYears        Int      @default(3)
+  amountCents         Int      @default(0)
+  /// Marginal ISR % used for after-tax ranking
+  marginalTaxPercent  Float    @default(30)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
