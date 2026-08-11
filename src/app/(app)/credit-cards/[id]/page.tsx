@@ -18,7 +18,7 @@ import {
   CreditCardPayDialog,
   type PayTarget,
 } from "@/components/credit-card-pay-dialog";
-import { Banknote } from "lucide-react";
+import { Banknote, ChevronDown, ChevronRight } from "lucide-react";
 import { todayISO } from "@/lib/utils";
 
 type PaymentLine = {
@@ -108,6 +108,11 @@ export default function CreditCardDetailPage() {
   );
   const [saving, setSaving] = useState(false);
   const [payTarget, setPayTarget] = useState<PayTarget | null>(null);
+  const [expandedMsi, setExpandedMsi] = useState<Record<string, boolean>>({});
+
+  function toggleMsi(key: string) {
+    setExpandedMsi((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   function fmtDate(iso: string) {
     try {
@@ -501,54 +506,77 @@ export default function CreditCardDetailPage() {
 
           {msiList.length > 0 && (
             <Card premium>
-              <CardHeader>
-                <CardTitle>{t.cards.msiPendingTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="divide-y divide-white/5 p-0">
-                {msiList.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-[var(--fg)]">
-                        {p.description}
-                      </p>
-                      <p className="text-xs text-[var(--fg-faint)]">
-                        {tr(t.cards.msiLeftLine, {
-                          left: p.monthsLeft,
-                          total: p.months,
-                          monthly: money(p.monthlyAmountCents),
-                        })}
-                        {p.nextChargeDate
-                          ? ` · ${tr(t.cards.nextCharge, {
-                              date: fmtDate(p.nextChargeDate),
-                            })}`
-                          : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-display text-lg text-[var(--fg)]">
-                        {money(p.remainingCents)}
-                      </p>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => openMsiEdit(p)}
-                      >
-                        {t.edit}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteMsiPlan(p.id)}
-                      >
-                        {t.delete}
-                      </Button>
-                    </div>
+              <CardHeader className="p-0">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+                  aria-expanded={!!expandedMsi.plans}
+                  onClick={() => toggleMsi("plans")}
+                >
+                  <div>
+                    <CardTitle>{t.cards.msiPendingTitle}</CardTitle>
+                    <p className="mt-1 text-xs text-[var(--fg-faint)]">
+                      {tr(t.cards.msiPlansCount, { n: msiList.length })}
+                      {" · "}
+                      {money(
+                        msiList.reduce((s, p) => s + p.remainingCents, 0)
+                      )}
+                    </p>
                   </div>
-                ))}
-              </CardContent>
+                  {expandedMsi.plans ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-[var(--fg-muted)]" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--fg-muted)]" />
+                  )}
+                </button>
+              </CardHeader>
+              {expandedMsi.plans && (
+                <CardContent className="divide-y divide-white/5 border-t border-white/5 p-0">
+                  {msiList.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--fg)]">
+                          {p.description}
+                        </p>
+                        <p className="text-xs text-[var(--fg-faint)]">
+                          {tr(t.cards.msiLeftLine, {
+                            left: p.monthsLeft,
+                            total: p.months,
+                            monthly: money(p.monthlyAmountCents),
+                          })}
+                          {p.nextChargeDate
+                            ? ` · ${tr(t.cards.nextCharge, {
+                                date: fmtDate(p.nextChargeDate),
+                              })}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-display text-lg text-[var(--fg)]">
+                          {money(p.remainingCents)}
+                        </p>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => openMsiEdit(p)}
+                        >
+                          {t.edit}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteMsiPlan(p.id)}
+                        >
+                          {t.delete}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              )}
             </Card>
           )}
 
@@ -618,84 +646,102 @@ export default function CreditCardDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="divide-y divide-white/5 border-t border-white/5 p-0">
-                  {pay.lines.map((line, i) => (
-                    <div
-                      key={`${line.date}-${line.label}-${i}`}
-                      className="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 text-sm"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-[var(--fg)]">{line.label}</p>
-                        <p className="text-xs text-[var(--fg-faint)]">
-                          {fmtDate(line.date)}
-                          {line.kind === "msi" ? " · MSI" : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="shrink-0 money-expense">
-                          {money(line.amountCents)}
-                        </span>
-                        {line.kind === "msi" && line.planId && (
+                  {(() => {
+                    const purchases = pay.lines.filter((l) => l.kind !== "msi");
+                    const msiLines = pay.lines.filter((l) => l.kind === "msi");
+                    const msiTotal = msiLines.reduce(
+                      (s, l) => s + l.amountCents,
+                      0
+                    );
+                    const msiOpen = !!expandedMsi[pay.paymentDue];
+                    return (
+                      <>
+                        {purchases.map((line, i) => (
+                          <PayLineRow
+                            key={`${line.date}-${line.label}-${i}`}
+                            line={line}
+                            fmtDate={fmtDate}
+                            onEditPurchase={() => openPurchaseEdit(line)}
+                            onDeletePurchase={() =>
+                              deletePurchase(line.transactionId!)
+                            }
+                            onEditMsi={() => undefined}
+                            onDeleteMsi={() => undefined}
+                          />
+                        ))}
+                        {msiLines.length > 0 && (
                           <>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => {
-                                const plan =
-                                  msiList.find((x) => x.id === line.planId) ||
-                                  data.msiPending.find(
-                                    (x) => x.id === line.planId
-                                  );
-                                if (plan) openMsiEdit(plan);
-                                else
-                                  openMsiEdit({
-                                    id: line.planId!,
-                                    description: line.label.replace(
-                                      /^MSI:\s*/,
-                                      ""
-                                    ),
-                                    monthlyAmountCents: line.amountCents,
-                                    months: 1,
-                                    monthsLeft: 1,
-                                    remainingCents: line.amountCents,
-                                    startDate: line.date,
-                                    nextChargeDate: line.date,
-                                  });
-                              }}
+                            <button
+                              type="button"
+                              className="flex w-full items-center justify-between gap-3 px-5 py-2.5 text-left text-sm hover:bg-white/[0.03]"
+                              aria-expanded={msiOpen}
+                              onClick={() => toggleMsi(pay.paymentDue)}
                             >
-                              {t.edit}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deleteMsiLine(line.planId!, line.date)}
-                            >
-                              {t.delete}
-                            </Button>
+                              <div className="flex min-w-0 items-center gap-2">
+                                {msiOpen ? (
+                                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--fg-muted)]" />
+                                ) : (
+                                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--fg-muted)]" />
+                                )}
+                                <div>
+                                  <p className="font-medium text-[var(--fg)]">
+                                    {t.cards.msiGroup}
+                                  </p>
+                                  <p className="text-xs text-[var(--fg-faint)]">
+                                    {tr(t.cards.msiGroupSummary, {
+                                      n: msiLines.length,
+                                      amount: money(msiTotal),
+                                    })}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-xs text-[var(--fg-faint)]">
+                                {msiOpen
+                                  ? t.cards.msiGroupHide
+                                  : t.cards.msiGroupShow}
+                              </span>
+                            </button>
+                            {msiOpen &&
+                              msiLines.map((line, i) => (
+                                <PayLineRow
+                                  key={`${line.date}-${line.label}-${i}`}
+                                  line={line}
+                                  fmtDate={fmtDate}
+                                  nested
+                                  onEditPurchase={() => undefined}
+                                  onDeletePurchase={() => undefined}
+                                  onEditMsi={() => {
+                                    const plan =
+                                      msiList.find((x) => x.id === line.planId) ||
+                                      data.msiPending.find(
+                                        (x) => x.id === line.planId
+                                      );
+                                    if (plan) openMsiEdit(plan);
+                                    else if (line.planId)
+                                      openMsiEdit({
+                                        id: line.planId,
+                                        description: line.label.replace(
+                                          /^MSI:\s*/,
+                                          ""
+                                        ),
+                                        monthlyAmountCents: line.amountCents,
+                                        months: 1,
+                                        monthsLeft: 1,
+                                        remainingCents: line.amountCents,
+                                        startDate: line.date,
+                                        nextChargeDate: line.date,
+                                      });
+                                  }}
+                                  onDeleteMsi={() =>
+                                    deleteMsiLine(line.planId!, line.date)
+                                  }
+                                />
+                              ))}
                           </>
                         )}
-                        {line.kind === "purchase" && line.transactionId && (
-                          <>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => openPurchaseEdit(line)}
-                            >
-                              {t.edit}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                deletePurchase(line.transactionId!)
-                              }
-                            >
-                              {t.delete}
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                      </>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             );
@@ -758,6 +804,64 @@ export default function CreditCardDetailPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function PayLineRow({
+  line,
+  fmtDate,
+  nested,
+  onEditPurchase,
+  onDeletePurchase,
+  onEditMsi,
+  onDeleteMsi,
+}: {
+  line: PaymentLine;
+  fmtDate: (iso: string) => string;
+  nested?: boolean;
+  onEditPurchase: () => void;
+  onDeletePurchase: () => void;
+  onEditMsi: () => void;
+  onDeleteMsi: () => void;
+}) {
+  const { money, t } = useApp();
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm ${
+        nested ? "bg-black/20 px-5 pl-10" : "px-5"
+      }`}
+    >
+      <div className="min-w-0">
+        <p className="truncate text-[var(--fg)]">{line.label}</p>
+        <p className="text-xs text-[var(--fg-faint)]">
+          {fmtDate(line.date)}
+          {line.kind === "msi" ? " · MSI" : ""}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 money-expense">{money(line.amountCents)}</span>
+        {line.kind === "msi" && line.planId && (
+          <>
+            <Button variant="secondary" size="sm" onClick={onEditMsi}>
+              {t.edit}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onDeleteMsi}>
+              {t.delete}
+            </Button>
+          </>
+        )}
+        {line.kind === "purchase" && line.transactionId && (
+          <>
+            <Button variant="secondary" size="sm" onClick={onEditPurchase}>
+              {t.edit}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onDeletePurchase}>
+              {t.delete}
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
