@@ -56,6 +56,8 @@ type AppContextValue = {
   userId: string | null;
   members: Member[];
   visibility: MemberVisibility;
+  /** Marketplace add-ons installed for this household */
+  installedModules: string[];
   impersonating: ImpersonationInfo | null;
   ready: boolean;
   a11y: A11yPrefs;
@@ -105,6 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [a11y, setA11yState] = useState<A11yPrefs>(defaultA11y);
   const [theme, setThemeState] = useState<ThemeId>(DEFAULT_THEME);
   const [visibility, setVisibility] = useState<MemberVisibility>(FULL_VISIBILITY);
+  const [installedModules, setInstalledModules] = useState<string[]>([]);
   const [impersonating, setImpersonating] =
     useState<ImpersonationInfo | null>(null);
 
@@ -143,6 +146,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         viewRole?: string | null;
         members: Member[];
         visibility?: MemberVisibility | null;
+        installedModules?: string[];
         theme?: string | null;
         impersonating?: ImpersonationInfo | null;
       }>("/api/auth/me");
@@ -158,6 +162,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setImpersonating(data.impersonating ?? null);
       if (data.visibility) setVisibility(data.visibility);
       else setVisibility(FULL_VISIBILITY);
+      setInstalledModules(data.installedModules || []);
       if (data.theme != null) {
         const nextTheme = normalizeThemeId(data.theme);
         setThemeState(nextTheme);
@@ -240,6 +245,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       userId,
       members,
       visibility,
+      installedModules,
       impersonating,
       ready,
       a11y,
@@ -264,6 +270,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       userId,
       members,
       visibility,
+      installedModules,
       impersonating,
       ready,
       a11y,

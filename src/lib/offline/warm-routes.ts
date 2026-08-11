@@ -16,6 +16,8 @@ export const APP_ROUTES_TO_WARM = [
   "/settings",
   "/security",
   "/help",
+  "/marketplace",
+  "/properties",
   // Online-only screens still warmed so shell opens offline with a clear empty/error state
   "/tickets",
   "/import-statement",

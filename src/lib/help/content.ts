@@ -444,6 +444,34 @@ const es: HelpContent = {
       ],
     },
     {
+      id: "addons",
+      title: "Módulos extra",
+      description: "Marketplace e instalaciones opcionales del hogar.",
+      sections: [
+        {
+          id: "marketplace",
+          title: "Marketplace",
+          summary: "Instala o quita módulos extra. Por ahora todo es gratis.",
+          href: "/marketplace",
+          paragraphs: [
+            "Los módulos del núcleo (cuentas, movimientos, presupuestos…) siempre están. Los extras se instalan por hogar.",
+            "Dueño o admin pulsa Instalar. Quitar oculta el módulo; los datos se conservan si lo vuelves a instalar.",
+            "Para agregar un módulo nuevo en el código se registra en el catálogo, se añade pantalla + API, y aparece aquí.",
+          ],
+        },
+        {
+          id: "properties",
+          title: "Propiedades",
+          summary: "Activos y pasivos: patrimonio del hogar.",
+          href: "/properties",
+          paragraphs: [
+            "Instálalo desde el Marketplace. Ahí registras bienes (casa, auto, joyas) y deudas asociadas (hipoteca, préstamos) con un valor estimado.",
+            "El patrimonio neto es activos menos pasivos. No mueve saldos de cuentas ni sustituye el módulo de Deudas.",
+          ],
+        },
+      ],
+    },
+    {
       id: "settings-offline",
       title: "Ajustes y uso offline",
       description: "Preferencias del hogar, categorías, temas y modo sin conexión.",
@@ -942,6 +970,34 @@ const en: HelpContent = {
           tips: [
             "The owner always has full access and cannot have their policy edited.",
             "After changing permissions, use View as to verify the experience.",
+          ],
+        },
+      ],
+    },
+    {
+      id: "addons",
+      title: "Add-on modules",
+      description: "Marketplace and optional household installs.",
+      sections: [
+        {
+          id: "marketplace",
+          title: "Marketplace",
+          summary: "Install or remove extra modules. Everything is free for now.",
+          href: "/marketplace",
+          paragraphs: [
+            "Core modules (accounts, activity, budgets…) are always there. Add-ons install per household.",
+            "Owner or admin taps Install. Remove hides the module; data stays if you install it again.",
+            "A new module is registered in the catalog, gets a page + API, and shows up here.",
+          ],
+        },
+        {
+          id: "properties",
+          title: "Properties",
+          summary: "Assets and liabilities: household net worth.",
+          href: "/properties",
+          paragraphs: [
+            "Install it from the Marketplace. Track valuables (home, car, jewelry) and related liabilities (mortgage, loans) with an estimated value.",
+            "Net worth is assets minus liabilities. It does not move account balances or replace the Debts module.",
           ],
         },
       ],

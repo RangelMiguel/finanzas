@@ -126,6 +126,7 @@ const MODULE_KEYS: (keyof MemberVisibility["modules"])[] = [
   "family",
   "settings",
   "activity",
+  "properties",
 ];
 
 export default function SecurityPage() {
@@ -686,6 +687,7 @@ export default function SecurityPage() {
       family: n.family,
       settings: n.settings,
       activity: t.family.activity,
+      properties: n.properties,
     } as Record<keyof MemberVisibility["modules"], string>;
   }, [t]);
 

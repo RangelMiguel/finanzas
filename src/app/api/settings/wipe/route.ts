@@ -28,6 +28,8 @@ export async function POST(req: Request) {
       prisma.installmentPlan.deleteMany({ where: { householdId: m.householdId } }),
       prisma.recurringIncome.deleteMany({ where: { householdId: m.householdId } }),
       prisma.recurringExpense.deleteMany({ where: { householdId: m.householdId } }),
+      prisma.propertyItem.deleteMany({ where: { householdId: m.householdId } }),
+      prisma.householdModule.deleteMany({ where: { householdId: m.householdId } }),
       prisma.creditCard.deleteMany({ where: { householdId: m.householdId } }),
       prisma.account.deleteMany({ where: { householdId: m.householdId } }),
       prisma.category.deleteMany({ where: { householdId: m.householdId } }),

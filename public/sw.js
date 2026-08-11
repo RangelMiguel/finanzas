@@ -30,6 +30,8 @@ const APP_SHELL_PATHS = [
   "/security",
   "/settings",
   "/allowances",
+  "/marketplace",
+  "/properties",
 ];
 
 self.addEventListener("install", (event) => {

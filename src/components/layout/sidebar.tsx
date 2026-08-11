@@ -23,6 +23,8 @@ import {
   Target,
   Palmtree,
   CircleHelp,
+  Store,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -51,6 +53,7 @@ export function Sidebar({
     setLocale,
     currency,
     visibility,
+    installedModules,
     ready,
     role: realRole,
   } = useApp();
@@ -106,6 +109,7 @@ export function Sidebar({
     icon: typeof LayoutDashboard;
     module?: keyof MemberVisibility["modules"];
     adminOnly?: boolean;
+    addon?: boolean;
   }[] = [
     { href: "/", label: t.nav.dashboard, icon: LayoutDashboard, module: "dashboard" },
     { href: "/accounts", label: t.nav.accounts, icon: Wallet, module: "accounts" },
@@ -153,6 +157,18 @@ export function Sidebar({
     },
     { href: "/family", label: t.nav.family, icon: Users, module: "family" },
     {
+      href: "/properties",
+      label: t.nav.properties,
+      icon: Home,
+      module: "properties",
+      addon: true,
+    },
+    {
+      href: "/marketplace",
+      label: t.nav.marketplace,
+      icon: Store,
+    },
+    {
       href: "/security",
       label: t.nav.security,
       icon: Shield,
@@ -165,6 +181,9 @@ export function Sidebar({
 
   const visibleNav = NAV.filter((item) => {
     if (item.adminOnly) return isAdmin;
+    if (item.addon && !installedModules.includes(item.module || "")) {
+      return false;
+    }
     if (!item.module) return true;
     return !!visibility.modules[item.module];
   });

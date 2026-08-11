@@ -96,6 +96,42 @@ model Household {
   goalReserves       GoalReserve[]
   retirementPlans    RetirementPlan[]
   visibilityTemplates VisibilityTemplate[]
+  installedModules   HouseholdModule[]
+  propertyItems      PropertyItem[]
+}
+
+/// Add-on modules installed for this household (marketplace).
+model HouseholdModule {
+  id           String   @id @default(cuid())
+  householdId  String
+  moduleId     String
+  installedAt  DateTime @default(now())
+  installedById String?
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, moduleId])
+  @@index([householdId])
+}
+
+/// Valuables: assets (activos) and liabilities (pasivos) for the Properties module.
+model PropertyItem {
+  id          String   @id @default(cuid())
+  householdId String
+  name        String
+  /// asset | liability
+  kind        String
+  /// home | vehicle | land | jewelry | electronics | furniture | mortgage | loan | other
+  category    String   @default("other")
+  valueCents  Int      @default(0)
+  notes       String?
+  acquiredOn  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, kind])
 }
 
 /// Reusable security / visibility policies for members and invites

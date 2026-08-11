@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { jsonOk } from "@/lib/access";
 import { NextResponse } from "next/server";
 import { effectiveVisibility } from "@/lib/visibility";
+import { listInstalledModuleIds } from "@/lib/modules/access";
 
 export async function GET() {
   const session = await getSession();
@@ -64,6 +65,10 @@ export async function GET() {
     select: { theme: true },
   });
 
+  const installedModules = membership
+    ? await listInstalledModuleIds(membership.householdId)
+    : [];
+
   return jsonOk({
     user: {
       userId: user.id,
@@ -79,6 +84,7 @@ export async function GET() {
     currency: membership?.household.currency ?? "MXN",
     theme: pref?.theme ?? "midnight",
     visibility,
+    installedModules,
     impersonating,
     members: members.map((m) => ({
       id: m.id,
