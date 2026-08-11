@@ -2,8 +2,10 @@
 /**
  * Production build for Vercel / CI (pnpm).
  * - Validates required env vars early (clear errors instead of Prisma hang)
- * - Defaults DIRECT_URL → DATABASE_URL when only one Postgres URL is set
- * - Runs prisma migrate deploy, then next build
+ * - Rewrites Neon/PgBouncer pooler hosts so migrate uses a direct session
+ *   (advisory locks time out on transaction poolers → P1002)
+ * - Retries migrate deploy (Neon cold start + overlapping Vercel builds)
+ * - Then next build
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -19,6 +21,53 @@ process.env.PATH = `${binDir}${path.delimiter}${process.env.PATH || ""}`;
 function fail(msg) {
   console.error(`\n[build] ERROR: ${msg}\n`);
   process.exit(1);
+}
+
+function sleep(ms) {
+  spawnSync("sleep", [String(Math.max(1, Math.ceil(ms / 1000)))], {
+    stdio: "ignore",
+  });
+}
+
+/** Add query params if missing (does not override existing). */
+function withSearchParams(raw, extras) {
+  try {
+    const u = new URL(raw);
+    for (const [key, value] of Object.entries(extras)) {
+      if (!u.searchParams.has(key)) u.searchParams.set(key, value);
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * Prisma migrate uses pg_advisory_lock(), which needs a session-level
+ * connection. Neon/Supabase pooler hosts and pgbouncer=true break that.
+ */
+function toDirectPostgresUrl(raw) {
+  try {
+    const u = new URL(raw);
+    const before = u.hostname;
+    if (u.hostname.includes("-pooler.")) {
+      u.hostname = u.hostname.replace("-pooler.", ".");
+    }
+    u.searchParams.delete("pgbouncer");
+    if (u.hostname !== before) {
+      console.warn(
+        `[build] Rewrote pooled host ${before} → ${u.hostname} for DIRECT_URL (migrations need a direct session).`
+      );
+    }
+    if (u.hostname.includes("pooler.supabase.com")) {
+      console.warn(
+        "[build] DIRECT_URL still looks like the Supabase pooler. Set DIRECT_URL to db.<ref>.supabase.co:5432."
+      );
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
 }
 
 const databaseUrl = (process.env.DATABASE_URL || "").trim();
@@ -39,11 +88,23 @@ if (databaseUrl.startsWith("file:")) {
 
 if (!directUrl) {
   console.warn(
-    "[build] DIRECT_URL not set — using DATABASE_URL for migrations. For Neon, prefer the non-pooled (direct) connection as DIRECT_URL."
+    "[build] DIRECT_URL not set — deriving a direct URL from DATABASE_URL."
   );
-  process.env.DIRECT_URL = databaseUrl;
   directUrl = databaseUrl;
 }
+
+directUrl = toDirectPostgresUrl(directUrl);
+directUrl = withSearchParams(directUrl, {
+  sslmode: "require",
+  connect_timeout: "20",
+});
+process.env.DIRECT_URL = directUrl;
+
+// Keep the app on the (possibly pooled) DATABASE_URL, but give Neon time to wake.
+process.env.DATABASE_URL = withSearchParams(databaseUrl, {
+  connect_timeout: "15",
+  pool_timeout: "15",
+});
 
 if (!authSecret || authSecret.length < 16) {
   fail(
@@ -62,12 +123,29 @@ function run(command, args) {
   if (result.error) {
     fail(`${command} failed to start: ${result.error.message}`);
   }
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
+  return result.status ?? 1;
 }
 
-run("prisma", ["migrate", "deploy"]);
-run("next", ["build"]);
+const migrateAttempts = 5;
+for (let attempt = 1; attempt <= migrateAttempts; attempt++) {
+  const status = run("prisma", ["migrate", "deploy"]);
+  if (status === 0) break;
+  if (attempt === migrateAttempts) {
+    fail(
+      "prisma migrate deploy failed after retries (P1002 is usually a pooled DIRECT_URL or a leftover advisory lock).\n" +
+        "  • Set DIRECT_URL to the Neon *direct* string (host without “-pooler”).\n" +
+        "  • Cancel overlapping Vercel deploys so two builds are not migrating at once.\n" +
+        "  • In Neon SQL: SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query ILIKE '%pg_advisory_lock%';"
+    );
+  }
+  const waitSec = 4 * attempt;
+  console.warn(
+    `[build] migrate deploy failed (attempt ${attempt}/${migrateAttempts}). Retrying in ${waitSec}s — Neon wake-up or another deploy holding the migrate lock.`
+  );
+  sleep(waitSec * 1000);
+}
+
+const nextStatus = run("next", ["build"]);
+if (nextStatus !== 0) process.exit(nextStatus);
 
 console.log("\n[build] Done.\n");

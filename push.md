@@ -237,9 +237,24 @@ Paste into Vercel as `AUTH_SECRET`.
 
 Wrong host/password, or you pasted a `localhost` URL into Vercel. Use Neon’s host. Confirm `?sslmode=require`.
 
-### `P1002` / migrate timeout
+### `P1002` / migrate advisory lock timeout
 
-Neon project may be asleep on free tier — retry the deploy. Prefer **direct** URL for `DIRECT_URL`.
+`prisma migrate deploy` needs a **session** connection (`pg_advisory_lock`). That fails if `DIRECT_URL` is the Neon **pooler** (`-pooler` in the host), if Neon is waking from idle, or if two Vercel builds migrate at once.
+
+The build script now strips `-pooler` from `DIRECT_URL`, adds `connect_timeout`, and retries migrate. Still set:
+
+| Variable | Neon string |
+|----------|-------------|
+| `DATABASE_URL` | Pooled (`-pooler`) |
+| `DIRECT_URL` | Direct (no `-pooler`) |
+
+If a lock is stuck from a killed deploy, run in Neon SQL Editor:
+
+```sql
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE query ILIKE '%pg_advisory_lock%';
+```
 
 ### `pnpm: command not found` on Vercel
 
