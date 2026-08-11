@@ -5,7 +5,7 @@ import { jsonError, jsonOk } from "@/lib/access";
 import { pesosToCents } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
-import { suggestMonthlyDebtPay } from "@/lib/debts";
+import { amortizeDebt, suggestMonthlyDebtPay } from "@/lib/debts";
 
 export async function GET() {
   try {
@@ -27,9 +27,15 @@ export async function GET() {
     );
     const enriched = visibleDebts.map((d) => {
       const paidCapital = d.payments.reduce((s, p) => s + p.capitalCents, 0);
+      const paidInterest = d.payments.reduce((s, p) => s + p.interestCents, 0);
       const remaining = Math.max(0, d.principalCents - paidCapital);
       const show = m.visibility.showDebtBalances;
       const suggested = suggestMonthlyDebtPay({
+        remainingCents: remaining,
+        monthlyPaymentCents: d.monthlyPaymentCents,
+        annualRatePercent: d.annualRatePercent,
+      });
+      const plan = amortizeDebt({
         remainingCents: remaining,
         monthlyPaymentCents: d.monthlyPaymentCents,
         annualRatePercent: d.annualRatePercent,
@@ -38,8 +44,20 @@ export async function GET() {
         ...d,
         principalCents: show ? d.principalCents : null,
         paidCapitalCents: show ? paidCapital : null,
+        paidInterestCents: show ? paidInterest : null,
         remainingCents: show ? remaining : null,
         suggestedPay: show ? suggested : null,
+        plan: show
+          ? {
+              months: plan.months,
+              totalInterestCents: plan.totalInterestCents,
+              payoffOk: plan.payoffOk,
+              paymentCoversInterest: plan.paymentCoversInterest,
+              minPaymentCents: plan.minPaymentCents,
+              schedule: plan.schedule,
+              next: plan.next,
+            }
+          : null,
         balancesHidden: !show,
       };
     });

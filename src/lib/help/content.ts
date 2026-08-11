@@ -279,7 +279,8 @@ const es: HelpContent = {
           href: "/debts",
           paragraphs: [
             "Registra deudas con principal, tasa anual, pago mensual sugerido y día de pago.",
-            "Al registrar un pago puedes desglosar capital e intereses. El progreso muestra cuánto has abonado a capital vs el total.",
+            "Cada deuda muestra cómo se parte el próximo pago (intereses vs capital) y cuántos intereses pagarías si sigues con ese monto.",
+            "Puedes probar otro pago mensual y ver al instante si ahorras intereses o tardas más. Al registrar un pago, los intereses de ese mes se calculan sobre el saldo.",
             "Los saldos de deuda pueden ocultarse por política de seguridad para miembros que no deban verlos.",
           ],
         },
@@ -812,7 +813,8 @@ const en: HelpContent = {
           href: "/debts",
           paragraphs: [
             "Track debts with principal, annual rate, suggested monthly payment, and payment day.",
-            "When logging a payment you can split principal vs interest. Progress shows capital paid vs total.",
+            "Each debt shows how the next payment splits (interest vs principal) and how much interest you would still pay at that monthly amount.",
+            "Try a different monthly payment to see instantly whether you save interest or take longer. When you record a payment, that month’s interest is calculated on the remaining balance.",
             "Debt balances can be hidden via security policy.",
           ],
         },

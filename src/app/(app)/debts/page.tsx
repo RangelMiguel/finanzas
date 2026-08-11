@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,29 @@ import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
-import { centsToInput } from "@/lib/utils";
+import { amountToCents, centsToInput } from "@/lib/utils";
+import {
+  amortizeDebt,
+  splitDuration,
+  type AmortizationSummary,
+} from "@/lib/debts";
 import { toast } from "sonner";
+
+type Plan = {
+  months: number;
+  totalInterestCents: number;
+  payoffOk: boolean;
+  paymentCoversInterest: boolean;
+  minPaymentCents: number;
+  schedule: {
+    month: number;
+    interestCents: number;
+    capitalCents: number;
+    paymentCents: number;
+    balanceCents: number;
+  }[];
+  next: { capitalCents: number; interestCents: number; totalCents: number };
+};
 
 type Debt = {
   id: string;
@@ -21,6 +42,7 @@ type Debt = {
   monthlyPaymentCents: number;
   paymentDay: number;
   paidCapitalCents: number;
+  paidInterestCents?: number | null;
   remainingCents: number;
   payments: {
     id: string;
@@ -34,8 +56,31 @@ type Debt = {
     interestCents: number;
     totalCents: number;
   } | null;
+  plan?: Plan | null;
 };
 type Acc = { id: string; name: string };
+
+function formatDuration(
+  months: number,
+  tr: (tpl: string, vars: Record<string, string | number>) => string,
+  t: { debts: { durationMonths: string; durationYears: string; durationYearsMonths: string } }
+) {
+  const d = splitDuration(months);
+  if (d.years <= 0) return tr(t.debts.durationMonths, { n: d.months || months });
+  if (d.months <= 0) return tr(t.debts.durationYears, { y: d.years });
+  return tr(t.debts.durationYearsMonths, { y: d.years, m: d.months });
+}
+
+function emptyForm() {
+  return {
+    name: "",
+    principal: "",
+    annualRatePercent: "0",
+    monthlyPayment: "",
+    paymentDay: "1",
+    notes: "",
+  };
+}
 
 export default function DebtsPage() {
   const { money, t, tr } = useApp();
@@ -45,15 +90,13 @@ export default function DebtsPage() {
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
   const [payFor, setPayFor] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    principal: "",
-    annualRatePercent: "0",
-    monthlyPayment: "",
-    paymentDay: "1",
-    notes: "",
+  const [form, setForm] = useState(emptyForm);
+  const [pay, setPay] = useState({
+    total: "",
+    capital: "",
+    interest: "0",
+    accountId: "",
   });
-  const [pay, setPay] = useState({ capital: "", interest: "0", accountId: "" });
 
   async function load() {
     const [d, a] = await Promise.all([
@@ -69,6 +112,24 @@ export default function DebtsPage() {
     load().catch((e) => toast.error(e.message));
   }, []);
 
+  const formRemainingCents = useMemo(() => {
+    if (mode === "edit" && editId) {
+      const d = debts.find((x) => x.id === editId);
+      if (d) return d.remainingCents;
+    }
+    return amountToCents(form.principal || 0);
+  }, [mode, editId, debts, form.principal]);
+
+  const formPlan = useMemo(
+    () =>
+      amortizeDebt({
+        remainingCents: formRemainingCents,
+        monthlyPaymentCents: amountToCents(form.monthlyPayment || 0),
+        annualRatePercent: parseFloat(form.annualRatePercent) || 0,
+      }),
+    [formRemainingCents, form.monthlyPayment, form.annualRatePercent]
+  );
+
   async function save() {
     try {
       const payload = {
@@ -80,7 +141,10 @@ export default function DebtsPage() {
         notes: form.notes || null,
       };
       if (mode === "edit" && editId) {
-        await api("/api/debts", { method: "PATCH", json: { id: editId, ...payload } });
+        await api("/api/debts", {
+          method: "PATCH",
+          json: { id: editId, ...payload },
+        });
         toast.success(t.debts.updated || t.success);
       } else {
         await api("/api/debts", { method: "POST", json: payload });
@@ -92,6 +156,12 @@ export default function DebtsPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
     }
+  }
+
+  function openNew() {
+    setEditId(null);
+    setForm(emptyForm());
+    setMode("new");
   }
 
   function openEdit(d: Debt) {
@@ -108,13 +178,39 @@ export default function DebtsPage() {
   }
 
   function openPayMonth(d: Debt) {
-    const s = d.suggestedPay;
+    const s = d.suggestedPay || d.plan?.next;
+    const interest = s ? s.interestCents : 0;
+    const capital = s
+      ? s.capitalCents
+      : d.monthlyPaymentCents;
+    const total = s ? s.totalCents : d.monthlyPaymentCents;
     setPay({
-      capital: s ? centsToInput(s.capitalCents) : centsToInput(d.monthlyPaymentCents),
-      interest: s ? centsToInput(s.interestCents) : "0",
+      total: centsToInput(total),
+      capital: centsToInput(capital),
+      interest: centsToInput(interest),
       accountId: pay.accountId || accounts[0]?.id || "",
     });
     setPayFor(d.id);
+  }
+
+  function setPayTotal(total: string) {
+    const totalCents = amountToCents(total);
+    const interestCents = amountToCents(pay.interest);
+    setPay({
+      ...pay,
+      total,
+      capital: centsToInput(Math.max(0, totalCents - interestCents)),
+    });
+  }
+
+  function setPayInterest(interest: string) {
+    const interestCents = amountToCents(interest);
+    const totalCents = amountToCents(pay.total);
+    setPay({
+      ...pay,
+      interest,
+      capital: centsToInput(Math.max(0, totalCents - interestCents)),
+    });
   }
 
   async function payDebt() {
@@ -150,13 +246,15 @@ export default function DebtsPage() {
     await load();
   }
 
+  const paying = payFor ? debts.find((d) => d.id === payFor) : null;
+
   return (
     <div>
       <PageHeader
         kicker={t.nav.debts}
         title={t.debts.title}
         subtitle={t.debts.subtitle}
-        actions={<Button onClick={() => { setMode("new"); setEditId(null); }}>{t.debts.new}</Button>}
+        actions={<Button onClick={openNew}>{t.debts.new}</Button>}
       />
 
       {mode !== "none" && (
@@ -180,13 +278,16 @@ export default function DebtsPage() {
                 money
                 className="mt-1"
                 value={form.principal}
-                onChange={(e) => setForm({ ...form, principal: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, principal: e.target.value })
+                }
               />
             </div>
             <div>
               <Label>{t.debts.annualRate}</Label>
               <Input
-                money
+                type="number"
+                step="0.01"
                 className="mt-1"
                 value={form.annualRatePercent}
                 onChange={(e) =>
@@ -211,33 +312,58 @@ export default function DebtsPage() {
                 numeric
                 className="mt-1"
                 value={form.paymentDay}
-                onChange={(e) => setForm({ ...form, paymentDay: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, paymentDay: e.target.value })
+                }
               />
             </div>
             <div className="flex items-end gap-2">
               <Button onClick={save}>{t.save}</Button>
-              <Button variant="ghost" onClick={() => { setMode("none"); setEditId(null); }}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setMode("none");
+                  setEditId(null);
+                }}
+              >
                 {t.cancel}
               </Button>
             </div>
+            {(form.principal || form.monthlyPayment) && (
+              <PlanPreview
+                className="sm:col-span-2"
+                plan={formPlan}
+                rate={parseFloat(form.annualRatePercent) || 0}
+                paymentCents={amountToCents(form.monthlyPayment || 0)}
+                title={t.debts.formPreview}
+              />
+            )}
           </CardContent>
         </Card>
       )}
 
-      {payFor && (
+      {payFor && paying && (
         <Card className="mb-6" premium>
           <CardHeader>
             <CardTitle>{t.debts.registerPay}</CardTitle>
-            <p className="text-xs text-[var(--fg-faint)]">{t.debts.payMonthHint}</p>
+            <p className="text-xs text-[var(--fg-faint)]">
+              {t.debts.payMonthHint}
+            </p>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-3">
+            <div className="sm:col-span-3 text-xs text-[var(--fg-muted)]">
+              {tr(t.debts.thisPaySplit, {
+                interest: money(amountToCents(pay.interest)),
+                capital: money(amountToCents(pay.capital)),
+              })}
+            </div>
             <div>
-              <Label>{t.debts.capital}</Label>
+              <Label>{t.debts.thisPayTotal}</Label>
               <Input
                 money
                 className="mt-1"
-                value={pay.capital}
-                onChange={(e) => setPay({ ...pay, capital: e.target.value })}
+                value={pay.total}
+                onChange={(e) => setPayTotal(e.target.value)}
               />
             </div>
             <div>
@@ -246,7 +372,18 @@ export default function DebtsPage() {
                 money
                 className="mt-1"
                 value={pay.interest}
-                onChange={(e) => setPay({ ...pay, interest: e.target.value })}
+                onChange={(e) => setPayInterest(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>{t.debts.capital}</Label>
+              <Input
+                money
+                className="mt-1"
+                value={pay.capital}
+                onChange={(e) =>
+                  setPay({ ...pay, capital: e.target.value })
+                }
               />
             </div>
             <div>
@@ -254,7 +391,9 @@ export default function DebtsPage() {
               <Select
                 className="mt-1"
                 value={pay.accountId}
-                onChange={(e) => setPay({ ...pay, accountId: e.target.value })}
+                onChange={(e) =>
+                  setPay({ ...pay, accountId: e.target.value })
+                }
               >
                 <option value="">{t.none}</option>
                 {accounts.map((a) => (
@@ -264,7 +403,7 @@ export default function DebtsPage() {
                 ))}
               </Select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 sm:col-span-2 items-end">
               <Button onClick={payDebt}>{t.debts.registerPay}</Button>
               <Button variant="ghost" onClick={() => setPayFor(null)}>
                 {t.cancel}
@@ -279,89 +418,408 @@ export default function DebtsPage() {
       )}
       {debts.map((d) => {
         const pct =
-          d.principalCents > 0 ? (d.paidCapitalCents / d.principalCents) * 100 : 0;
+          d.principalCents > 0
+            ? (d.paidCapitalCents / d.principalCents) * 100
+            : 0;
         return (
-          <Card key={d.id} className="mb-4" premium>
-            <CardHeader className="flex flex-row items-start justify-between">
-              <div>
-                <CardTitle>{d.name}</CardTitle>
-                <p className="text-xs text-[var(--fg-faint)]">
-                  {tr(t.debts.ratePayDay, {
-                    rate: d.annualRatePercent,
-                    payment: money(d.monthlyPaymentCents),
-                    day: d.paymentDay,
-                  })}
-                </p>
-                {d.propertyItems && d.propertyItems.length > 0 && (
-                  <p className="mt-1 text-xs text-[var(--fg-muted)]">
-                    {d.propertyItems
-                      .map((p) =>
-                        tr(t.debts.linkedProperty, { name: p.name })
-                      )
-                      .join(" · ")}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                <Button size="sm" onClick={() => openPayMonth(d)}>
-                  {t.debts.payMonth}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => setPayFor(d.id)}>
-                  {t.debts.pay}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => openEdit(d)}>
-                  {t.edit}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => remove(d.id)}>
-                  {t.delete}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-2 flex justify-between text-sm">
-                <span className="text-[var(--fg-muted)]">{t.debts.progress}</span>
-                <span>
-                  {money(d.paidCapitalCents)} / {money(d.principalCents)}
-                </span>
-              </div>
-              <div className="progress-track mb-2">
-                <div
-                  className="progress-fill bg-[var(--income)]"
-                  style={{ width: `${Math.min(pct, 100)}%` }}
-                />
-              </div>
-              <p className="text-sm text-[var(--fg-muted)]">
-                {t.debts.remaining}: {money(d.remainingCents)}
-              </p>
-              {d.payments.length > 0 && (
-                <div className="mt-3 space-y-1 border-t border-white/5 pt-3">
-                  <p className="text-xs font-medium text-[var(--fg-muted)]">
-                    {t.debts.history} ({d.payments.length})
-                  </p>
-                  {d.payments.slice(0, 5).map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex justify-between text-xs text-[var(--fg-faint)]"
-                    >
-                      <span>{p.date}</span>
-                      <span>
-                        {tr(t.debts.capitalLine, {
-                          capital: money(p.capitalCents),
-                        })}
-                        {p.interestCents
-                          ? tr(t.debts.interestLine, {
-                              interest: money(p.interestCents),
-                            })
-                          : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <DebtCard
+            key={d.id}
+            debt={d}
+            pct={pct}
+            onPayMonth={() => openPayMonth(d)}
+            onPayCustom={() => openPayMonth(d)}
+            onEdit={() => openEdit(d)}
+            onDelete={() => remove(d.id)}
+            onPaymentSaved={load}
+          />
         );
       })}
+    </div>
+  );
+}
+
+function DebtCard({
+  debt: d,
+  pct,
+  onPayMonth,
+  onPayCustom,
+  onEdit,
+  onDelete,
+  onPaymentSaved,
+}: {
+  debt: Debt;
+  pct: number;
+  onPayMonth: () => void;
+  onPayCustom: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onPaymentSaved: () => Promise<void>;
+}) {
+  const { money, t, tr } = useApp();
+  const [simOpen, setSimOpen] = useState(false);
+  const [schedOpen, setSchedOpen] = useState(false);
+  const [simPay, setSimPay] = useState(centsToInput(d.monthlyPaymentCents));
+  const [saving, setSaving] = useState(false);
+
+  const base = d.plan;
+  const next = d.suggestedPay || base?.next;
+  const sim = useMemo(
+    () =>
+      amortizeDebt({
+        remainingCents: d.remainingCents,
+        monthlyPaymentCents: amountToCents(simPay || 0),
+        annualRatePercent: d.annualRatePercent,
+      }),
+    [d.remainingCents, d.annualRatePercent, simPay]
+  );
+
+  async function saveSimPayment() {
+    try {
+      setSaving(true);
+      await api("/api/debts", {
+        method: "PATCH",
+        json: { id: d.id, monthlyPayment: simPay },
+      });
+      toast.success(t.debts.paymentSaved);
+      await onPaymentSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const simChanged =
+    amountToCents(simPay) !== d.monthlyPaymentCents && amountToCents(simPay) > 0;
+
+  return (
+    <Card className="mb-4" premium>
+      <CardHeader className="flex flex-row items-start justify-between">
+        <div>
+          <CardTitle>{d.name}</CardTitle>
+          <p className="text-xs text-[var(--fg-faint)]">
+            {tr(t.debts.ratePayDay, {
+              rate: d.annualRatePercent,
+              payment: money(d.monthlyPaymentCents),
+              day: d.paymentDay,
+            })}
+          </p>
+          {d.propertyItems && d.propertyItems.length > 0 && (
+            <p className="mt-1 text-xs text-[var(--fg-muted)]">
+              {d.propertyItems
+                .map((p) => tr(t.debts.linkedProperty, { name: p.name }))
+                .join(" · ")}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" onClick={onPayMonth}>
+            {t.debts.payMonth}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onPayCustom}>
+            {t.debts.pay}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onEdit}>
+            {t.edit}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDelete}>
+            {t.delete}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <div className="mb-2 flex justify-between text-sm">
+            <span className="text-[var(--fg-muted)]">{t.debts.progress}</span>
+            <span>
+              {money(d.paidCapitalCents)} / {money(d.principalCents)}
+            </span>
+          </div>
+          <div className="progress-track mb-2">
+            <div
+              className="progress-fill bg-[var(--income)]"
+              style={{ width: `${Math.min(pct, 100)}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--fg-muted)]">
+            <span>
+              {t.debts.remaining}: {money(d.remainingCents)}
+            </span>
+            {d.paidInterestCents != null && d.paidInterestCents > 0 && (
+              <span>
+                {t.debts.paidInterest}: {money(d.paidInterestCents)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {d.annualRatePercent <= 0 && (
+          <p className="text-xs text-amber-200">{t.debts.zeroRate}</p>
+        )}
+
+        {next && d.remainingCents > 0 && (
+          <div className="rounded-xl border border-white/10 p-3">
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <p className="text-xs font-medium text-[var(--fg-muted)]">
+                {t.debts.nextPayment}
+              </p>
+              <p className="font-display text-lg">{money(next.totalCents)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <div className="text-[11px] text-[var(--fg-faint)]">
+                  {t.debts.nextInterest}
+                </div>
+                <div className="text-amber-200">{money(next.interestCents)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-[var(--fg-faint)]">
+                  {t.debts.nextCapital}
+                </div>
+                <div className="text-emerald-300">
+                  {money(next.capitalCents)}
+                </div>
+              </div>
+            </div>
+            {base && (
+              <p className="mt-2 text-xs text-[var(--fg-muted)]">
+                {base.payoffOk
+                  ? `${tr(t.debts.ifYouKeepPaying, {
+                      payment: money(d.monthlyPaymentCents),
+                    })} · ${tr(t.debts.payoffIn, {
+                      duration: formatDuration(base.months, tr, t),
+                    })} · ${tr(t.debts.totalInterestLeft, {
+                      amount: money(base.totalInterestCents),
+                    })}`
+                  : t.debts.wontPayOff}
+              </p>
+            )}
+          </div>
+        )}
+
+        {d.remainingCents > 0 && (
+          <div>
+            <button
+              type="button"
+              className="text-xs font-medium text-[var(--fg-muted)] hover:text-[var(--fg)]"
+              onClick={() => setSimOpen((o) => !o)}
+            >
+              {t.debts.simulate}
+            </button>
+            {simOpen && (
+              <div className="mt-3 space-y-3 rounded-xl border border-white/10 p-3">
+                <div>
+                  <Label>{t.debts.tryPayment}</Label>
+                  <Input
+                    money
+                    className="mt-1"
+                    value={simPay}
+                    onChange={(e) => setSimPay(e.target.value)}
+                  />
+                </div>
+                <SimResult
+                  base={base}
+                  sim={sim}
+                  simChanged={simChanged}
+                  onSave={saveSimPayment}
+                  saving={saving}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {next && (base?.schedule.length || 0) > 0 && (
+          <div>
+            <button
+              type="button"
+              className="text-xs font-medium text-[var(--fg-muted)] hover:text-[var(--fg)]"
+              onClick={() => setSchedOpen((o) => !o)}
+            >
+              {t.debts.schedule}
+            </button>
+            {schedOpen && (
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[var(--fg-faint)]">
+                    <tr>
+                      <th className="py-1 pr-3 font-medium">
+                        {t.debts.scheduleMonth}
+                      </th>
+                      <th className="py-1 pr-3 font-medium">
+                        {t.debts.interest}
+                      </th>
+                      <th className="py-1 pr-3 font-medium">
+                        {t.debts.capital}
+                      </th>
+                      <th className="py-1 font-medium">{t.debts.remaining}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(base?.schedule || []).map((row) => (
+                      <tr key={row.month} className="border-t border-white/5">
+                        <td className="py-1 pr-3">{row.month}</td>
+                        <td className="py-1 pr-3 text-amber-200">
+                          {money(row.interestCents)}
+                        </td>
+                        <td className="py-1 pr-3 text-emerald-300">
+                          {money(row.capitalCents)}
+                        </td>
+                        <td className="py-1">{money(row.balanceCents)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {d.payments.length > 0 && (
+          <div className="space-y-1 border-t border-white/5 pt-3">
+            <p className="text-xs font-medium text-[var(--fg-muted)]">
+              {t.debts.history} ({d.payments.length})
+            </p>
+            {d.payments.slice(0, 5).map((p) => (
+              <div
+                key={p.id}
+                className="flex justify-between text-xs text-[var(--fg-faint)]"
+              >
+                <span>{p.date}</span>
+                <span>
+                  {tr(t.debts.capitalLine, {
+                    capital: money(p.capitalCents),
+                  })}
+                  {p.interestCents
+                    ? tr(t.debts.interestLine, {
+                        interest: money(p.interestCents),
+                      })
+                    : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlanPreview({
+  plan,
+  rate,
+  paymentCents,
+  title,
+  className,
+}: {
+  plan: AmortizationSummary;
+  rate: number;
+  paymentCents: number;
+  title: string;
+  className?: string;
+}) {
+  const { money, t, tr } = useApp();
+  return (
+    <div
+      className={`rounded-xl border border-white/10 p-3 text-xs text-[var(--fg-muted)] ${className || ""}`}
+    >
+      <p className="mb-1 font-medium text-[var(--fg)]">{title}</p>
+      {rate <= 0 && <p className="text-amber-200">{t.debts.zeroRate}</p>}
+      <p>
+        {t.debts.nextInterest}: {money(plan.next.interestCents)} ·{" "}
+        {t.debts.nextCapital}: {money(plan.next.capitalCents)}
+      </p>
+      {plan.payoffOk && paymentCents > 0 ? (
+        <p>
+          {tr(t.debts.payoffIn, {
+            duration: formatDuration(plan.months, tr, t),
+          })}{" "}
+          ·{" "}
+          {tr(t.debts.totalInterestLeft, {
+            amount: money(plan.totalInterestCents),
+          })}
+        </p>
+      ) : paymentCents > 0 ? (
+        <p className="text-amber-200">
+          {t.debts.wontPayOff}{" "}
+          {tr(t.debts.minToReduce, { amount: money(plan.minPaymentCents) })}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SimResult({
+  base,
+  sim,
+  simChanged,
+  onSave,
+  saving,
+}: {
+  base?: Plan | null;
+  sim: AmortizationSummary;
+  simChanged: boolean;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  const { money, t, tr } = useApp();
+
+  if (!sim.payoffOk) {
+    return (
+      <div className="space-y-2 text-xs">
+        <p className="text-amber-200">{t.debts.wontPayOff}</p>
+        <p>
+          {tr(t.debts.minToReduce, { amount: money(sim.minPaymentCents) })}
+        </p>
+      </div>
+    );
+  }
+
+  const deltaInterest = (base?.totalInterestCents ?? 0) - sim.totalInterestCents;
+  const deltaMonths = (base?.months ?? 0) - sim.months;
+  const same =
+    !simChanged || (deltaInterest === 0 && deltaMonths === 0) || !base?.payoffOk;
+
+  return (
+    <div className="space-y-2 text-xs">
+      <p>
+        {tr(t.debts.payoffIn, {
+          duration: formatDuration(sim.months, tr, t),
+        })}{" "}
+        ·{" "}
+        {tr(t.debts.totalInterestLeft, {
+          amount: money(sim.totalInterestCents),
+        })}
+      </p>
+      <p>
+        {t.debts.nextInterest}: {money(sim.next.interestCents)} ·{" "}
+        {t.debts.nextCapital}: {money(sim.next.capitalCents)}
+      </p>
+      {!same && base?.payoffOk && (
+        <p className={deltaInterest >= 0 ? "text-emerald-300" : "text-amber-200"}>
+          {deltaInterest > 0
+            ? tr(t.debts.interestSaved, { amount: money(deltaInterest) })
+            : deltaInterest < 0
+              ? tr(t.debts.interestExtra, { amount: money(-deltaInterest) })
+              : t.debts.samePlan}
+          {deltaMonths !== 0
+            ? ` · ${
+                deltaMonths > 0
+                  ? tr(t.debts.fasterBy, {
+                      duration: formatDuration(deltaMonths, tr, t),
+                    })
+                  : tr(t.debts.slowerBy, {
+                      duration: formatDuration(-deltaMonths, tr, t),
+                    })
+              }`
+            : ""}
+        </p>
+      )}
+      {simChanged && (
+        <Button size="sm" onClick={onSave} disabled={saving}>
+          {t.debts.savePayment}
+        </Button>
+      )}
     </div>
   );
 }
