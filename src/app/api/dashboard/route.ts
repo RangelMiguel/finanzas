@@ -11,6 +11,7 @@ import {
   isBudgetableSpend,
 } from "@/lib/visibility";
 import { ensureRecurringPosted } from "@/lib/recurring";
+import { householdPropertyTotalsIfInstalled } from "@/lib/properties/summary";
 
 export async function GET(req: Request) {
   try {
@@ -143,6 +144,10 @@ export async function GET(req: Request) {
       ? creditCards.filter((c) => !vis.hiddenCreditCardIds.includes(c.id))
       : [];
 
+    const propertyTotals = canSeeModule(vis, "properties")
+      ? await householdPropertyTotalsIfInstalled(m.householdId)
+      : null;
+
     return jsonOk({
       month,
       household: m.household,
@@ -165,6 +170,7 @@ export async function GET(req: Request) {
         ? recentVisible
         : [],
       activity: canSeeModule(vis, "activity") ? activity : [],
+      properties: propertyTotals,
     });
   } catch (e) {
     return jsonError(e);

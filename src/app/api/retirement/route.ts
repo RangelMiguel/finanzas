@@ -7,6 +7,7 @@ import { pesosToCents } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import { computeRetirement, type RetirementInputs } from "@/lib/retirement";
+import { householdPropertyTotalsIfInstalled } from "@/lib/properties/summary";
 
 function pesosField(v: number | string | undefined, fallback = 0) {
   if (v === undefined || v === null || v === "") return fallback;
@@ -15,7 +16,11 @@ function pesosField(v: number | string | undefined, fallback = 0) {
 
 async function householdNestEgg(
   householdId: string,
-  opts: { includeAccounts: boolean; includeGoals: boolean }
+  opts: {
+    includeAccounts: boolean;
+    includeGoals: boolean;
+    includeProperties?: boolean;
+  }
 ) {
   let total = 0;
   if (opts.includeAccounts) {
@@ -66,6 +71,10 @@ async function householdNestEgg(
     } else {
       total += reserves._sum.amountCents || 0;
     }
+  }
+  if (opts.includeProperties) {
+    const props = await householdPropertyTotalsIfInstalled(householdId);
+    if (props) total += Math.max(0, props.equityCents);
   }
   return Math.max(0, total);
 }
@@ -140,17 +149,22 @@ export async function GET() {
     const autoNestEgg = await householdNestEgg(m.householdId, {
       includeAccounts: plan.includeAccountBalances,
       includeGoals: plan.includeGoalReserves,
+      includeProperties: plan.includePropertyEquity,
     });
     const savingsCents =
       plan.currentSavingsCents != null ? plan.currentSavingsCents : autoNestEgg;
 
     const result = computeRetirement(planToInputs(plan, savingsCents));
+    const propertyTotals = await householdPropertyTotalsIfInstalled(
+      m.householdId
+    );
 
     return jsonOk({
       plan,
       autoNestEggCents: autoNestEgg,
       effectiveSavingsCents: savingsCents,
       result,
+      propertiesAvailable: propertyTotals != null,
     });
   } catch (e) {
     return jsonError(e);
@@ -169,6 +183,7 @@ const saveSchema = z.object({
   useAutoSavings: z.boolean().optional(),
   includeAccountBalances: z.boolean().optional(),
   includeGoalReserves: z.boolean().optional(),
+  includePropertyEquity: z.boolean().optional(),
   monthlyContribution: z.union([z.number(), z.string()]).optional(),
   contributionGrowthPercent: z.number().min(0).max(30).optional(),
   returnPrePercent: z.number().min(-20).max(30).optional(),
@@ -223,6 +238,8 @@ export async function PUT(req: Request) {
       data.includeAccountBalances = body.includeAccountBalances;
     if (body.includeGoalReserves !== undefined)
       data.includeGoalReserves = body.includeGoalReserves;
+    if (body.includePropertyEquity !== undefined)
+      data.includePropertyEquity = body.includePropertyEquity;
     if (body.monthlyContribution !== undefined)
       data.monthlyContributionCents = pesosField(body.monthlyContribution);
     if (body.contributionGrowthPercent !== undefined)
@@ -269,6 +286,7 @@ export async function PUT(req: Request) {
           currentSavingsCents: null,
           includeAccountBalances: true,
           includeGoalReserves: true,
+          includePropertyEquity: false,
           monthlyContributionCents: 0,
           contributionGrowthPercent: 0,
           returnPrePercent: 7,
@@ -306,6 +324,8 @@ export async function PUT(req: Request) {
           includeAccountBalances:
             (data.includeAccountBalances as boolean) ?? true,
           includeGoalReserves: (data.includeGoalReserves as boolean) ?? true,
+          includePropertyEquity:
+            (data.includePropertyEquity as boolean) ?? false,
           monthlyContributionCents:
             (data.monthlyContributionCents as number) ?? 0,
           contributionGrowthPercent:
@@ -326,16 +346,21 @@ export async function PUT(req: Request) {
     const autoNestEgg = await householdNestEgg(m.householdId, {
       includeAccounts: plan.includeAccountBalances,
       includeGoals: plan.includeGoalReserves,
+      includeProperties: plan.includePropertyEquity,
     });
     const savingsCents =
       plan.currentSavingsCents != null ? plan.currentSavingsCents : autoNestEgg;
     const result = computeRetirement(planToInputs(plan, savingsCents));
+    const propertyTotals = await householdPropertyTotalsIfInstalled(
+      m.householdId
+    );
 
     return jsonOk({
       plan,
       autoNestEggCents: autoNestEgg,
       effectiveSavingsCents: savingsCents,
       result,
+      propertiesAvailable: propertyTotals != null,
       saved: !body.preview,
     });
   } catch (e) {

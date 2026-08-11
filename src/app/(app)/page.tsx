@@ -44,6 +44,13 @@ type Dash = {
     createdBy?: { displayName: string } | null;
   }[];
   household: { name: string };
+  properties?: {
+    assetCents: number;
+    liabilityCents: number;
+    netCents: number;
+    equityCents: number;
+    itemCount: number;
+  } | null;
 };
 
 type Budget = {
@@ -312,6 +319,41 @@ function DashboardInner() {
             })}
           </CardContent>
         </Card>
+      )}
+
+      {data.properties && data.properties.itemCount > 0 && (
+        <Link href="/properties" className="block">
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--fg-muted)]">
+                  {t.dashboard.propertiesNet}
+                </p>
+                <p
+                  className={`mt-1 font-display text-2xl ${
+                    data.properties.netCents >= 0
+                      ? "text-emerald-300"
+                      : "money-expense"
+                  }`}
+                >
+                  {money(data.properties.netCents)}
+                </p>
+                <p className="mt-1 text-xs text-[var(--fg-faint)]">
+                  {tr(t.dashboard.propertiesAssets, {
+                    amount: money(data.properties.assetCents),
+                  })}
+                  {" · "}
+                  {tr(t.dashboard.propertiesLiabilities, {
+                    amount: money(data.properties.liabilityCents),
+                  })}
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-[var(--accent)]">
+                {t.dashboard.propertiesOpen} →
+              </span>
+            </CardContent>
+          </Card>
+        </Link>
       )}
 
       {data.accounts.length > 0 && (

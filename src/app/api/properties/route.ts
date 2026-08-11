@@ -6,48 +6,21 @@ import { pesosToCents } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import { requireAddon } from "@/lib/modules/access";
+import { propertyEquityCents } from "@/lib/properties/valuation";
 import {
-  propertyEquityCents,
-  valueItem,
-  type ValueChange,
-  type ValueMethod,
-} from "@/lib/properties/valuation";
+  remainingDebtCents,
+  valuePropertyRow,
+} from "@/lib/properties/summary";
 
 const valueChangeSchema = z.enum(["none", "appreciate", "depreciate"]);
 const methodSchema = z.enum(["compound", "straight"]);
 
-function valued(
-  row: {
-    valueCents: number;
-    acquiredOn: string | null;
-    valueChange: string;
-    annualRatePercent: number;
-    method: string;
-    usefulLifeYears: number | null;
-    salvageCents: number;
-  },
-  improvements: {
-    costCents: number;
-    effect: string;
-    recoveryPercent: number;
-  }[] = []
-) {
-  return valueItem(
-    {
-      originalCents: row.valueCents,
-      acquiredOn: row.acquiredOn,
-      valueChange: (row.valueChange as ValueChange) || "none",
-      annualRatePercent: row.annualRatePercent,
-      method: (row.method as ValueMethod) || "compound",
-      usefulLifeYears: row.usefulLifeYears,
-      salvageCents: row.salvageCents,
-    },
-    improvements.map((i) => ({
-      costCents: i.costCents,
-      effect: i.effect === "depreciate" ? "depreciate" : "improve",
-      recoveryPercent: i.recoveryPercent,
-    }))
-  );
+function parseMoneyOrNull(
+  v: number | string | null | undefined
+): number | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  return pesosToCents(v);
 }
 
 const kindSchema = z.enum(["asset", "liability"]);
@@ -84,6 +57,8 @@ type ItemRow = {
   method: string;
   usefulLifeYears: number | null;
   salvageCents: number;
+  marketValueCents: number | null;
+  marketValueOn: string | null;
   debtId: string | null;
   financedById: string | null;
   improvements: {
@@ -98,38 +73,49 @@ type ItemRow = {
 
 function debtPayload(debt: DebtWithPays | null) {
   if (!debt) return null;
-  const paid = debt.payments.reduce((s, p) => s + p.capitalCents, 0);
-  const remainingCents = Math.max(0, debt.principalCents - paid);
   return {
     id: debt.id,
     name: debt.name,
     monthlyPaymentCents: debt.monthlyPaymentCents,
     paymentDay: debt.paymentDay,
     annualRatePercent: debt.annualRatePercent,
-    remainingCents,
+    remainingCents: remainingDebtCents(debt),
   };
 }
 
-function currentCentsFor(
-  row: {
-    kind: string;
-    valueCents: number;
-    acquiredOn: string | null;
-    valueChange: string;
-    annualRatePercent: number;
-    method: string;
-    usefulLifeYears: number | null;
-    salvageCents: number;
-    improvements: {
-      costCents: number;
-      effect: string;
-      recoveryPercent: number;
-    }[];
-    debt: DebtWithPays | null;
-  }
-) {
-  const valuation = valued(row, row.improvements);
-  const remaining = debtPayload(row.debt)?.remainingCents ?? null;
+function currentCentsFor(row: {
+  kind: string;
+  valueCents: number;
+  acquiredOn: string | null;
+  valueChange: string;
+  annualRatePercent: number;
+  method: string;
+  usefulLifeYears: number | null;
+  salvageCents: number;
+  marketValueCents?: number | null;
+  marketValueOn?: string | null;
+  improvements: {
+    costCents: number;
+    effect: string;
+    recoveryPercent: number;
+  }[];
+  debt: DebtWithPays | null;
+}) {
+  const valuation = valuePropertyRow({
+    kind: row.kind,
+    valueCents: row.valueCents,
+    acquiredOn: row.acquiredOn,
+    valueChange: row.valueChange,
+    annualRatePercent: row.annualRatePercent,
+    method: row.method,
+    usefulLifeYears: row.usefulLifeYears,
+    salvageCents: row.salvageCents,
+    marketValueCents: row.marketValueCents ?? null,
+    marketValueOn: row.marketValueOn ?? null,
+    improvements: row.improvements,
+    debt: row.debt,
+  });
+  const remaining = remainingDebtCents(row.debt);
   const currentCents =
     row.kind === "liability" && remaining != null
       ? remaining
@@ -283,6 +269,8 @@ export async function POST(req: Request) {
         createLiability: z.boolean().optional(),
         liabilityName: z.string().optional().nullable(),
         liabilityValue: z.union([z.number(), z.string()]).optional(),
+        marketValue: z.union([z.number(), z.string(), z.null()]).optional(),
+        marketValueOn: z.string().optional().nullable(),
       })
       .parse(await req.json());
 
@@ -361,6 +349,12 @@ export async function POST(req: Request) {
           salvageCents: body.salvage != null ? pesosToCents(body.salvage) : 0,
           notes: body.notes || null,
           acquiredOn: body.acquiredOn || null,
+          marketValueCents:
+            body.kind === "asset"
+              ? parseMoneyOrNull(body.marketValue) ?? null
+              : null,
+          marketValueOn:
+            body.kind === "asset" ? body.marketValueOn || null : null,
           debtId,
           financedById,
         },
@@ -400,6 +394,8 @@ export async function PATCH(req: Request) {
         createLiability: z.boolean().optional(),
         liabilityName: z.string().optional().nullable(),
         liabilityValue: z.union([z.number(), z.string()]).optional(),
+        marketValue: z.union([z.number(), z.string(), z.null()]).optional(),
+        marketValueOn: z.string().nullable().optional(),
       })
       .parse(await req.json());
     const existing = await prisma.propertyItem.findFirst({
@@ -499,6 +495,16 @@ export async function PATCH(req: Request) {
                 : undefined,
           notes: body.notes,
           acquiredOn: body.acquiredOn,
+          marketValueCents:
+            kind === "liability"
+              ? null
+              : parseMoneyOrNull(body.marketValue),
+          marketValueOn:
+            kind === "liability"
+              ? null
+              : body.marketValueOn === undefined
+                ? undefined
+                : body.marketValueOn || null,
           debtId,
           financedById,
         },

@@ -26,12 +26,16 @@ type Kind = "asset" | "liability";
 type Valuation = {
   originalCents: number;
   currentCents: number;
+  estimatedCents?: number;
   deltaCents: number;
   deltaPercent: number | null;
   yearsHeld: number;
   investedCents: number;
   improvementImpactCents: number;
   baseCents: number;
+  source?: "estimate" | "market";
+  marketValueCents?: number | null;
+  marketValueOn?: string | null;
 };
 
 type Improvement = {
@@ -56,6 +60,8 @@ type Item = {
   salvageCents: number;
   notes: string | null;
   acquiredOn: string | null;
+  marketValueCents?: number | null;
+  marketValueOn?: string | null;
   valuation: Valuation;
   improvements: Improvement[];
   debtId?: string | null;
@@ -137,6 +143,8 @@ export default function PropertiesPage() {
     financedById: "",
     liabilityName: "",
     liabilityValue: "",
+    marketValue: "",
+    marketValueOn: "",
   });
 
   const cats = t.properties.categories;
@@ -175,6 +183,8 @@ export default function PropertiesPage() {
       financedById: "",
       liabilityName: "",
       liabilityValue: "",
+      marketValue: "",
+      marketValueOn: "",
     });
   }
 
@@ -204,6 +214,10 @@ export default function PropertiesPage() {
       financedById: item.financedById || item.linkedLiability?.id || "",
       liabilityName: "",
       liabilityValue: "",
+      marketValue: item.marketValueCents
+        ? centsToInput(item.marketValueCents)
+        : "",
+      marketValueOn: item.marketValueOn || "",
     });
   }
 
@@ -243,6 +257,14 @@ export default function PropertiesPage() {
         createLiability: form.kind === "asset" && form.financeMode === "create",
         liabilityName: form.liabilityName || null,
         liabilityValue: form.liabilityValue || 0,
+        marketValue:
+          form.kind === "asset"
+            ? form.marketValue
+              ? form.marketValue
+              : null
+            : null,
+        marketValueOn:
+          form.kind === "asset" ? form.marketValueOn || null : null,
       };
       if (mode === "edit" && editId) {
         await api("/api/properties", {
@@ -274,17 +296,27 @@ export default function PropertiesPage() {
     await load();
   }
 
-  const formPreview = valueItem({
-    originalCents: amountToCents(form.value || 0),
-    acquiredOn: form.acquiredOn || null,
-    valueChange: form.valueChange,
-    annualRatePercent: parseFloat(form.annualRatePercent) || 0,
-    method: form.method,
-    usefulLifeYears: form.usefulLifeYears
-      ? parseFloat(form.usefulLifeYears)
-      : null,
-    salvageCents: amountToCents(form.salvage || 0),
-  });
+  const formPreview = valueItem(
+    {
+      originalCents: amountToCents(form.value || 0),
+      acquiredOn: form.acquiredOn || null,
+      valueChange: form.valueChange,
+      annualRatePercent: parseFloat(form.annualRatePercent) || 0,
+      method: form.method,
+      usefulLifeYears: form.usefulLifeYears
+        ? parseFloat(form.usefulLifeYears)
+        : null,
+      salvageCents: amountToCents(form.salvage || 0),
+    },
+    [],
+    {
+      marketValueCents:
+        form.kind === "asset" && form.marketValue
+          ? amountToCents(form.marketValue)
+          : null,
+      marketValueOn: form.marketValueOn || null,
+    }
+  );
 
   const categoryOptions = form.kind === "asset" ? ASSET_CATS : LIAB_CATS;
   const assets = items.filter((i) => i.kind === "asset");
@@ -434,6 +466,35 @@ export default function PropertiesPage() {
                 }
               />
             </div>
+            {form.kind === "asset" && (
+              <>
+                <div>
+                  <Label>{t.properties.marketValue}</Label>
+                  <Input
+                    money
+                    className="mt-1"
+                    value={form.marketValue}
+                    onChange={(e) =>
+                      setForm({ ...form, marketValue: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>{t.properties.marketValueOn}</Label>
+                  <Input
+                    type="date"
+                    className="mt-1"
+                    value={form.marketValueOn}
+                    onChange={(e) =>
+                      setForm({ ...form, marketValueOn: e.target.value })
+                    }
+                  />
+                </div>
+                <p className="sm:col-span-2 text-[11px] text-[var(--fg-faint)]">
+                  {t.properties.marketHint}
+                </p>
+              </>
+            )}
             <div>
               <Label>{t.properties.valueChange}</Label>
               <Select
@@ -858,6 +919,16 @@ function ItemCard({
               {item.financesAsset
                 ? ` · ${tr(t.properties.financesAsset, {
                     name: item.financesAsset.name,
+                  })}`
+                : ""}
+              {v?.source === "market"
+                ? ` · ${t.properties.marketSource}${
+                    v.marketValueOn ? ` ${v.marketValueOn}` : ""
+                  }`
+                : ""}
+              {v?.source === "market" && v.estimatedCents != null
+                ? ` · ${tr(t.properties.estimateSource, {
+                    amount: money(v.estimatedCents),
                   })}`
                 : ""}
             </div>

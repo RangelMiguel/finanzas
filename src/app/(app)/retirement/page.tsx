@@ -35,6 +35,7 @@ type Plan = {
   currentSavingsCents: number | null;
   includeAccountBalances: boolean;
   includeGoalReserves: boolean;
+  includePropertyEquity?: boolean;
   monthlyContributionCents: number;
   contributionGrowthPercent: number;
   returnPrePercent: number;
@@ -59,6 +60,7 @@ type FormState = {
   currentSavings: string;
   includeAccountBalances: boolean;
   includeGoalReserves: boolean;
+  includePropertyEquity: boolean;
   monthlyContribution: string;
   contributionGrowthPercent: string;
   returnPrePercent: string;
@@ -85,6 +87,7 @@ function planToForm(p: Plan): FormState {
       p.currentSavingsCents != null ? centsToInput(p.currentSavingsCents) : "",
     includeAccountBalances: p.includeAccountBalances,
     includeGoalReserves: p.includeGoalReserves,
+    includePropertyEquity: Boolean(p.includePropertyEquity),
     monthlyContribution: centsToInput(p.monthlyContributionCents),
     contributionGrowthPercent: String(p.contributionGrowthPercent),
     returnPrePercent: String(p.returnPrePercent),
@@ -112,6 +115,7 @@ function formToPayload(f: FormState, preview: boolean) {
     currentSavings: f.useAutoSavings ? null : f.currentSavings,
     includeAccountBalances: f.includeAccountBalances,
     includeGoalReserves: f.includeGoalReserves,
+    includePropertyEquity: f.includePropertyEquity,
     monthlyContribution: f.monthlyContribution,
     contributionGrowthPercent: parseFloat(f.contributionGrowthPercent) || 0,
     returnPrePercent: parseFloat(f.returnPrePercent) || 0,
@@ -155,6 +159,7 @@ export default function RetirementPage() {
   const [effectiveSavings, setEffectiveSavings] = useState(0);
   const [saving, setSaving] = useState(false);
   const [showTable, setShowTable] = useState(false);
+  const [propertiesAvailable, setPropertiesAvailable] = useState(false);
 
   const applyResponse = useCallback(
     (data: {
@@ -162,11 +167,15 @@ export default function RetirementPage() {
       result: RetirementResult;
       autoNestEggCents: number;
       effectiveSavingsCents: number;
+      propertiesAvailable?: boolean;
     }) => {
       setForm(planToForm(data.plan));
       setResult(data.result);
       setAutoNestEgg(data.autoNestEggCents);
       setEffectiveSavings(data.effectiveSavingsCents);
+      if (data.propertiesAvailable != null) {
+        setPropertiesAvailable(data.propertiesAvailable);
+      }
     },
     []
   );
@@ -517,7 +526,25 @@ export default function RetirementPage() {
                 />
                 {t.retirement.includeGoals}
               </label>
+              {propertiesAvailable && (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.includePropertyEquity}
+                    disabled={!form.useAutoSavings}
+                    onChange={(e) =>
+                      set("includePropertyEquity", e.target.checked)
+                    }
+                  />
+                  {t.retirement.includeProperties}
+                </label>
+              )}
             </div>
+            {propertiesAvailable && form.useAutoSavings && (
+              <p className="sm:col-span-2 text-[11px] text-[var(--fg-faint)]">
+                {t.retirement.includePropertiesHint}
+              </p>
+            )}
             {form.useAutoSavings ? (
               <div className="sm:col-span-2 rounded-xl border border-teal-500/20 bg-teal-500/10 px-3 py-2 text-sm">
                 {tr(t.retirement.autoSavingsValue, {

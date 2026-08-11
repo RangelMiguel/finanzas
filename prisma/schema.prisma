@@ -133,6 +133,9 @@ model PropertyItem {
   salvageCents Int     @default(0)
   notes       String?
   acquiredOn  String?
+  /// Manual market value; when set, this is current value (formula stays an estimate).
+  marketValueCents Int?
+  marketValueOn    String?
   /// Optional link to Debts (mortgage / loan). Payments happen only on Debts.
   debtId      String?
   /// Asset → the liability that finances it (casa + hipoteca = equity). 1:1.
@@ -821,6 +824,8 @@ model RetirementPlan {
   currentSavingsCents Int?
   includeAccountBalances Boolean @default(true)
   includeGoalReserves    Boolean @default(true)
+  /// Add property equity (activos − linked pasivos) to auto nest egg
+  includePropertyEquity  Boolean @default(false)
 
   /// Monthly contribution toward retirement, cents
   monthlyContributionCents Int @default(0)

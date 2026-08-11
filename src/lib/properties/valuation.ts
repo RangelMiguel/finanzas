@@ -14,15 +14,27 @@ export type ValuationInput = {
   asOf?: Date;
 };
 
+export type ValueSource = "estimate" | "market";
+
 export type ValuationResult = {
   originalCents: number;
   currentCents: number;
+  /** Formula + improvements, before any market override. */
+  estimatedCents: number;
   deltaCents: number;
   deltaPercent: number | null;
   yearsHeld: number;
   investedCents: number;
   improvementImpactCents: number;
   baseCents: number;
+  source: ValueSource;
+  marketValueCents: number | null;
+  marketValueOn: string | null;
+};
+
+export type MarketOverride = {
+  marketValueCents?: number | null;
+  marketValueOn?: string | null;
 };
 
 export type ImprovementInput = {
@@ -48,7 +60,8 @@ export function yearsBetween(fromIso: string, asOf = new Date()): number {
 
 export function valueItem(
   input: ValuationInput,
-  improvements: ImprovementInput[] = []
+  improvements: ImprovementInput[] = [],
+  override: MarketOverride = {}
 ): ValuationResult {
   const original = Math.max(0, Math.round(input.originalCents));
   const salvage = Math.max(0, Math.min(original, Math.round(input.salvageCents || 0)));
@@ -80,16 +93,27 @@ export function valueItem(
   );
   const baseCents = current;
   current = Math.max(0, current + improvementImpactCentsTotal);
+  const estimatedCents = current;
+  const marketRaw = override.marketValueCents;
+  const hasMarket =
+    marketRaw != null && Number.isFinite(marketRaw) && marketRaw >= 0;
+  if (hasMarket) {
+    current = Math.round(marketRaw as number);
+  }
   const delta = current - original;
   return {
     originalCents: original,
     currentCents: current,
+    estimatedCents,
     deltaCents: delta,
     deltaPercent: original > 0 ? (delta / original) * 100 : null,
     yearsHeld: years,
     investedCents,
     improvementImpactCents: improvementImpactCentsTotal,
     baseCents,
+    source: hasMarket ? "market" : "estimate",
+    marketValueCents: hasMarket ? Math.round(marketRaw as number) : null,
+    marketValueOn: override.marketValueOn || null,
   };
 }
 

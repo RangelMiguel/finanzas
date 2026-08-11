@@ -181,6 +181,10 @@ export const es = {
     closeBudgets:
       "Cierra la quincena {period}: decide qué hacer con el sobrante",
     closeBudgetsCta: "Revisar y cerrar",
+    propertiesNet: "Patrimonio en propiedades",
+    propertiesOpen: "Ver propiedades",
+    propertiesAssets: "Activos {amount}",
+    propertiesLiabilities: "Pasivos {amount}",
   },
 
   accounts: {
@@ -619,6 +623,9 @@ export const es = {
     useAccounts: "Usar saldos del hogar",
     includeAccounts: "Incluir cuentas",
     includeGoals: "Sumar reservas de metas",
+    includeProperties: "Sumar patrimonio de propiedades",
+    includePropertiesHint:
+      "Casa − hipoteca y otros bienes. El dinero de las cuentas no se cuenta dos veces.",
     autoSavingsValue: "Ahorro detectado: {amount}",
     manualSavings: "Ahorro actual (manual)",
     monthlyContribution: "Aportación mensual",
@@ -1281,6 +1288,13 @@ export const es = {
     financesAsset: "Financia: {name}",
     liabilityName: "Nombre del pasivo",
     valueMinusDebt: "{value} − {debt}",
+    marketValue: "Valor de mercado hoy",
+    marketValueOn: "Fecha del avalúo / precio",
+    marketHint:
+      "Si sabes lo que vale ahora (avalúo, anuncio), úsalo. El cálculo por plusvalía queda como estimado.",
+    marketSource: "Valor de mercado",
+    estimateSource: "Estimado {amount}",
+    clearMarket: "Quitar valor de mercado",
     categories: {
       home: "Casa / inmueble",
       vehicle: "Vehículo",
@@ -1484,6 +1498,10 @@ export const en: Dictionary = {
     thisPeriodBudgets: "This half-month's budgets",
     closeBudgets: "Close period {period}: decide what happens to leftover",
     closeBudgetsCta: "Review and close",
+    propertiesNet: "Property net worth",
+    propertiesOpen: "Open properties",
+    propertiesAssets: "Assets {amount}",
+    propertiesLiabilities: "Liabilities {amount}",
   },
 
   accounts: {
@@ -1922,6 +1940,9 @@ export const en: Dictionary = {
     useAccounts: "Use household balances",
     includeAccounts: "Include accounts",
     includeGoals: "Add goal reserves",
+    includeProperties: "Add property equity",
+    includePropertiesHint:
+      "Home − mortgage and other valuables. Account cash is not counted twice.",
     autoSavingsValue: "Detected savings: {amount}",
     manualSavings: "Current savings (manual)",
     monthlyContribution: "Monthly contribution",
@@ -2583,6 +2604,13 @@ export const en: Dictionary = {
     financesAsset: "Finances: {name}",
     liabilityName: "Liability name",
     valueMinusDebt: "{value} − {debt}",
+    marketValue: "Market value today",
+    marketValueOn: "Appraisal / price date",
+    marketHint:
+      "If you know what it’s worth now (appraisal, listing), use that. The formula stays as an estimate.",
+    marketSource: "Market value",
+    estimateSource: "Estimate {amount}",
+    clearMarket: "Clear market value",
     categories: {
       home: "Home / property",
       vehicle: "Vehicle",
