@@ -233,7 +233,9 @@ export const es = {
     filterUnassigned: "Sin asignar",
     filterClear: "Limpiar filtros",
     emptyFiltered: "Ningún movimiento coincide con los filtros",
-    makeRecurring: "Hacer recurrente",
+    makeRecurring: "Repetir cada mes",
+    makeRecurringHint:
+      "Se registrará solo el mismo día de cada mes, con esta cuenta o tarjeta.",
     madeRecurring: "Pago marcado como recurrente cada mes",
     created: "Transacción creada",
     updated: "Transacción actualizada",
@@ -1391,7 +1393,9 @@ export const en: Dictionary = {
     filterUnassigned: "Unassigned",
     filterClear: "Clear filters",
     emptyFiltered: "No movements match these filters",
-    makeRecurring: "Make recurring",
+    makeRecurring: "Repeat every month",
+    makeRecurringHint:
+      "It will post automatically on the same day each month, from this account or card.",
     madeRecurring: "Payment will repeat every month",
     created: "Transaction created",
     updated: "Transaction updated",

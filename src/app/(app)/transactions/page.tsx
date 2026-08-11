@@ -44,6 +44,11 @@ type Cat = { id: string; name: string; type: string; icon: string };
 type Acc = { id: string; name: string };
 type CardT = { id: string; name: string; lastFour?: string };
 type Member = { user: { id: string; displayName: string } };
+type RecurringExp = {
+  description: string;
+  amountCents: number;
+  dayOfMonth: number;
+};
 
 type PayLine = { source: string; amount: string };
 
@@ -83,6 +88,25 @@ function fundingsToPayLines(txn: Txn): PayLine[] {
   return [{ source: "", amount: centsToInput(txn.amountCents) }];
 }
 
+function dayOfMonthFromDate(iso: string) {
+  return parseInt(iso.slice(8, 10), 10) || 1;
+}
+
+function matchesRecurring(
+  rules: RecurringExp[],
+  description: string,
+  amountCents: number,
+  date: string
+) {
+  const day = dayOfMonthFromDate(date);
+  return rules.some(
+    (r) =>
+      r.description === description &&
+      r.amountCents === amountCents &&
+      r.dayOfMonth === day
+  );
+}
+
 function fundingLabel(txn: Txn): string {
   if (txn.type === "cc_payment") {
     return [txn.account?.name, txn.creditCard?.name].filter(Boolean).join(" → ");
@@ -109,6 +133,7 @@ export default function TransactionsPage() {
   const [categories, setCategories] = useState<Cat[]>([]);
   const [accounts, setAccounts] = useState<Acc[]>([]);
   const [cards, setCards] = useState<CardT[]>([]);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExp[]>([]);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -120,6 +145,7 @@ export default function TransactionsPage() {
     msiMonths: "",
     spentById: "",
     incomeAccountId: "",
+    recurring: false,
   });
   const [payLines, setPayLines] = useState<PayLine[]>([
     { source: "", amount: "" },
@@ -160,13 +186,16 @@ export default function TransactionsPage() {
     if (amountDebounced.max.trim()) {
       params.set("maxAmount", amountDebounced.max);
     }
-    const [txnRes, c, a, cc] = await Promise.all([
+    const [txnRes, c, a, cc, rec] = await Promise.all([
       api<{ transactions: Txn[] }>(`/api/transactions?${params.toString()}`),
       api<{ categories: Cat[] }>("/api/categories").catch(() => ({
         categories: [] as Cat[],
       })),
       api<{ accounts: Acc[] }>("/api/accounts").catch(() => emptyAcc),
       api<{ creditCards: CardT[] }>("/api/credit-cards").catch(() => emptyCc),
+      api<{ recurringExpenses: RecurringExp[] }>("/api/recurring-expenses").catch(
+        () => ({ recurringExpenses: [] as RecurringExp[] })
+      ),
     ]);
     const accList = a.accounts || [];
     const cardList = cc.creditCards || [];
@@ -174,6 +203,7 @@ export default function TransactionsPage() {
     setCategories(c.categories || []);
     setAccounts(accList);
     setCards(cardList);
+    setRecurringExpenses(rec.recurringExpenses || []);
     setForm((f) => ({
       ...f,
       incomeAccountId: f.incomeAccountId || accList[0]?.id || "",
@@ -220,6 +250,12 @@ export default function TransactionsPage() {
       msiMonths: "",
       spentById: txn.spentById || "",
       incomeAccountId: txn.accountId || accounts[0]?.id || "",
+      recurring: matchesRecurring(
+        recurringExpenses,
+        txn.description,
+        txn.amountCents,
+        txn.date
+      ),
     });
     setPayLines(
       txn.type === "expense"
@@ -242,6 +278,7 @@ export default function TransactionsPage() {
       msiMonths: "",
       spentById: "",
       incomeAccountId: accounts[0]?.id || "",
+      recurring: false,
     });
     setPayLines([{ source: src, amount: "" }]);
   }
@@ -348,35 +385,31 @@ export default function TransactionsPage() {
           toast.success(t.transactions.created);
         }
       }
+      if (form.type === "expense" && form.recurring) {
+        const already = matchesRecurring(
+          recurringExpenses,
+          form.description,
+          amountToCents(form.amount),
+          form.date
+        );
+        if (!already) {
+          const first = parseSourceKey(payLines[0]?.source || "");
+          await api("/api/recurring-expenses", {
+            method: "POST",
+            json: {
+              description: form.description,
+              amount: form.amount,
+              dayOfMonth: dayOfMonthFromDate(form.date),
+              categoryId: form.categoryId || null,
+              accountId: first?.kind === "account" ? first.id : null,
+              creditCardId: first?.kind === "card" ? first.id : null,
+            },
+          });
+        }
+      }
       setMode("none");
       setEditId(null);
       await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t.error);
-    }
-  }
-
-  async function makeRecurring(txn: Txn) {
-    try {
-      const day = parseInt(txn.date.slice(8, 10), 10) || 1;
-      const funding = txn.fundings?.[0];
-      const creditCardId =
-        funding?.creditCardId || txn.creditCardId || null;
-      const accountId = creditCardId
-        ? null
-        : funding?.accountId || txn.accountId || null;
-      await api("/api/recurring-expenses", {
-        method: "POST",
-        json: {
-          description: txn.description,
-          amount: centsToInput(txn.amountCents),
-          dayOfMonth: day,
-          categoryId: txn.categoryId || null,
-          accountId,
-          creditCardId,
-        },
-      });
-      toast.success(t.transactions.madeRecurring);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
     }
@@ -698,6 +731,22 @@ export default function TransactionsPage() {
                     />
                   </div>
                 )}
+                <label className="sm:col-span-2 flex items-start gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={form.recurring}
+                    onChange={(e) =>
+                      setForm({ ...form, recurring: e.target.checked })
+                    }
+                  />
+                  <span>
+                    <span className="font-medium">{t.transactions.makeRecurring}</span>
+                    <span className="mt-0.5 block text-xs text-[var(--fg-faint)]">
+                      {t.transactions.makeRecurringHint}
+                    </span>
+                  </span>
+                </label>
               </>
             )}
             <div className="flex gap-2 sm:col-span-2">
@@ -768,15 +817,7 @@ export default function TransactionsPage() {
                       {t.edit}
                     </Button>
                   )}
-                  {txn.type === "expense" && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => makeRecurring(txn)}
-                    >
-                      {t.transactions.makeRecurring}
-                    </Button>
-                  )}
+
                   <Button
                     variant="ghost"
                     size="sm"

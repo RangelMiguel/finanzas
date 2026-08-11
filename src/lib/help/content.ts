@@ -260,7 +260,7 @@ const es: HelpContent = {
           href: "/recurring",
           paragraphs: [
             "Ingresos recurrentes (nómina, pensión, etc.) se proyectan en ¿Cuánto gastar? según el día del mes que indiques.",
-            "Los pagos recurrentes (Spotify, internet, renta) se registran solos ese día en la cuenta o tarjeta que elijas. También puedes marcar un gasto en Movimientos como recurrente.",
+            "Los pagos recurrentes (Spotify, internet, renta) se registran solos ese día en la cuenta o tarjeta que elijas. Al crear o editar un gasto, marca “Repetir cada mes”.",
             "La sección de MSI lista los planes diferidos activos creados al registrar gastos con MSI en tarjeta o al importar un estado de cuenta.",
             "No confundas un ingreso o pago recurrente (plantilla) con el movimiento ya contado: el recurrente es la regla; el cargo o depósito real aparece en Movimientos cuando llega o se auto-registra.",
           ],
@@ -763,7 +763,7 @@ const en: HelpContent = {
           href: "/recurring",
           paragraphs: [
             "Recurring income (salary, pension, etc.) is projected in Safe to spend on the day of month you set.",
-            "Recurring payments (Spotify, internet, rent) post automatically on that day from the chosen account or card. You can also mark an expense in Activity as recurring.",
+            "Recurring payments (Spotify, internet, rent) post automatically on that day from the chosen account or card. When creating or editing an expense, check “Repeat every month”.",
             "Installments lists active plans created when you log card MSI spend or import a statement.",
             "A recurring rule is a template; the real charge or deposit shows under Activity when it posts.",
           ],
