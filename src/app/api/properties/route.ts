@@ -11,24 +11,38 @@ import { valueItem, type ValueChange, type ValueMethod } from "@/lib/properties/
 const valueChangeSchema = z.enum(["none", "appreciate", "depreciate"]);
 const methodSchema = z.enum(["compound", "straight"]);
 
-function valued(row: {
-  valueCents: number;
-  acquiredOn: string | null;
-  valueChange: string;
-  annualRatePercent: number;
-  method: string;
-  usefulLifeYears: number | null;
-  salvageCents: number;
-}) {
-  return valueItem({
-    originalCents: row.valueCents,
-    acquiredOn: row.acquiredOn,
-    valueChange: (row.valueChange as ValueChange) || "none",
-    annualRatePercent: row.annualRatePercent,
-    method: (row.method as ValueMethod) || "compound",
-    usefulLifeYears: row.usefulLifeYears,
-    salvageCents: row.salvageCents,
-  });
+function valued(
+  row: {
+    valueCents: number;
+    acquiredOn: string | null;
+    valueChange: string;
+    annualRatePercent: number;
+    method: string;
+    usefulLifeYears: number | null;
+    salvageCents: number;
+  },
+  improvements: {
+    costCents: number;
+    effect: string;
+    recoveryPercent: number;
+  }[] = []
+) {
+  return valueItem(
+    {
+      originalCents: row.valueCents,
+      acquiredOn: row.acquiredOn,
+      valueChange: (row.valueChange as ValueChange) || "none",
+      annualRatePercent: row.annualRatePercent,
+      method: (row.method as ValueMethod) || "compound",
+      usefulLifeYears: row.usefulLifeYears,
+      salvageCents: row.salvageCents,
+    },
+    improvements.map((i) => ({
+      costCents: i.costCents,
+      effect: i.effect === "depreciate" ? "depreciate" : "improve",
+      recoveryPercent: i.recoveryPercent,
+    }))
+  );
 }
 
 const kindSchema = z.enum(["asset", "liability"]);
@@ -54,9 +68,13 @@ export async function GET() {
     }
     const rows = await prisma.propertyItem.findMany({
       where: { householdId: m.householdId },
+      include: { improvements: { orderBy: { createdAt: "desc" } } },
       orderBy: [{ kind: "asc" }, { name: "asc" }],
     });
-    const items = rows.map((row) => ({ ...row, valuation: valued(row) }));
+    const items = rows.map((row) => ({
+      ...row,
+      valuation: valued(row, row.improvements),
+    }));
     const assets = items.filter((i) => i.kind === "asset");
     const liabilities = items.filter((i) => i.kind === "liability");
     const assetCents = assets.reduce((s, i) => s + i.valuation.currentCents, 0);

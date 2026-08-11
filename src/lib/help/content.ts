@@ -467,6 +467,7 @@ const es: HelpContent = {
           paragraphs: [
             "Instálalo desde el Marketplace. Ahí registras bienes (casa, auto, joyas) y deudas asociadas (hipoteca, préstamos) con un valor de compra y plusvalía o depreciación anual.",
             "El patrimonio neto es activos menos pasivos. No mueve saldos de cuentas ni sustituye el módulo de Deudas.",
+            "Puedes registrar mejoras (cocina, techo) con lo invertido; la app estima cuánto suele sumar o restar al valor (por defecto ~70% del gasto).",
           ],
         },
       ],
@@ -998,6 +999,7 @@ const en: HelpContent = {
           paragraphs: [
             "Install it from the Marketplace. Track valuables (home, car, jewelry) and related liabilities (mortgage, loans) with a purchase value plus yearly appreciation or depreciation.",
             "Net worth is assets minus liabilities. It does not move account balances or replace the Debts module.",
+            "You can log improvements (kitchen, roof) with what you invested; the app estimates how much that usually adds or subtracts (default ~70% of cost).",
           ],
         },
       ],

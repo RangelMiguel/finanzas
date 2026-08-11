@@ -137,8 +137,29 @@ model PropertyItem {
   updatedAt   DateTime @updatedAt
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  improvements PropertyImprovement[]
 
   @@index([householdId, kind])
+}
+
+/// Money invested in a property (remodel, repair) and its estimated value impact.
+model PropertyImprovement {
+  id              String   @id @default(cuid())
+  householdId     String
+  propertyId      String
+  description     String
+  costCents       Int
+  /// improve | depreciate
+  effect          String   @default("improve")
+  /// Share of cost that typically hits market value (e.g. 70 = 70%).
+  recoveryPercent Float    @default(70)
+  doneOn          String?
+  createdAt       DateTime @default(now())
+
+  property PropertyItem @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([householdId])
 }
 
 /// Reusable security / visibility policies for members and invites

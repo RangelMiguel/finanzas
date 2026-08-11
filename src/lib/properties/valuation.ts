@@ -20,7 +20,23 @@ export type ValuationResult = {
   deltaCents: number;
   deltaPercent: number | null;
   yearsHeld: number;
+  investedCents: number;
+  improvementImpactCents: number;
+  baseCents: number;
 };
+
+export type ImprovementInput = {
+  costCents: number;
+  effect: "improve" | "depreciate";
+  recoveryPercent: number;
+};
+
+export function improvementImpactCents(imp: ImprovementInput): number {
+  const cost = Math.max(0, Math.round(imp.costCents));
+  const pct = Math.max(0, Math.min(150, imp.recoveryPercent || 0)) / 100;
+  const raw = Math.round(cost * pct);
+  return imp.effect === "depreciate" ? -raw : raw;
+}
 
 export function yearsBetween(fromIso: string, asOf = new Date()): number {
   const from = new Date(`${fromIso.slice(0, 10)}T12:00:00`);
@@ -30,7 +46,10 @@ export function yearsBetween(fromIso: string, asOf = new Date()): number {
   return ms / (365.25 * 24 * 60 * 60 * 1000);
 }
 
-export function valueItem(input: ValuationInput): ValuationResult {
+export function valueItem(
+  input: ValuationInput,
+  improvements: ImprovementInput[] = []
+): ValuationResult {
   const original = Math.max(0, Math.round(input.originalCents));
   const salvage = Math.max(0, Math.min(original, Math.round(input.salvageCents || 0)));
   const start = input.acquiredOn || null;
@@ -51,6 +70,16 @@ export function valueItem(input: ValuationInput): ValuationResult {
   }
 
   current = Math.max(salvage, current);
+  const investedCents = improvements.reduce(
+    (s, i) => s + Math.max(0, Math.round(i.costCents)),
+    0
+  );
+  const improvementImpactCentsTotal = improvements.reduce(
+    (s, i) => s + improvementImpactCents(i),
+    0
+  );
+  const baseCents = current;
+  current = Math.max(0, current + improvementImpactCentsTotal);
   const delta = current - original;
   return {
     originalCents: original,
@@ -58,6 +87,9 @@ export function valueItem(input: ValuationInput): ValuationResult {
     deltaCents: delta,
     deltaPercent: original > 0 ? (delta / original) * 100 : null,
     yearsHeld: years,
+    investedCents,
+    improvementImpactCents: improvementImpactCentsTotal,
+    baseCents,
   };
 }
 

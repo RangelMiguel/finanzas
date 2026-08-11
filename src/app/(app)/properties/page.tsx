@@ -29,6 +29,18 @@ type Valuation = {
   deltaCents: number;
   deltaPercent: number | null;
   yearsHeld: number;
+  investedCents: number;
+  improvementImpactCents: number;
+  baseCents: number;
+};
+
+type Improvement = {
+  id: string;
+  description: string;
+  costCents: number;
+  effect: "improve" | "depreciate";
+  recoveryPercent: number;
+  doneOn: string | null;
 };
 
 type Item = {
@@ -45,6 +57,7 @@ type Item = {
   notes: string | null;
   acquiredOn: string | null;
   valuation: Valuation;
+  improvements: Improvement[];
 };
 
 const ASSET_CATS = [
@@ -463,6 +476,7 @@ export default function PropertiesPage() {
             categoryLabel={cats[item.category as keyof typeof cats] || item.category}
             onEdit={() => openEdit(item)}
             onDelete={() => remove(item.id)}
+            onChanged={load}
           />
         ))}
       </section>
@@ -484,6 +498,7 @@ export default function PropertiesPage() {
             categoryLabel={cats[item.category as keyof typeof cats] || item.category}
             onEdit={() => openEdit(item)}
             onDelete={() => remove(item.id)}
+            onChanged={load}
           />
         ))}
       </section>
@@ -496,61 +511,270 @@ function ItemCard({
   categoryLabel,
   onEdit,
   onDelete,
+  onChanged,
 }: {
   item: Item;
   categoryLabel: string;
   onEdit: () => void;
   onDelete: () => void;
+  onChanged: () => Promise<void>;
 }) {
   const { money, t, tr } = useApp();
+  const { confirm } = useConfirm();
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [imp, setImp] = useState({
+    description: "",
+    cost: "",
+    effect: "improve" as "improve" | "depreciate",
+    recoveryPercent: "70",
+    doneOn: "",
+  });
+
+  async function saveImprovement() {
+    try {
+      await api("/api/property-improvements", {
+        method: "POST",
+        json: {
+          propertyId: item.id,
+          description: imp.description,
+          cost: imp.cost,
+          effect: imp.effect,
+          recoveryPercent: parseFloat(imp.recoveryPercent) || 70,
+          doneOn: imp.doneOn || null,
+        },
+      });
+      toast.success(t.properties.improvementAdded);
+      setImp({
+        description: "",
+        cost: "",
+        effect: "improve",
+        recoveryPercent: "70",
+        doneOn: "",
+      });
+      setAdding(false);
+      await onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
+  async function removeImprovement(id: string) {
+    const ok = await confirm({
+      title: t.delete,
+      description: t.properties.confirmDeleteImprovement,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
+    await api(`/api/property-improvements?id=${id}`, { method: "DELETE" });
+    await onChanged();
+  }
+
+  const v = item.valuation;
+  const imps = item.improvements || [];
+
   return (
     <Card>
-      <CardContent className="flex items-center justify-between py-4">
-        <div>
-          <div className="font-medium">{item.name}</div>
-          <div className="text-xs text-[var(--fg-faint)]">
-            {categoryLabel}
-            {item.acquiredOn ? ` · ${item.acquiredOn}` : ""}
-            {item.valuation && item.valuation.deltaCents !== 0
-              ? ` · ${tr(t.properties.original, {
-                  amount: money(item.valuation.originalCents),
-                })}`
-              : ""}
-            {item.notes ? ` · ${item.notes}` : ""}
+      <CardContent className="space-y-3 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="font-medium">{item.name}</div>
+            <div className="text-xs text-[var(--fg-faint)]">
+              {categoryLabel}
+              {item.acquiredOn ? ` · ${item.acquiredOn}` : ""}
+              {v && v.deltaCents !== 0
+                ? ` · ${tr(t.properties.original, {
+                    amount: money(v.originalCents),
+                  })}`
+                : ""}
+              {item.notes ? ` · ${item.notes}` : ""}
+            </div>
+            {v && v.investedCents > 0 && (
+              <div className="mt-1 text-xs text-[var(--fg-muted)]">
+                {tr(t.properties.invested, { amount: money(v.investedCents) })}
+                {" · "}
+                {tr(t.properties.impactOnValue, {
+                  amount: `${v.improvementImpactCents >= 0 ? "+" : ""}${money(
+                    v.improvementImpactCents
+                  )}`,
+                })}
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <span
-              className={`font-display text-lg ${
-                item.kind === "asset" ? "text-emerald-300" : "money-expense"
-              }`}
-            >
-              {money(item.valuation?.currentCents ?? item.valueCents)}
-            </span>
-            {item.valuation &&
-              item.valuation.deltaPercent != null &&
-              item.valuation.deltaCents !== 0 && (
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <span
+                className={`font-display text-lg ${
+                  item.kind === "asset" ? "text-emerald-300" : "money-expense"
+                }`}
+              >
+                {money(v?.currentCents ?? item.valueCents)}
+              </span>
+              {v && v.deltaPercent != null && v.deltaCents !== 0 && (
                 <div
                   className={`text-[11px] ${
-                    item.valuation.deltaCents > 0
-                      ? "text-emerald-300"
-                      : "text-amber-200"
+                    v.deltaCents > 0 ? "text-emerald-300" : "text-amber-200"
                   }`}
                 >
                   {tr(t.properties.changeVsOriginal, {
-                    sign: item.valuation.deltaCents > 0 ? "+" : "",
-                    pct: item.valuation.deltaPercent.toFixed(1),
+                    sign: v.deltaCents > 0 ? "+" : "",
+                    pct: v.deltaPercent.toFixed(1),
                   })}
                 </div>
               )}
+            </div>
+            <Button variant="secondary" size="sm" onClick={onEdit}>
+              {t.edit}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onDelete}>
+              {t.delete}
+            </Button>
           </div>
-          <Button variant="secondary" size="sm" onClick={onEdit}>
-            {t.edit}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onDelete}>
-            {t.delete}
-          </Button>
+        </div>
+
+        <div className="border-t border-white/10 pt-3">
+          <button
+            type="button"
+            className="text-xs font-medium text-[var(--fg-muted)] hover:text-[var(--fg)]"
+            onClick={() => setOpen((o) => !o)}
+          >
+            {t.properties.improvements}
+            {imps.length ? ` (${imps.length})` : ""}
+          </button>
+          {open && (
+            <div className="mt-3 space-y-2">
+              <p className="text-[11px] text-[var(--fg-faint)]">
+                {t.properties.improvementHint}
+              </p>
+              {imps.length === 0 && !adding && (
+                <p className="text-xs text-[var(--fg-faint)]">
+                  {t.properties.noImprovements}
+                </p>
+              )}
+              {imps.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs"
+                >
+                  <div>
+                    <div className="font-medium text-sm">{row.description}</div>
+                    <div className="text-[var(--fg-faint)]">
+                      {money(row.costCents)}
+                      {" · "}
+                      {row.effect === "depreciate"
+                        ? t.properties.effectDown
+                        : t.properties.effectImprove}
+                      {` ${row.recoveryPercent}%`}
+                      {row.doneOn ? ` · ${row.doneOn}` : ""}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeImprovement(row.id)}
+                  >
+                    {t.delete}
+                  </Button>
+                </div>
+              ))}
+              {adding ? (
+                <div className="grid gap-2 rounded-xl border border-white/10 p-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Label>{t.description}</Label>
+                    <Input
+                      className="mt-1"
+                      value={imp.description}
+                      onChange={(e) =>
+                        setImp({ ...imp, description: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>{t.properties.cost}</Label>
+                    <Input
+                      money
+                      className="mt-1"
+                      value={imp.cost}
+                      onChange={(e) => setImp({ ...imp, cost: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t.properties.doneOn}</Label>
+                    <Input
+                      type="date"
+                      className="mt-1"
+                      value={imp.doneOn}
+                      onChange={(e) =>
+                        setImp({ ...imp, doneOn: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>{t.type}</Label>
+                    <Select
+                      className="mt-1"
+                      value={imp.effect}
+                      onChange={(e) => {
+                        const effect = e.target.value as
+                          | "improve"
+                          | "depreciate";
+                        setImp({
+                          ...imp,
+                          effect,
+                          recoveryPercent:
+                            effect === "depreciate" ? "100" : "70",
+                        });
+                      }}
+                    >
+                      <option value="improve">
+                        {t.properties.effectImprove}
+                      </option>
+                      <option value="depreciate">
+                        {t.properties.effectDown}
+                      </option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>{t.properties.recovery}</Label>
+                    <Input
+                      type="number"
+                      className="mt-1"
+                      value={imp.recoveryPercent}
+                      onChange={(e) =>
+                        setImp({ ...imp, recoveryPercent: e.target.value })
+                      }
+                    />
+                    <p className="mt-1 text-[11px] text-[var(--fg-faint)]">
+                      {t.properties.recoveryHint}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 sm:col-span-2">
+                    <Button size="sm" onClick={saveImprovement}>
+                      {t.save}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setAdding(false)}
+                    >
+                      {t.cancel}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setAdding(true)}
+                >
+                  {t.properties.addImprovement}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
