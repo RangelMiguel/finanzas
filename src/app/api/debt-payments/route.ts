@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // Optional: record expense from account
+    // Ledger movement only when the user pays from an account (same as cards).
     if (body.accountId && capitalCents + interestCents > 0) {
       await prisma.transaction.create({
         data: {
@@ -49,6 +49,12 @@ export async function POST(req: Request) {
           type: "expense",
           accountId: body.accountId,
           createdById: session.userId,
+          fundings: {
+            create: {
+              amountCents: capitalCents + interestCents,
+              accountId: body.accountId,
+            },
+          },
         },
       });
     }

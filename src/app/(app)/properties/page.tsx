@@ -58,7 +58,18 @@ type Item = {
   acquiredOn: string | null;
   valuation: Valuation;
   improvements: Improvement[];
+  debtId?: string | null;
+  debt?: {
+    id: string;
+    name: string;
+    monthlyPaymentCents: number;
+    paymentDay: number;
+    annualRatePercent: number;
+    remainingCents: number | null;
+  } | null;
 };
+
+type DebtOpt = { id: string; name: string; remainingCents: number };
 
 const ASSET_CATS = [
   "home",
@@ -85,6 +96,7 @@ export default function PropertiesPage() {
   const { money, t, tr } = useApp();
   const { confirm } = useConfirm();
   const [items, setItems] = useState<Item[]>([]);
+  const [debtOpts, setDebtOpts] = useState<DebtOpt[]>([]);
   const [totals, setTotals] = useState({
     assetCents: 0,
     liabilityCents: 0,
@@ -104,6 +116,10 @@ export default function PropertiesPage() {
     salvage: "",
     notes: "",
     acquiredOn: "",
+    debtMode: "none" as "none" | "create" | "existing",
+    linkDebtId: "",
+    monthlyPayment: "",
+    paymentDay: "1",
   });
 
   const cats = t.properties.categories;
@@ -111,9 +127,11 @@ export default function PropertiesPage() {
   async function load() {
     const data = await api<{
       items: Item[];
+      debts?: DebtOpt[];
       totals: typeof totals;
     }>("/api/properties");
     setItems(data.items);
+    setDebtOpts(data.debts || []);
     setTotals(data.totals);
   }
 
@@ -132,6 +150,10 @@ export default function PropertiesPage() {
       ...policyToForm(defaultValuePolicy(kind, kind === "asset" ? "home" : "mortgage")),
       notes: "",
       acquiredOn: "",
+      debtMode: kind === "liability" ? "create" : "none",
+      linkDebtId: "",
+      monthlyPayment: "",
+      paymentDay: "1",
     });
   }
 
@@ -151,6 +173,12 @@ export default function PropertiesPage() {
       salvage: item.salvageCents ? centsToInput(item.salvageCents) : "",
       notes: item.notes || "",
       acquiredOn: item.acquiredOn || "",
+      debtMode: item.debtId ? "existing" : "none",
+      linkDebtId: item.debtId || "",
+      monthlyPayment: item.debt
+        ? centsToInput(item.debt.monthlyPaymentCents)
+        : "",
+      paymentDay: item.debt ? String(item.debt.paymentDay) : "1",
     });
   }
 
@@ -170,6 +198,15 @@ export default function PropertiesPage() {
         salvage: form.salvage || 0,
         notes: form.notes || null,
         acquiredOn: form.acquiredOn || null,
+        createDebt: form.kind === "liability" && form.debtMode === "create",
+        linkDebtId:
+          form.kind === "liability" && form.debtMode === "existing"
+            ? form.linkDebtId || null
+            : form.kind === "liability" && form.debtMode === "none"
+              ? null
+              : undefined,
+        monthlyPayment: form.monthlyPayment || 0,
+        paymentDay: parseInt(form.paymentDay, 10) || 1,
       };
       if (mode === "edit" && editId) {
         await api("/api/properties", {
@@ -441,6 +478,68 @@ export default function PropertiesPage() {
                 </p>
               </>
             )}
+            {form.kind === "liability" && (
+              <div className="sm:col-span-2 space-y-3 rounded-xl border border-white/10 p-3">
+                <Label>{t.properties.debtLink}</Label>
+                <p className="text-[11px] text-[var(--fg-faint)]">
+                  {t.properties.debtHint}
+                </p>
+                <Select
+                  value={form.debtMode}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      debtMode: e.target.value as "none" | "create" | "existing",
+                    })
+                  }
+                >
+                  <option value="none">{t.properties.debtNone}</option>
+                  <option value="create">{t.properties.debtCreate}</option>
+                  <option value="existing">{t.properties.debtExisting}</option>
+                </Select>
+                {form.debtMode === "create" && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>{t.properties.monthlyPay}</Label>
+                      <Input
+                        money
+                        className="mt-1"
+                        value={form.monthlyPayment}
+                        onChange={(e) =>
+                          setForm({ ...form, monthlyPayment: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.properties.paymentDay}</Label>
+                      <Input
+                        numeric
+                        className="mt-1"
+                        value={form.paymentDay}
+                        onChange={(e) =>
+                          setForm({ ...form, paymentDay: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+                {form.debtMode === "existing" && (
+                  <Select
+                    value={form.linkDebtId}
+                    onChange={(e) =>
+                      setForm({ ...form, linkDebtId: e.target.value })
+                    }
+                  >
+                    <option value="">{t.select}</option>
+                    {debtOpts.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </div>
+            )}
             <div className="sm:col-span-2">
               <Label>{t.notes}</Label>
               <Textarea
@@ -590,6 +689,14 @@ function ItemCard({
                   })}`
                 : ""}
               {item.notes ? ` · ${item.notes}` : ""}
+              {item.debt
+                ? ` · ${tr(t.properties.linkedDebt, { name: item.debt.name })}`
+                : ""}
+              {item.debt?.remainingCents != null
+                ? ` · ${tr(t.properties.debtRemaining, {
+                    amount: money(item.debt.remainingCents),
+                  })}`
+                : ""}
             </div>
             {v && v.investedCents > 0 && (
               <div className="mt-1 text-xs text-[var(--fg-muted)]">

@@ -66,15 +66,48 @@ export async function GET() {
     if (!canSeeModule(m.visibility, "properties")) {
       throw new ForbiddenError("Sin acceso a propiedades");
     }
-    const rows = await prisma.propertyItem.findMany({
-      where: { householdId: m.householdId },
-      include: { improvements: { orderBy: { createdAt: "desc" } } },
-      orderBy: [{ kind: "asc" }, { name: "asc" }],
+    const [rows, debts] = await Promise.all([
+      prisma.propertyItem.findMany({
+        where: { householdId: m.householdId },
+        include: {
+          improvements: { orderBy: { createdAt: "desc" } },
+          debt: { include: { payments: { select: { capitalCents: true } } } },
+        },
+        orderBy: [{ kind: "asc" }, { name: "asc" }],
+      }),
+      prisma.debt.findMany({
+        where: { householdId: m.householdId },
+        include: { payments: { select: { capitalCents: true } } },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+    const items = rows.map((row) => {
+      const valuation = valued(row, row.improvements);
+      const paid = row.debt
+        ? row.debt.payments.reduce((s, p) => s + p.capitalCents, 0)
+        : 0;
+      const remainingCents = row.debt
+        ? Math.max(0, row.debt.principalCents - paid)
+        : null;
+      const currentCents =
+        row.kind === "liability" && remainingCents != null
+          ? remainingCents
+          : valuation.currentCents;
+      return {
+        ...row,
+        valuation: { ...valuation, currentCents },
+        debt: row.debt
+          ? {
+              id: row.debt.id,
+              name: row.debt.name,
+              monthlyPaymentCents: row.debt.monthlyPaymentCents,
+              paymentDay: row.debt.paymentDay,
+              annualRatePercent: row.debt.annualRatePercent,
+              remainingCents,
+            }
+          : null,
+      };
     });
-    const items = rows.map((row) => ({
-      ...row,
-      valuation: valued(row, row.improvements),
-    }));
     const assets = items.filter((i) => i.kind === "asset");
     const liabilities = items.filter((i) => i.kind === "liability");
     const assetCents = assets.reduce((s, i) => s + i.valuation.currentCents, 0);
@@ -84,6 +117,14 @@ export async function GET() {
     );
     return jsonOk({
       items,
+      debts: debts.map((d) => ({
+        id: d.id,
+        name: d.name,
+        remainingCents: Math.max(
+          0,
+          d.principalCents - d.payments.reduce((s, p) => s + p.capitalCents, 0)
+        ),
+      })),
       totals: {
         assetCents,
         liabilityCents,
@@ -116,8 +157,29 @@ export async function POST(req: Request) {
         salvage: z.union([z.number(), z.string()]).optional().nullable(),
         notes: z.string().optional().nullable(),
         acquiredOn: z.string().optional().nullable(),
+        createDebt: z.boolean().optional(),
+        linkDebtId: z.string().optional().nullable(),
+        monthlyPayment: z.union([z.number(), z.string()]).optional(),
+        paymentDay: z.number().int().min(1).max(31).optional(),
       })
       .parse(await req.json());
+
+    let debtId: string | null = body.linkDebtId || null;
+    if (body.kind === "liability" && body.createDebt) {
+      const debt = await prisma.debt.create({
+        data: {
+          householdId: m.householdId,
+          name: body.name,
+          principalCents: pesosToCents(body.value),
+          annualRatePercent: body.annualRatePercent ?? 0,
+          monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
+          paymentDay: body.paymentDay || 1,
+          notes: body.notes || null,
+        },
+      });
+      debtId = debt.id;
+    }
+
     const row = await prisma.propertyItem.create({
       data: {
         householdId: m.householdId,
@@ -132,6 +194,7 @@ export async function POST(req: Request) {
         salvageCents: body.salvage != null ? pesosToCents(body.salvage) : 0,
         notes: body.notes || null,
         acquiredOn: body.acquiredOn || null,
+        debtId,
       },
     });
     return jsonOk({ item: { ...row, valuation: valued(row) } }, 201);
@@ -159,12 +222,37 @@ export async function PATCH(req: Request) {
         salvage: z.union([z.number(), z.string()]).optional().nullable(),
         notes: z.string().nullable().optional(),
         acquiredOn: z.string().nullable().optional(),
+        createDebt: z.boolean().optional(),
+        linkDebtId: z.string().nullable().optional(),
+        monthlyPayment: z.union([z.number(), z.string()]).optional(),
+        paymentDay: z.number().int().min(1).max(31).optional(),
       })
       .parse(await req.json());
     const existing = await prisma.propertyItem.findFirst({
       where: { id: body.id, householdId: m.householdId },
     });
     if (!existing) throw new Error("No encontrado");
+
+    let debtId = body.linkDebtId === undefined ? undefined : body.linkDebtId;
+    if (body.createDebt && (body.kind || existing.kind) === "liability") {
+      const debt = await prisma.debt.create({
+        data: {
+          householdId: m.householdId,
+          name: body.name || existing.name,
+          principalCents:
+            body.value !== undefined
+              ? pesosToCents(body.value)
+              : existing.valueCents,
+          annualRatePercent:
+            body.annualRatePercent ?? existing.annualRatePercent,
+          monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
+          paymentDay: body.paymentDay || 1,
+          notes: body.notes ?? existing.notes,
+        },
+      });
+      debtId = debt.id;
+    }
+
     const row = await prisma.propertyItem.update({
       where: { id: body.id },
       data: {
@@ -185,6 +273,7 @@ export async function PATCH(req: Request) {
               : undefined,
         notes: body.notes,
         acquiredOn: body.acquiredOn,
+        debtId,
       },
     });
     return jsonOk({ item: { ...row, valuation: valued(row) } });

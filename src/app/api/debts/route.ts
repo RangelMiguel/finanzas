@@ -5,6 +5,7 @@ import { jsonError, jsonOk } from "@/lib/access";
 import { pesosToCents } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
+import { suggestMonthlyDebtPay } from "@/lib/debts";
 
 export async function GET() {
   try {
@@ -15,7 +16,10 @@ export async function GET() {
     }
     const debts = await prisma.debt.findMany({
       where: { householdId: m.householdId },
-      include: { payments: { orderBy: { date: "desc" } } },
+      include: {
+        payments: { orderBy: { date: "desc" } },
+        propertyItems: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
     const visibleDebts = debts.filter(
@@ -23,12 +27,19 @@ export async function GET() {
     );
     const enriched = visibleDebts.map((d) => {
       const paidCapital = d.payments.reduce((s, p) => s + p.capitalCents, 0);
+      const remaining = Math.max(0, d.principalCents - paidCapital);
       const show = m.visibility.showDebtBalances;
+      const suggested = suggestMonthlyDebtPay({
+        remainingCents: remaining,
+        monthlyPaymentCents: d.monthlyPaymentCents,
+        annualRatePercent: d.annualRatePercent,
+      });
       return {
         ...d,
         principalCents: show ? d.principalCents : null,
         paidCapitalCents: show ? paidCapital : null,
-        remainingCents: show ? Math.max(0, d.principalCents - paidCapital) : null,
+        remainingCents: show ? remaining : null,
+        suggestedPay: show ? suggested : null,
         balancesHidden: !show,
       };
     });

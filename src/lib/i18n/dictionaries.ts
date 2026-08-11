@@ -482,6 +482,9 @@ export const es = {
     monthlyPayment: "Pago mensual",
     paymentDay: "Día de pago",
     pay: "Pagar",
+    payMonth: "Pagar este mes",
+    payMonthHint:
+      "No se mueve dinero hasta que pagues. Elige cuenta y confirma el mes.",
     registerPay: "Registrar pago",
     capital: "Capital",
     interest: "Intereses",
@@ -497,6 +500,7 @@ export const es = {
     ratePayDay: "Tasa {rate}% · Pago sugerido {payment} · Día {day}",
     capitalLine: "Capital {capital}",
     interestLine: " + int. {interest}",
+    linkedProperty: "Propiedad: {name}",
   },
 
   goals: {
@@ -1226,6 +1230,16 @@ export const es = {
     improvementAdded: "Inversión registrada",
     confirmDeleteImprovement: "¿Eliminar esta inversión?",
     noImprovements: "Sin inversiones extra",
+    debtLink: "Relación con deudas",
+    debtNone: "Solo registro (sin deuda ni pagos)",
+    debtCreate: "Crear deuda y pago mensual",
+    debtExisting: "Vincular a una deuda existente",
+    debtHint:
+      "El pago mensual no genera movimiento hasta que entres a Deudas y pulses Pagar este mes.",
+    linkedDebt: "Deuda: {name}",
+    debtRemaining: "Saldo de la deuda {amount}",
+    monthlyPay: "Pago mensual",
+    paymentDay: "Día de pago",
     categories: {
       home: "Casa / inmueble",
       vehicle: "Vehículo",
@@ -1730,6 +1744,9 @@ export const en: Dictionary = {
     monthlyPayment: "Monthly payment",
     paymentDay: "Payment day",
     pay: "Pay",
+    payMonth: "Pay this month",
+    payMonthHint:
+      "No money moves until you pay. Pick an account and confirm the month.",
     registerPay: "Record payment",
     capital: "Principal",
     interest: "Interest",
@@ -1745,6 +1762,7 @@ export const en: Dictionary = {
     ratePayDay: "Rate {rate}% · Suggested payment {payment} · Day {day}",
     capitalLine: "Principal {capital}",
     interestLine: " + int. {interest}",
+    linkedProperty: "Property: {name}",
   },
 
   goals: {
@@ -2473,6 +2491,16 @@ export const en: Dictionary = {
     improvementAdded: "Investment saved",
     confirmDeleteImprovement: "Delete this investment?",
     noImprovements: "No extra investments",
+    debtLink: "Link to debts",
+    debtNone: "Record only (no debt or payments)",
+    debtCreate: "Create debt and monthly payment",
+    debtExisting: "Link to an existing debt",
+    debtHint:
+      "The monthly payment does not move money until you open Debts and tap Pay this month.",
+    linkedDebt: "Debt: {name}",
+    debtRemaining: "Debt balance {amount}",
+    monthlyPay: "Monthly payment",
+    paymentDay: "Payment day",
     categories: {
       home: "Home / property",
       vehicle: "Vehicle",

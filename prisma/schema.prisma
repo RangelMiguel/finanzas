@@ -133,13 +133,17 @@ model PropertyItem {
   salvageCents Int     @default(0)
   notes       String?
   acquiredOn  String?
+  /// Optional link to Debts (mortgage / loan). Payments happen only on Debts.
+  debtId      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  debt      Debt?     @relation(fields: [debtId], references: [id], onDelete: SetNull)
   improvements PropertyImprovement[]
 
   @@index([householdId, kind])
+  @@index([debtId])
 }
 
 /// Money invested in a property (remodel, repair) and its estimated value impact.
@@ -482,8 +486,9 @@ model Debt {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  household Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  payments  DebtPayment[]
+  household      Household      @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  payments       DebtPayment[]
+  propertyItems  PropertyItem[]
 
   @@index([householdId])
 }

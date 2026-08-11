@@ -28,6 +28,12 @@ type Debt = {
     capitalCents: number;
     interestCents: number;
   }[];
+  propertyItems?: { id: string; name: string }[];
+  suggestedPay?: {
+    capitalCents: number;
+    interestCents: number;
+    totalCents: number;
+  } | null;
 };
 type Acc = { id: string; name: string };
 
@@ -99,6 +105,16 @@ export default function DebtsPage() {
       notes: "",
     });
     setMode("edit");
+  }
+
+  function openPayMonth(d: Debt) {
+    const s = d.suggestedPay;
+    setPay({
+      capital: s ? centsToInput(s.capitalCents) : centsToInput(d.monthlyPaymentCents),
+      interest: s ? centsToInput(s.interestCents) : "0",
+      accountId: pay.accountId || accounts[0]?.id || "",
+    });
+    setPayFor(d.id);
   }
 
   async function payDebt() {
@@ -212,6 +228,7 @@ export default function DebtsPage() {
         <Card className="mb-6" premium>
           <CardHeader>
             <CardTitle>{t.debts.registerPay}</CardTitle>
+            <p className="text-xs text-[var(--fg-faint)]">{t.debts.payMonthHint}</p>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-3">
             <div>
@@ -275,8 +292,20 @@ export default function DebtsPage() {
                     day: d.paymentDay,
                   })}
                 </p>
+                {d.propertyItems && d.propertyItems.length > 0 && (
+                  <p className="mt-1 text-xs text-[var(--fg-muted)]">
+                    {d.propertyItems
+                      .map((p) =>
+                        tr(t.debts.linkedProperty, { name: p.name })
+                      )
+                      .join(" · ")}
+                  </p>
+                )}
               </div>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1">
+                <Button size="sm" onClick={() => openPayMonth(d)}>
+                  {t.debts.payMonth}
+                </Button>
                 <Button size="sm" variant="secondary" onClick={() => setPayFor(d.id)}>
                   {t.debts.pay}
                 </Button>
