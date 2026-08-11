@@ -34,6 +34,8 @@ export async function POST(req: Request) {
       prisma.priceItem.deleteMany({ where: { householdId: m.householdId } }),
       prisma.priceStore.deleteMany({ where: { householdId: m.householdId } }),
       prisma.investmentProfile.deleteMany({ where: { householdId: m.householdId } }),
+      prisma.creditPayment.deleteMany({ where: { householdId: m.householdId } }),
+      prisma.credit.deleteMany({ where: { householdId: m.householdId } }),
       prisma.householdModule.deleteMany({ where: { householdId: m.householdId } }),
       prisma.creditCard.deleteMany({ where: { householdId: m.householdId } }),
       prisma.account.deleteMany({ where: { householdId: m.householdId } }),

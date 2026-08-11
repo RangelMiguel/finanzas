@@ -27,6 +27,7 @@ import {
   Home,
   ShoppingBasket,
   TrendingUp,
+  HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -177,6 +178,13 @@ export function Sidebar({
       label: t.nav.investments,
       icon: TrendingUp,
       module: "investments",
+      addon: true,
+    },
+    {
+      href: "/credits",
+      label: t.nav.credits,
+      icon: HandCoins,
+      module: "credits",
       addon: true,
     },
     {

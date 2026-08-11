@@ -496,6 +496,17 @@ const es: HelpContent = {
             "Es una guía de planeación, no asesoría fiscal ni recomendación personalizada de inversión.",
           ],
         },
+        {
+          id: "credits",
+          title: "Créditos",
+          summary: "Prestaste o te prestaron: cualquier persona o negocio.",
+          href: "/credits",
+          paragraphs: [
+            "No es solo entre la familia. Puedes registrar un crédito a un amigo, empleado, cliente, tienda o empresa.",
+            "“Yo presté” es dinero que te deben. “Me prestaron” es una deuda informal (los créditos bancarios siguen en Deudas).",
+            "Si eliges una cuenta al crear o al cobrar/pagar, se crea el movimiento. Sin cuenta, solo queda el saldo — igual que las deudas formales.",
+          ],
+        },
       ],
     },
     {
@@ -1052,6 +1063,17 @@ const en: HelpContent = {
             "Pick risk, years, and your marginal ISR rate. The ranking uses reference rates (CETES, Afore, etc.) when live data exists.",
             "CETES and bank notes are taxed as interest (your rate). Listed stocks/ETFs ~10% on the gain. Voluntary Afore is treated as deferred.",
             "This is planning guidance, not tax advice or a personalized investment recommendation.",
+          ],
+        },
+        {
+          id: "credits",
+          title: "Credits",
+          summary: "You lent or borrowed: any person or business.",
+          href: "/credits",
+          paragraphs: [
+            "Not only family. Log a credit to a friend, employee, customer, store, or company.",
+            "“I lent” is money owed to you. “I borrowed” is an informal debt (bank loans stay in Debts).",
+            "If you pick an account when creating or collecting/repaying, a movement is created. No account = balance only — same as formal debts.",
           ],
         },
       ],

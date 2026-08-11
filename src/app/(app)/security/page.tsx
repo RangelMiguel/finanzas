@@ -129,6 +129,7 @@ const MODULE_KEYS: (keyof MemberVisibility["modules"])[] = [
   "properties",
   "prices",
   "investments",
+  "credits",
 ];
 
 export default function SecurityPage() {
@@ -692,6 +693,7 @@ export default function SecurityPage() {
       properties: n.properties,
       prices: n.prices,
       investments: n.investments,
+      credits: n.credits,
     } as Record<keyof MemberVisibility["modules"], string>;
   }, [t]);
 

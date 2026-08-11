@@ -26,6 +26,7 @@ export type MemberVisibility = {
     properties: boolean;
     prices: boolean;
     investments: boolean;
+    credits: boolean;
   };
 
   // —— Transaction types ——
@@ -92,6 +93,7 @@ export const FULL_VISIBILITY: MemberVisibility = {
     properties: true,
     prices: true,
     investments: true,
+    credits: true,
   },
   showIncome: true,
   showExpense: true,
@@ -130,6 +132,7 @@ export const LIMITED_VISIBILITY: MemberVisibility = {
     properties: false,
     prices: false,
     investments: false,
+    credits: false,
   },
   showIncome: false,
   showTransfers: false,
@@ -169,6 +172,7 @@ export const SPEND_ONLY_VISIBILITY: MemberVisibility = {
     properties: false,
     prices: false,
     investments: false,
+    credits: false,
   },
 };
 

@@ -44,6 +44,7 @@ model User {
   budgetPeriodCloses   BudgetPeriodClose[]
   propertyOwners       PropertyOwner[]
   investmentProfiles   InvestmentProfile[]
+  creditCounterparties Credit[]            @relation("CreditCounterparty")
 }
 
 /// Prevents duplicate creates when offline outbox retries a POST.
@@ -105,6 +106,8 @@ model Household {
   priceQuotes        PriceQuote[]
   pricePurchases     PricePurchase[]
   investmentProfiles InvestmentProfile[]
+  credits            Credit[]
+  creditPayments     CreditPayment[]
 }
 
 /// Add-on modules installed for this household (marketplace).
@@ -279,6 +282,7 @@ model Account {
   recurringIncomes   RecurringIncome[]
   recurringExpenses  RecurringExpense[]
   debtPayments       DebtPayment[]
+  creditPayments     CreditPayment[]
   goalReserves       GoalReserve[]
   fundings           TransactionFunding[]
 
@@ -976,6 +980,50 @@ model InvestmentProfile {
 
   @@unique([householdId, userId])
   @@index([userId])
+}
+
+/// Informal credit: money the household lent or borrowed from anyone.
+model Credit {
+  id                 String   @id @default(cuid())
+  householdId        String
+  /// lent = they owe you | borrowed = you owe them
+  direction          String
+  /// person | family | business | employee | store | other
+  kind               String   @default("person")
+  counterpartyName   String
+  /// Optional household member (still works with a free-text name).
+  counterpartyUserId String?
+  principalCents     Int
+  dueOn              String?
+  openedOn           String
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  household    Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  counterparty User?           @relation("CreditCounterparty", fields: [counterpartyUserId], references: [id], onDelete: SetNull)
+  payments     CreditPayment[]
+
+  @@index([householdId, direction])
+  @@index([counterpartyUserId])
+}
+
+model CreditPayment {
+  id          String   @id @default(cuid())
+  householdId String
+  creditId    String
+  date        String
+  amountCents Int
+  accountId   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  credit    Credit    @relation(fields: [creditId], references: [id], onDelete: Cascade)
+  account   Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([householdId])
+  @@index([creditId])
 }
 
 /// Latest fetched reference rates (refreshed once per calendar month).

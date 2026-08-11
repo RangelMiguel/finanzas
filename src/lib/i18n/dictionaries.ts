@@ -123,6 +123,7 @@ export const es = {
     properties: "Propiedades",
     prices: "Precios",
     investments: "Inversiones",
+    credits: "Créditos",
     catchUp: "Ponerme al día",
   },
 
@@ -1221,6 +1222,11 @@ export const es = {
         description:
           "Elige riesgo y plazo; te recomendamos la mejor opción en México considerando ISR y liquidez.",
       },
+      credits: {
+        title: "Créditos",
+        description:
+          "Dinero que prestas o te prestan: familia, amigos, empleados, un negocio o una tienda. Cobra o paga cuando quieras.",
+      },
     },
   },
 
@@ -1403,6 +1409,51 @@ export const es = {
     saved: "Perfil guardado",
     rank: "Todas las opciones",
   },
+
+  credits: {
+    title: "Créditos",
+    subtitle:
+      "Lo que prestas y lo que te prestan, con cualquiera. El movimiento solo se crea si eliges una cuenta.",
+    new: "Nuevo crédito",
+    lent: "Yo presté (me deben)",
+    borrowed: "Me prestaron (yo debo)",
+    direction: "Sentido",
+    kind: "Tipo",
+    kinds: {
+      person: "Persona",
+      family: "Familia",
+      business: "Negocio / empresa",
+      employee: "Empleado / colaborador",
+      store: "Tienda / cliente",
+      other: "Otro",
+    },
+    counterparty: "A quién / de quién",
+    counterpartyPh: "Ej. Juan Pérez, Taller López, sucursal…",
+    householdMember: "Miembro del hogar (opcional)",
+    memberNone: "Nadie del hogar — solo el nombre",
+    principal: "Monto original",
+    openedOn: "Fecha",
+    dueOn: "Vence",
+    recordCash: "Registrar en una cuenta ahora",
+    recordCashHint:
+      "Si prestas, sale de la cuenta. Si te prestan, entra. Sin cuenta no hay movimiento (igual que Deudas).",
+    receivable: "Te deben",
+    payable: "Debes (informal)",
+    net: "Neto",
+    remaining: "Saldo",
+    overdue: "Vencido",
+    collect: "Registrar cobro",
+    repay: "Registrar pago",
+    payAmount: "Monto",
+    empty: "Aún no hay créditos. Presta o recibe de cualquier persona o negocio.",
+    created: "Crédito creado",
+    updated: "Crédito actualizado",
+    paid: "Abono registrado",
+    confirmDelete: "¿Eliminar este crédito y sus abonos?",
+    history: "Abonos",
+    openCashLent: "Sale de la cuenta (tú prestas)",
+    openCashBorrowed: "Entra a la cuenta (te prestan)",
+  },
 };
 
 type DeepStringify<T> = {
@@ -1537,6 +1588,7 @@ export const en: Dictionary = {
     properties: "Properties",
     prices: "Prices",
     investments: "Investments",
+    credits: "Credits",
     catchUp: "Catch up",
   },
 
@@ -2633,6 +2685,11 @@ export const en: Dictionary = {
         description:
           "Pick your risk and horizon; we rank Mexican options using ISR treatment and liquidity.",
       },
+      credits: {
+        title: "Credits",
+        description:
+          "Money you lend or borrow: family, friends, employees, a business, or a store. Collect or repay when you choose.",
+      },
     },
   },
 
@@ -2814,6 +2871,51 @@ export const en: Dictionary = {
       "Illustrative figures using reference rates and simplified ISR (LIF withholding, 10% on listed shares, deferred Afore). Confirm with your broker or accountant.",
     saved: "Profile saved",
     rank: "All options",
+  },
+
+  credits: {
+    title: "Credits",
+    subtitle:
+      "What you lend and what you borrow, with anyone. A movement is created only if you pick an account.",
+    new: "New credit",
+    lent: "I lent (they owe me)",
+    borrowed: "I borrowed (I owe them)",
+    direction: "Direction",
+    kind: "Type",
+    kinds: {
+      person: "Person",
+      family: "Family",
+      business: "Business / company",
+      employee: "Employee / contractor",
+      store: "Store / customer",
+      other: "Other",
+    },
+    counterparty: "To / from whom",
+    counterpartyPh: "e.g. Jane Pérez, López shop, branch…",
+    householdMember: "Household member (optional)",
+    memberNone: "Nobody in the household — name only",
+    principal: "Original amount",
+    openedOn: "Date",
+    dueOn: "Due",
+    recordCash: "Post to an account now",
+    recordCashHint:
+      "If you lend, cash leaves the account. If you borrow, it comes in. No account = no movement (same as Debts).",
+    receivable: "Owed to you",
+    payable: "You owe (informal)",
+    net: "Net",
+    remaining: "Balance",
+    overdue: "Overdue",
+    collect: "Record collection",
+    repay: "Record payment",
+    payAmount: "Amount",
+    empty: "No credits yet. Lend or borrow with any person or business.",
+    created: "Credit created",
+    updated: "Credit updated",
+    paid: "Payment recorded",
+    confirmDelete: "Delete this credit and its payments?",
+    history: "Payments",
+    openCashLent: "Leaves the account (you lend)",
+    openCashBorrowed: "Enters the account (you borrow)",
   },
 };
 
