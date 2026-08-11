@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Home, Landmark } from "lucide-react";
+import { Home, Landmark, Scale } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,19 @@ type Item = {
   valuation: Valuation;
   improvements: Improvement[];
   debtId?: string | null;
+  financedById?: string | null;
+  equityCents?: number | null;
+  linkedLiability?: {
+    id: string;
+    name: string;
+    currentCents: number;
+    debt: {
+      id: string;
+      name: string;
+      remainingCents: number | null;
+    } | null;
+  } | null;
+  financesAsset?: { id: string; name: string } | null;
   debt?: {
     id: string;
     name: string;
@@ -120,6 +133,10 @@ export default function PropertiesPage() {
     linkDebtId: "",
     monthlyPayment: "",
     paymentDay: "1",
+    financeMode: "none" as "none" | "existing" | "create",
+    financedById: "",
+    liabilityName: "",
+    liabilityValue: "",
   });
 
   const cats = t.properties.categories;
@@ -154,6 +171,10 @@ export default function PropertiesPage() {
       linkDebtId: "",
       monthlyPayment: "",
       paymentDay: "1",
+      financeMode: "none",
+      financedById: "",
+      liabilityName: "",
+      liabilityValue: "",
     });
   }
 
@@ -179,6 +200,10 @@ export default function PropertiesPage() {
         ? centsToInput(item.debt.monthlyPaymentCents)
         : "",
       paymentDay: item.debt ? String(item.debt.paymentDay) : "1",
+      financeMode: item.financedById || item.linkedLiability ? "existing" : "none",
+      financedById: item.financedById || item.linkedLiability?.id || "",
+      liabilityName: "",
+      liabilityValue: "",
     });
   }
 
@@ -198,7 +223,9 @@ export default function PropertiesPage() {
         salvage: form.salvage || 0,
         notes: form.notes || null,
         acquiredOn: form.acquiredOn || null,
-        createDebt: form.kind === "liability" && form.debtMode === "create",
+        createDebt:
+          (form.kind === "liability" && form.debtMode === "create") ||
+          (form.kind === "asset" && form.financeMode === "create"),
         linkDebtId:
           form.kind === "liability" && form.debtMode === "existing"
             ? form.linkDebtId || null
@@ -207,6 +234,15 @@ export default function PropertiesPage() {
               : undefined,
         monthlyPayment: form.monthlyPayment || 0,
         paymentDay: parseInt(form.paymentDay, 10) || 1,
+        financedById:
+          form.kind === "asset" && form.financeMode === "existing"
+            ? form.financedById || null
+            : form.kind === "asset" && form.financeMode === "none"
+              ? null
+              : undefined,
+        createLiability: form.kind === "asset" && form.financeMode === "create",
+        liabilityName: form.liabilityName || null,
+        liabilityValue: form.liabilityValue || 0,
       };
       if (mode === "edit" && editId) {
         await api("/api/properties", {
@@ -253,6 +289,20 @@ export default function PropertiesPage() {
   const categoryOptions = form.kind === "asset" ? ASSET_CATS : LIAB_CATS;
   const assets = items.filter((i) => i.kind === "asset");
   const liabilities = items.filter((i) => i.kind === "liability");
+  const linkedForPreview =
+    form.financeMode === "existing"
+      ? items.find((i) => i.id === form.financedById)
+      : null;
+  const previewLiabCents =
+    form.financeMode === "create"
+      ? amountToCents(form.liabilityValue || 0)
+      : linkedForPreview
+        ? linkedForPreview.valuation.currentCents
+        : null;
+  const equityPreview =
+    form.kind === "asset" && previewLiabCents != null
+      ? formPreview.currentCents - previewLiabCents
+      : null;
 
   return (
     <div className="space-y-6">
@@ -478,6 +528,109 @@ export default function PropertiesPage() {
                 </p>
               </>
             )}
+            {form.kind === "asset" && (
+              <div className="sm:col-span-2 space-y-3 rounded-xl border border-white/10 p-3">
+                <Label>{t.properties.financeLink}</Label>
+                <p className="text-[11px] text-[var(--fg-faint)]">
+                  {t.properties.financeHint}
+                </p>
+                <Select
+                  value={form.financeMode}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      financeMode: e.target.value as
+                        | "none"
+                        | "existing"
+                        | "create",
+                    })
+                  }
+                >
+                  <option value="none">{t.properties.financeNone}</option>
+                  <option value="existing">
+                    {t.properties.financeExisting}
+                  </option>
+                  <option value="create">{t.properties.financeCreate}</option>
+                </Select>
+                {form.financeMode === "existing" && (
+                  <Select
+                    value={form.financedById}
+                    onChange={(e) =>
+                      setForm({ ...form, financedById: e.target.value })
+                    }
+                  >
+                    <option value="">{t.select}</option>
+                    {liabilities
+                      .filter(
+                        (l) =>
+                          !l.financesAsset ||
+                          l.financesAsset.id === editId ||
+                          l.id === form.financedById
+                      )
+                      .map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                  </Select>
+                )}
+                {form.financeMode === "create" && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Label>{t.properties.liabilityName}</Label>
+                      <Input
+                        className="mt-1"
+                        value={form.liabilityName}
+                        placeholder={`Hipoteca ${form.name || ""}`.trim()}
+                        onChange={(e) =>
+                          setForm({ ...form, liabilityName: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.properties.amountOwed}</Label>
+                      <Input
+                        money
+                        className="mt-1"
+                        value={form.liabilityValue}
+                        onChange={(e) =>
+                          setForm({ ...form, liabilityValue: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.properties.monthlyPay}</Label>
+                      <Input
+                        money
+                        className="mt-1"
+                        value={form.monthlyPayment}
+                        onChange={(e) =>
+                          setForm({ ...form, monthlyPayment: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.properties.paymentDay}</Label>
+                      <Input
+                        numeric
+                        className="mt-1"
+                        value={form.paymentDay}
+                        onChange={(e) =>
+                          setForm({ ...form, paymentDay: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+                {equityPreview != null && (
+                  <p className="text-xs text-emerald-300">
+                    {tr(t.properties.equityOf, {
+                      amount: money(equityPreview),
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
             {form.kind === "liability" && (
               <div className="sm:col-span-2 space-y-3 rounded-xl border border-white/10 p-3">
                 <Label>{t.properties.debtLink}</Label>
@@ -697,6 +850,16 @@ function ItemCard({
                     amount: money(item.debt.remainingCents),
                   })}`
                 : ""}
+              {item.linkedLiability
+                ? ` · ${tr(t.properties.linkedLiability, {
+                    name: item.linkedLiability.name,
+                  })}`
+                : ""}
+              {item.financesAsset
+                ? ` · ${tr(t.properties.financesAsset, {
+                    name: item.financesAsset.name,
+                  })}`
+                : ""}
             </div>
             {v && v.investedCents > 0 && (
               <div className="mt-1 text-xs text-[var(--fg-muted)]">
@@ -712,24 +875,48 @@ function ItemCard({
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <span
-                className={`font-display text-lg ${
-                  item.kind === "asset" ? "text-emerald-300" : "money-expense"
-                }`}
-              >
-                {money(v?.currentCents ?? item.valueCents)}
-              </span>
-              {v && v.deltaPercent != null && v.deltaCents !== 0 && (
-                <div
-                  className={`text-[11px] ${
-                    v.deltaCents > 0 ? "text-emerald-300" : "text-amber-200"
-                  }`}
-                >
-                  {tr(t.properties.changeVsOriginal, {
-                    sign: v.deltaCents > 0 ? "+" : "",
-                    pct: v.deltaPercent.toFixed(1),
-                  })}
-                </div>
+              {item.kind === "asset" && item.equityCents != null ? (
+                <>
+                  <div className="flex items-center justify-end gap-1 text-[11px] text-[var(--fg-faint)]">
+                    <Scale className="h-3 w-3" />
+                    {t.properties.equity}
+                  </div>
+                  <span className="font-display text-lg text-emerald-300">
+                    {money(item.equityCents)}
+                  </span>
+                  <div className="text-[11px] text-[var(--fg-muted)]">
+                    {tr(t.properties.valueMinusDebt, {
+                      value: money(v?.currentCents ?? item.valueCents),
+                      debt: money(item.linkedLiability?.currentCents ?? 0),
+                    })}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span
+                    className={`font-display text-lg ${
+                      item.kind === "asset"
+                        ? "text-emerald-300"
+                        : "money-expense"
+                    }`}
+                  >
+                    {money(v?.currentCents ?? item.valueCents)}
+                  </span>
+                  {v && v.deltaPercent != null && v.deltaCents !== 0 && (
+                    <div
+                      className={`text-[11px] ${
+                        v.deltaCents > 0
+                          ? "text-emerald-300"
+                          : "text-amber-200"
+                      }`}
+                    >
+                      {tr(t.properties.changeVsOriginal, {
+                        sign: v.deltaCents > 0 ? "+" : "",
+                        pct: v.deltaPercent.toFixed(1),
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <Button variant="secondary" size="sm" onClick={onEdit}>

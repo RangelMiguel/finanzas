@@ -93,6 +93,15 @@ export function valueItem(
   };
 }
 
+/** Casa − hipoteca. Null when the asset has no linked liability. */
+export function propertyEquityCents(
+  assetCurrentCents: number,
+  liabilityCurrentCents: number | null | undefined
+): number | null {
+  if (liabilityCurrentCents == null) return null;
+  return Math.round(assetCurrentCents) - Math.round(liabilityCurrentCents);
+}
+
 /** Sensible defaults when picking a category. */
 export function defaultValuePolicy(kind: "asset" | "liability", category: string): {
   valueChange: ValueChange;

@@ -135,11 +135,15 @@ model PropertyItem {
   acquiredOn  String?
   /// Optional link to Debts (mortgage / loan). Payments happen only on Debts.
   debtId      String?
+  /// Asset → the liability that finances it (casa + hipoteca = equity). 1:1.
+  financedById String? @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
   debt      Debt?     @relation(fields: [debtId], references: [id], onDelete: SetNull)
+  financedBy PropertyItem? @relation("PropertyEquity", fields: [financedById], references: [id], onDelete: SetNull)
+  finances   PropertyItem? @relation("PropertyEquity")
   improvements PropertyImprovement[]
 
   @@index([householdId, kind])

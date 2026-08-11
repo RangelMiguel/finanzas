@@ -6,7 +6,12 @@ import { pesosToCents } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import { requireAddon } from "@/lib/modules/access";
-import { valueItem, type ValueChange, type ValueMethod } from "@/lib/properties/valuation";
+import {
+  propertyEquityCents,
+  valueItem,
+  type ValueChange,
+  type ValueMethod,
+} from "@/lib/properties/valuation";
 
 const valueChangeSchema = z.enum(["none", "appreciate", "depreciate"]);
 const methodSchema = z.enum(["compound", "straight"]);
@@ -58,6 +63,143 @@ const categorySchema = z.enum([
   "other",
 ]);
 
+type DebtWithPays = {
+  id: string;
+  name: string;
+  principalCents: number;
+  monthlyPaymentCents: number;
+  paymentDay: number;
+  annualRatePercent: number;
+  payments: { capitalCents: number }[];
+};
+
+type ItemRow = {
+  id: string;
+  name: string;
+  kind: string;
+  valueCents: number;
+  acquiredOn: string | null;
+  valueChange: string;
+  annualRatePercent: number;
+  method: string;
+  usefulLifeYears: number | null;
+  salvageCents: number;
+  debtId: string | null;
+  financedById: string | null;
+  improvements: {
+    costCents: number;
+    effect: string;
+    recoveryPercent: number;
+  }[];
+  debt: DebtWithPays | null;
+  financedBy: (ItemRow & { finances?: unknown }) | null;
+  finances: { id: string; name: string } | null;
+};
+
+function debtPayload(debt: DebtWithPays | null) {
+  if (!debt) return null;
+  const paid = debt.payments.reduce((s, p) => s + p.capitalCents, 0);
+  const remainingCents = Math.max(0, debt.principalCents - paid);
+  return {
+    id: debt.id,
+    name: debt.name,
+    monthlyPaymentCents: debt.monthlyPaymentCents,
+    paymentDay: debt.paymentDay,
+    annualRatePercent: debt.annualRatePercent,
+    remainingCents,
+  };
+}
+
+function currentCentsFor(
+  row: {
+    kind: string;
+    valueCents: number;
+    acquiredOn: string | null;
+    valueChange: string;
+    annualRatePercent: number;
+    method: string;
+    usefulLifeYears: number | null;
+    salvageCents: number;
+    improvements: {
+      costCents: number;
+      effect: string;
+      recoveryPercent: number;
+    }[];
+    debt: DebtWithPays | null;
+  }
+) {
+  const valuation = valued(row, row.improvements);
+  const remaining = debtPayload(row.debt)?.remainingCents ?? null;
+  const currentCents =
+    row.kind === "liability" && remaining != null
+      ? remaining
+      : valuation.currentCents;
+  return { valuation, currentCents, remainingCents: remaining };
+}
+
+function present(row: ItemRow) {
+  const { valuation, currentCents } = currentCentsFor(row);
+  let linkedLiability: {
+    id: string;
+    name: string;
+    currentCents: number;
+    debt: ReturnType<typeof debtPayload>;
+  } | null = null;
+  let equityCents: number | null = null;
+  if (row.kind === "asset" && row.financedBy) {
+    const fb = currentCentsFor(row.financedBy);
+    linkedLiability = {
+      id: row.financedBy.id,
+      name: row.financedBy.name,
+      currentCents: fb.currentCents,
+      debt: debtPayload(row.financedBy.debt),
+    };
+    equityCents = propertyEquityCents(currentCents, fb.currentCents);
+  }
+  return {
+    ...row,
+    financedBy: undefined,
+    finances: undefined,
+    valuation: { ...valuation, currentCents },
+    debt: debtPayload(row.debt),
+    linkedLiability,
+    financesAsset: row.finances,
+    equityCents,
+  };
+}
+
+const propertyInclude = {
+  improvements: { orderBy: { createdAt: "desc" as const } },
+  debt: { include: { payments: { select: { capitalCents: true } } } },
+  financedBy: {
+    include: {
+      improvements: true,
+      debt: { include: { payments: { select: { capitalCents: true } } } },
+    },
+  },
+  finances: { select: { id: true, name: true } },
+};
+
+async function assertFinancedBy(
+  householdId: string,
+  financedById: string | null | undefined,
+  assetId?: string
+) {
+  if (!financedById) return null;
+  const liab = await prisma.propertyItem.findFirst({
+    where: { id: financedById, householdId, kind: "liability" },
+  });
+  if (!liab) throw new Error("Pasivo no encontrado");
+  const taken = await prisma.propertyItem.findFirst({
+    where: {
+      financedById,
+      ...(assetId ? { id: { not: assetId } } : {}),
+    },
+  });
+  if (taken) throw new Error("Ese pasivo ya está vinculado a otro activo");
+  return financedById;
+}
+
 export async function GET() {
   try {
     const session = await requireSession();
@@ -69,10 +211,7 @@ export async function GET() {
     const [rows, debts] = await Promise.all([
       prisma.propertyItem.findMany({
         where: { householdId: m.householdId },
-        include: {
-          improvements: { orderBy: { createdAt: "desc" } },
-          debt: { include: { payments: { select: { capitalCents: true } } } },
-        },
+        include: propertyInclude,
         orderBy: [{ kind: "asc" }, { name: "asc" }],
       }),
       prisma.debt.findMany({
@@ -81,38 +220,16 @@ export async function GET() {
         orderBy: { name: "asc" },
       }),
     ]);
-    const items = rows.map((row) => {
-      const valuation = valued(row, row.improvements);
-      const paid = row.debt
-        ? row.debt.payments.reduce((s, p) => s + p.capitalCents, 0)
-        : 0;
-      const remainingCents = row.debt
-        ? Math.max(0, row.debt.principalCents - paid)
-        : null;
-      const currentCents =
-        row.kind === "liability" && remainingCents != null
-          ? remainingCents
-          : valuation.currentCents;
-      return {
-        ...row,
-        valuation: { ...valuation, currentCents },
-        debt: row.debt
-          ? {
-              id: row.debt.id,
-              name: row.debt.name,
-              monthlyPaymentCents: row.debt.monthlyPaymentCents,
-              paymentDay: row.debt.paymentDay,
-              annualRatePercent: row.debt.annualRatePercent,
-              remainingCents,
-            }
-          : null,
-      };
-    });
+    const items = rows.map((row) => present(row as unknown as ItemRow));
     const assets = items.filter((i) => i.kind === "asset");
     const liabilities = items.filter((i) => i.kind === "liability");
     const assetCents = assets.reduce((s, i) => s + i.valuation.currentCents, 0);
     const liabilityCents = liabilities.reduce(
       (s, i) => s + i.valuation.currentCents,
+      0
+    );
+    const equityCents = assets.reduce(
+      (s, i) => s + (i.equityCents ?? i.valuation.currentCents),
       0
     );
     return jsonOk({
@@ -128,6 +245,7 @@ export async function GET() {
       totals: {
         assetCents,
         liabilityCents,
+        equityCents,
         netCents: assetCents - liabilityCents,
       },
     });
@@ -161,43 +279,95 @@ export async function POST(req: Request) {
         linkDebtId: z.string().optional().nullable(),
         monthlyPayment: z.union([z.number(), z.string()]).optional(),
         paymentDay: z.number().int().min(1).max(31).optional(),
+        financedById: z.string().optional().nullable(),
+        createLiability: z.boolean().optional(),
+        liabilityName: z.string().optional().nullable(),
+        liabilityValue: z.union([z.number(), z.string()]).optional(),
       })
       .parse(await req.json());
 
-    let debtId: string | null = body.linkDebtId || null;
-    if (body.kind === "liability" && body.createDebt) {
-      const debt = await prisma.debt.create({
+    const row = await prisma.$transaction(async (tx) => {
+      let debtId: string | null = body.linkDebtId || null;
+      if (body.kind === "liability" && body.createDebt) {
+        const debt = await tx.debt.create({
+          data: {
+            householdId: m.householdId,
+            name: body.name,
+            principalCents: pesosToCents(body.value),
+            annualRatePercent: body.annualRatePercent ?? 0,
+            monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
+            paymentDay: body.paymentDay || 1,
+            notes: body.notes || null,
+          },
+        });
+        debtId = debt.id;
+      }
+
+      let financedById: string | null = null;
+      if (body.kind === "asset") {
+        if (body.createLiability) {
+          let linkedDebtId: string | null = null;
+          const liabName =
+            (body.liabilityName || "").trim() || `Hipoteca ${body.name}`;
+          const liabCents = pesosToCents(body.liabilityValue || 0);
+          if (body.createDebt !== false) {
+            const debt = await tx.debt.create({
+              data: {
+                householdId: m.householdId,
+                name: liabName,
+                principalCents: liabCents,
+                annualRatePercent: 0,
+                monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
+                paymentDay: body.paymentDay || 1,
+              },
+            });
+            linkedDebtId = debt.id;
+          }
+          const cat =
+            body.category === "home" || body.category === "land"
+              ? "mortgage"
+              : "loan";
+          const liab = await tx.propertyItem.create({
+            data: {
+              householdId: m.householdId,
+              name: liabName,
+              kind: "liability",
+              category: cat,
+              valueCents: liabCents,
+              valueChange: "none",
+              debtId: linkedDebtId,
+            },
+          });
+          financedById = liab.id;
+        } else {
+          financedById = await assertFinancedBy(
+            m.householdId,
+            body.financedById
+          );
+        }
+      }
+
+      return tx.propertyItem.create({
         data: {
           householdId: m.householdId,
           name: body.name,
-          principalCents: pesosToCents(body.value),
+          kind: body.kind,
+          category: body.category || "other",
+          valueCents: pesosToCents(body.value),
+          valueChange: body.valueChange || "none",
           annualRatePercent: body.annualRatePercent ?? 0,
-          monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
-          paymentDay: body.paymentDay || 1,
+          method: body.method || "compound",
+          usefulLifeYears: body.usefulLifeYears ?? null,
+          salvageCents: body.salvage != null ? pesosToCents(body.salvage) : 0,
           notes: body.notes || null,
+          acquiredOn: body.acquiredOn || null,
+          debtId,
+          financedById,
         },
+        include: propertyInclude,
       });
-      debtId = debt.id;
-    }
-
-    const row = await prisma.propertyItem.create({
-      data: {
-        householdId: m.householdId,
-        name: body.name,
-        kind: body.kind,
-        category: body.category || "other",
-        valueCents: pesosToCents(body.value),
-        valueChange: body.valueChange || "none",
-        annualRatePercent: body.annualRatePercent ?? 0,
-        method: body.method || "compound",
-        usefulLifeYears: body.usefulLifeYears ?? null,
-        salvageCents: body.salvage != null ? pesosToCents(body.salvage) : 0,
-        notes: body.notes || null,
-        acquiredOn: body.acquiredOn || null,
-        debtId,
-      },
     });
-    return jsonOk({ item: { ...row, valuation: valued(row) } }, 201);
+    return jsonOk({ item: present(row as unknown as ItemRow) }, 201);
   } catch (e) {
     return jsonError(e);
   }
@@ -226,6 +396,10 @@ export async function PATCH(req: Request) {
         linkDebtId: z.string().nullable().optional(),
         monthlyPayment: z.union([z.number(), z.string()]).optional(),
         paymentDay: z.number().int().min(1).max(31).optional(),
+        financedById: z.string().nullable().optional(),
+        createLiability: z.boolean().optional(),
+        liabilityName: z.string().optional().nullable(),
+        liabilityValue: z.union([z.number(), z.string()]).optional(),
       })
       .parse(await req.json());
     const existing = await prisma.propertyItem.findFirst({
@@ -233,50 +407,105 @@ export async function PATCH(req: Request) {
     });
     if (!existing) throw new Error("No encontrado");
 
-    let debtId = body.linkDebtId === undefined ? undefined : body.linkDebtId;
-    if (body.createDebt && (body.kind || existing.kind) === "liability") {
-      const debt = await prisma.debt.create({
-        data: {
-          householdId: m.householdId,
-          name: body.name || existing.name,
-          principalCents:
-            body.value !== undefined
-              ? pesosToCents(body.value)
-              : existing.valueCents,
-          annualRatePercent:
-            body.annualRatePercent ?? existing.annualRatePercent,
-          monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
-          paymentDay: body.paymentDay || 1,
-          notes: body.notes ?? existing.notes,
-        },
-      });
-      debtId = debt.id;
-    }
+    const row = await prisma.$transaction(async (tx) => {
+      let debtId = body.linkDebtId === undefined ? undefined : body.linkDebtId;
+      const kind = body.kind || existing.kind;
+      if (body.createDebt && kind === "liability") {
+        const debt = await tx.debt.create({
+          data: {
+            householdId: m.householdId,
+            name: body.name || existing.name,
+            principalCents:
+              body.value !== undefined
+                ? pesosToCents(body.value)
+                : existing.valueCents,
+            annualRatePercent:
+              body.annualRatePercent ?? existing.annualRatePercent,
+            monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
+            paymentDay: body.paymentDay || 1,
+            notes: body.notes ?? existing.notes,
+          },
+        });
+        debtId = debt.id;
+      }
 
-    const row = await prisma.propertyItem.update({
-      where: { id: body.id },
-      data: {
-        name: body.name,
-        kind: body.kind,
-        category: body.category,
-        valueCents:
-          body.value !== undefined ? pesosToCents(body.value) : undefined,
-        valueChange: body.valueChange,
-        annualRatePercent: body.annualRatePercent,
-        method: body.method,
-        usefulLifeYears: body.usefulLifeYears,
-        salvageCents:
-          body.salvage !== undefined && body.salvage !== null
-            ? pesosToCents(body.salvage)
-            : body.salvage === null
-              ? 0
-              : undefined,
-        notes: body.notes,
-        acquiredOn: body.acquiredOn,
-        debtId,
-      },
+      let financedById: string | null | undefined =
+        kind === "liability"
+          ? null
+          : body.financedById === undefined
+            ? undefined
+            : body.financedById;
+      if (kind === "asset" && body.createLiability) {
+        const liabName =
+          (body.liabilityName || "").trim() ||
+          `Hipoteca ${body.name || existing.name}`;
+        const liabCents = pesosToCents(body.liabilityValue || 0);
+        let linkedDebtId: string | null = null;
+        if (body.createDebt !== false) {
+          const debt = await tx.debt.create({
+            data: {
+              householdId: m.householdId,
+              name: liabName,
+              principalCents: liabCents,
+              annualRatePercent: 0,
+              monthlyPaymentCents: pesosToCents(body.monthlyPayment || 0),
+              paymentDay: body.paymentDay || 1,
+            },
+          });
+          linkedDebtId = debt.id;
+        }
+        const cat =
+          (body.category || existing.category) === "home" ||
+          (body.category || existing.category) === "land"
+            ? "mortgage"
+            : "loan";
+        const liab = await tx.propertyItem.create({
+          data: {
+            householdId: m.householdId,
+            name: liabName,
+            kind: "liability",
+            category: cat,
+            valueCents: liabCents,
+            valueChange: "none",
+            debtId: linkedDebtId,
+          },
+        });
+        financedById = liab.id;
+      } else if (kind === "asset" && body.financedById) {
+        financedById = await assertFinancedBy(
+          m.householdId,
+          body.financedById,
+          body.id
+        );
+      }
+
+      return tx.propertyItem.update({
+        where: { id: body.id },
+        data: {
+          name: body.name,
+          kind: body.kind,
+          category: body.category,
+          valueCents:
+            body.value !== undefined ? pesosToCents(body.value) : undefined,
+          valueChange: body.valueChange,
+          annualRatePercent: body.annualRatePercent,
+          method: body.method,
+          usefulLifeYears: body.usefulLifeYears,
+          salvageCents:
+            body.salvage !== undefined && body.salvage !== null
+              ? pesosToCents(body.salvage)
+              : body.salvage === null
+                ? 0
+                : undefined,
+          notes: body.notes,
+          acquiredOn: body.acquiredOn,
+          debtId,
+          financedById,
+        },
+        include: propertyInclude,
+      });
     });
-    return jsonOk({ item: { ...row, valuation: valued(row) } });
+    return jsonOk({ item: present(row as unknown as ItemRow) });
   } catch (e) {
     return jsonError(e);
   }
