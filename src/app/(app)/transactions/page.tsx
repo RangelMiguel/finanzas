@@ -12,7 +12,7 @@ import { monthKey, todayISO, centsToInput, amountToCents } from "@/lib/utils";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
-import { sourceKey } from "@/lib/transaction-funding";
+import { parseSourceKey, sourceKey } from "@/lib/transaction-funding";
 
 type FundingRow = {
   id: string;
@@ -42,7 +42,7 @@ type Txn = {
 };
 type Cat = { id: string; name: string; type: string; icon: string };
 type Acc = { id: string; name: string };
-type CardT = { id: string; name: string };
+type CardT = { id: string; name: string; lastFour?: string };
 type Member = { user: { id: string; displayName: string } };
 
 type PayLine = { source: string; amount: string };
@@ -124,14 +124,44 @@ export default function TransactionsPage() {
   const [payLines, setPayLines] = useState<PayLine[]>([
     { source: "", amount: "" },
   ]);
+  const [spentByFilter, setSpentByFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [amountDebounced, setAmountDebounced] = useState({ min: "", max: "" });
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setAmountDebounced({ min: minAmount, max: maxAmount });
+    }, 350);
+    return () => window.clearTimeout(id);
+  }, [minAmount, maxAmount]);
+
+  const filtersActive = Boolean(
+    spentByFilter ||
+      sourceFilter ||
+      amountDebounced.min.trim() ||
+      amountDebounced.max.trim()
+  );
 
   async function load() {
     // Load each resource independently so missing accounts/cards modules
     // (or hidden balances) never break the movements list.
     const emptyAcc = { accounts: [] as Acc[] };
     const emptyCc = { creditCards: [] as CardT[] };
+    const params = new URLSearchParams({ month });
+    if (spentByFilter) params.set("spentById", spentByFilter);
+    const source = parseSourceKey(sourceFilter);
+    if (source?.kind === "account") params.set("accountId", source.id);
+    if (source?.kind === "card") params.set("creditCardId", source.id);
+    if (amountDebounced.min.trim()) {
+      params.set("minAmount", amountDebounced.min);
+    }
+    if (amountDebounced.max.trim()) {
+      params.set("maxAmount", amountDebounced.max);
+    }
     const [txnRes, c, a, cc] = await Promise.all([
-      api<{ transactions: Txn[] }>(`/api/transactions?month=${month}`),
+      api<{ transactions: Txn[] }>(`/api/transactions?${params.toString()}`),
       api<{ categories: Cat[] }>("/api/categories").catch(() => ({
         categories: [] as Cat[],
       })),
@@ -158,7 +188,15 @@ export default function TransactionsPage() {
   useEffect(() => {
     load().catch((e) => toast.error(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
+  }, [month, spentByFilter, sourceFilter, amountDebounced.min, amountDebounced.max]);
+
+  function clearFilters() {
+    setSpentByFilter("");
+    setSourceFilter("");
+    setMinAmount("");
+    setMaxAmount("");
+    setAmountDebounced({ min: "", max: "" });
+  }
 
   const totalCents = amountToCents(form.amount || 0);
   const paySumCents = useMemo(
@@ -357,6 +395,82 @@ export default function TransactionsPage() {
           </>
         }
       />
+
+      <Card>
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <Label>{t.transactions.filterSpentBy}</Label>
+            <Select
+              className="mt-1"
+              value={spentByFilter}
+              onChange={(e) => setSpentByFilter(e.target.value)}
+            >
+              <option value="">{t.transactions.filterAll}</option>
+              <option value="unassigned">{t.transactions.filterUnassigned}</option>
+              {memberList.map((m) => (
+                <option key={m.user.id} value={m.user.id}>
+                  {m.user.displayName}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>{t.transactions.filterSource}</Label>
+            <Select
+              className="mt-1"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+            >
+              <option value="">{t.transactions.filterAll}</option>
+              {accounts.length > 0 && (
+                <optgroup label={t.transactions.sourceAccounts}>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={sourceKey("account", a.id)}>
+                      {a.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {cards.length > 0 && (
+                <optgroup label={t.transactions.sourceCards}>
+                  {cards.map((c) => (
+                    <option key={c.id} value={sourceKey("card", c.id)}>
+                      {c.lastFour ? `${c.name} · ${c.lastFour}` : c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </Select>
+          </div>
+          <div>
+            <Label>{t.transactions.filterMin}</Label>
+            <Input
+              money
+              className="mt-1"
+              placeholder={t.transactions.filterMinHint}
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>{t.transactions.filterMax}</Label>
+            <Input
+              money
+              className="mt-1"
+              placeholder={t.transactions.filterMaxHint}
+              value={maxAmount}
+              onChange={(e) => setMaxAmount(e.target.value)}
+            />
+          </div>
+          {filtersActive && (
+            <div className="flex items-end sm:col-span-2 lg:col-span-4">
+              <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                {t.transactions.filterClear}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {mode !== "none" && (
         <Card premium>
@@ -574,7 +688,9 @@ export default function TransactionsPage() {
         <CardContent className="divide-y divide-white/5 p-0">
           {txns.length === 0 && (
             <p className="p-5 text-sm text-[var(--fg-faint)]">
-              {t.transactions.empty}
+              {filtersActive
+                ? t.transactions.emptyFiltered
+                : t.transactions.empty}
             </p>
           )}
           {txns.map((txn) => {

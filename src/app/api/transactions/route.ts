@@ -93,6 +93,11 @@ export async function GET(req: Request) {
     const month = searchParams.get("month");
     const type = searchParams.get("type");
     const q = searchParams.get("q");
+    const spentById = searchParams.get("spentById");
+    const accountId = searchParams.get("accountId");
+    const creditCardId = searchParams.get("creditCardId");
+    const minAmount = searchParams.get("minAmount");
+    const maxAmount = searchParams.get("maxAmount");
     const limit = Math.min(parseInt(searchParams.get("limit") || "100", 10), 500);
 
     const where: Record<string, unknown> = {
@@ -105,6 +110,33 @@ export async function GET(req: Request) {
     }
     if (q) {
       where.description = { contains: q };
+    }
+    if (spentById === "unassigned") {
+      where.spentById = null;
+    } else if (spentById) {
+      where.spentById = spentById;
+    }
+    if (accountId) {
+      where.OR = [
+        { accountId },
+        { toAccountId: accountId },
+        { fundings: { some: { accountId } } },
+      ];
+    } else if (creditCardId) {
+      where.OR = [
+        { creditCardId },
+        { fundings: { some: { creditCardId } } },
+      ];
+    }
+    const amountFilter: { gte?: number; lte?: number } = {};
+    if (minAmount != null && minAmount !== "") {
+      amountFilter.gte = pesosToCents(minAmount);
+    }
+    if (maxAmount != null && maxAmount !== "") {
+      amountFilter.lte = pesosToCents(maxAmount);
+    }
+    if (amountFilter.gte != null || amountFilter.lte != null) {
+      where.amountCents = amountFilter;
     }
 
     const transactions = await prisma.transaction.findMany({
