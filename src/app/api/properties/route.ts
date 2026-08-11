@@ -69,6 +69,11 @@ type ItemRow = {
   debt: DebtWithPays | null;
   financedBy: (ItemRow & { finances?: unknown }) | null;
   finances: { id: string; name: string } | null;
+  owners?: {
+    userId: string;
+    percent: number;
+    user?: { displayName: string };
+  }[];
 };
 
 function debtPayload(debt: DebtWithPays | null) {
@@ -151,6 +156,11 @@ function present(row: ItemRow) {
     linkedLiability,
     financesAsset: row.finances,
     equityCents,
+    owners: (row.owners || []).map((o) => ({
+      userId: o.userId,
+      percent: o.percent,
+      name: o.user?.displayName || "",
+    })),
   };
 }
 
@@ -164,7 +174,51 @@ const propertyInclude = {
     },
   },
   finances: { select: { id: true, name: true } },
+  owners: { include: { user: { select: { displayName: true } } } },
 };
+
+const ownersSchema = z
+  .array(
+    z.object({
+      userId: z.string(),
+      percent: z.number().min(0).max(100),
+    })
+  )
+  .optional();
+
+async function replaceOwners(
+  householdId: string,
+  propertyId: string,
+  owners: { userId: string; percent: number }[] | undefined,
+  // Prisma client or interactive transaction
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: any = prisma
+) {
+  if (owners === undefined) return;
+  const members = await tx.membership.findMany({
+    where: { householdId },
+    select: { userId: true },
+  });
+  const allowed = new Set(
+    (members as { userId: string }[]).map((x) => x.userId)
+  );
+  const cleaned = owners.filter((o) => o.percent > 0);
+  for (const o of cleaned) {
+    if (!allowed.has(o.userId)) throw new Error("Miembro no válido");
+  }
+  const sum = cleaned.reduce((s, o) => s + o.percent, 0);
+  if (sum > 100.05) throw new Error("Los porcentajes no pueden sumar más de 100%");
+  await tx.propertyOwner.deleteMany({ where: { propertyId } });
+  if (cleaned.length) {
+    await tx.propertyOwner.createMany({
+      data: cleaned.map((o) => ({
+        propertyId,
+        userId: o.userId,
+        percent: o.percent,
+      })),
+    });
+  }
+}
 
 async function assertFinancedBy(
   householdId: string,
@@ -218,6 +272,34 @@ export async function GET() {
       (s, i) => s + (i.equityCents ?? i.valuation.currentCents),
       0
     );
+    const shareMap = new Map<
+      string,
+      { userId: string; name: string; assetCents: number; equityCents: number }
+    >();
+    let unassignedAssetCents = 0;
+    let unassignedEquityCents = 0;
+    for (const a of assets) {
+      const current = a.valuation.currentCents;
+      const eq = a.equityCents ?? current;
+      const owners = a.owners || [];
+      const assigned = owners.reduce((s, o) => s + o.percent, 0);
+      for (const o of owners) {
+        const prev = shareMap.get(o.userId) || {
+          userId: o.userId,
+          name: o.name,
+          assetCents: 0,
+          equityCents: 0,
+        };
+        prev.assetCents += Math.round((current * o.percent) / 100);
+        prev.equityCents += Math.round((eq * o.percent) / 100);
+        shareMap.set(o.userId, prev);
+      }
+      const rest = Math.max(0, 100 - assigned);
+      if (rest > 0) {
+        unassignedAssetCents += Math.round((current * rest) / 100);
+        unassignedEquityCents += Math.round((eq * rest) / 100);
+      }
+    }
     return jsonOk({
       items,
       debts: debts.map((d) => ({
@@ -233,6 +315,9 @@ export async function GET() {
         liabilityCents,
         equityCents,
         netCents: assetCents - liabilityCents,
+        ownerShares: [...shareMap.values()],
+        unassignedAssetCents,
+        unassignedEquityCents,
       },
     });
   } catch (e) {
@@ -271,6 +356,7 @@ export async function POST(req: Request) {
         liabilityValue: z.union([z.number(), z.string()]).optional(),
         marketValue: z.union([z.number(), z.string(), z.null()]).optional(),
         marketValueOn: z.string().optional().nullable(),
+        owners: ownersSchema,
       })
       .parse(await req.json());
 
@@ -335,7 +421,7 @@ export async function POST(req: Request) {
         }
       }
 
-      return tx.propertyItem.create({
+      const created = await tx.propertyItem.create({
         data: {
           householdId: m.householdId,
           name: body.name,
@@ -358,6 +444,12 @@ export async function POST(req: Request) {
           debtId,
           financedById,
         },
+      });
+      if (body.kind === "asset") {
+        await replaceOwners(m.householdId, created.id, body.owners, tx);
+      }
+      return tx.propertyItem.findUniqueOrThrow({
+        where: { id: created.id },
         include: propertyInclude,
       });
     });
@@ -396,6 +488,7 @@ export async function PATCH(req: Request) {
         liabilityValue: z.union([z.number(), z.string()]).optional(),
         marketValue: z.union([z.number(), z.string(), z.null()]).optional(),
         marketValueOn: z.string().nullable().optional(),
+        owners: ownersSchema,
       })
       .parse(await req.json());
     const existing = await prisma.propertyItem.findFirst({
@@ -475,7 +568,7 @@ export async function PATCH(req: Request) {
         );
       }
 
-      return tx.propertyItem.update({
+      await tx.propertyItem.update({
         where: { id: body.id },
         data: {
           name: body.name,
@@ -508,6 +601,14 @@ export async function PATCH(req: Request) {
           debtId,
           financedById,
         },
+      });
+      if (kind === "asset") {
+        await replaceOwners(m.householdId, body.id, body.owners, tx);
+      } else if (kind === "liability") {
+        await replaceOwners(m.householdId, body.id, [], tx);
+      }
+      return tx.propertyItem.findUniqueOrThrow({
+        where: { id: body.id },
         include: propertyInclude,
       });
     });

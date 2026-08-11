@@ -42,6 +42,7 @@ model User {
   mutationIdempotency  MutationIdempotency[]
   personalAccounts     Account[]             @relation("PersonalAccountOwner")
   budgetPeriodCloses   BudgetPeriodClose[]
+  propertyOwners       PropertyOwner[]
 }
 
 /// Prevents duplicate creates when offline outbox retries a POST.
@@ -148,9 +149,25 @@ model PropertyItem {
   financedBy PropertyItem? @relation("PropertyEquity", fields: [financedById], references: [id], onDelete: SetNull)
   finances   PropertyItem? @relation("PropertyEquity")
   improvements PropertyImprovement[]
+  owners     PropertyOwner[]
 
   @@index([householdId, kind])
   @@index([debtId])
+}
+
+/// Who owns what % of a property (remainder is household / unassigned).
+model PropertyOwner {
+  id         String   @id @default(cuid())
+  propertyId String
+  userId     String
+  percent    Float
+  createdAt  DateTime @default(now())
+
+  property PropertyItem @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, userId])
+  @@index([userId])
 }
 
 /// Money invested in a property (remodel, repair) and its estimated value impact.

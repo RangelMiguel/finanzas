@@ -117,6 +117,100 @@ export function valueItem(
   };
 }
 
+export type DatedImprovement = ImprovementInput & { doneOn?: string | null };
+
+export type TimelinePoint = {
+  date: string;
+  estimatedCents: number;
+  currentCents: number;
+};
+
+function monthKeyOf(iso: string): string {
+  return iso.slice(0, 7);
+}
+
+function addMonthsIso(iso: string, n: number): string {
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7));
+  const idx = y * 12 + (m - 1) + n;
+  const yy = Math.floor(idx / 12);
+  const mm = (idx % 12) + 1;
+  return `${yy}-${String(mm).padStart(2, "0")}-01`;
+}
+
+function monthsBetweenKeys(from: string, to: string): number {
+  const fy = Number(from.slice(0, 4));
+  const fm = Number(from.slice(5, 7));
+  const ty = Number(to.slice(0, 4));
+  const tm = Number(to.slice(5, 7));
+  return ty * 12 + tm - (fy * 12 + fm);
+}
+
+/** Monthly (or quarterly) value path from acquire date through today / a short future. */
+export function valueTimeline(
+  input: ValuationInput,
+  improvements: DatedImprovement[] = [],
+  override: MarketOverride = {},
+  opts: { from?: string; to?: string; futureYears?: number } = {}
+): TimelinePoint[] {
+  const today = input.asOf || new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+  const acquired = input.acquiredOn ? monthKeyOf(input.acquiredOn) + "-01" : null;
+  const start = monthKeyOf(opts.from || acquired || addMonthsIso(todayIso, -24)) + "-01";
+  const end = monthKeyOf(
+    opts.to || addMonthsIso(todayIso, Math.max(0, opts.futureYears || 0) * 12)
+  ) + "-01";
+  const span = Math.max(0, monthsBetweenKeys(start, end));
+  const step = span > 72 ? 3 : 1;
+  const marketOn = override.marketValueOn
+    ? monthKeyOf(override.marketValueOn)
+    : null;
+  const hasMarket =
+    override.marketValueCents != null &&
+    Number.isFinite(override.marketValueCents) &&
+    override.marketValueCents >= 0;
+  const todayKey = monthKeyOf(todayIso);
+
+  const points: TimelinePoint[] = [];
+  for (let i = 0; i <= span; i += step) {
+    const asOfIso = addMonthsIso(start, i);
+    const asOf = new Date(`${asOfIso.slice(0, 10)}T12:00:00`);
+    const key = monthKeyOf(asOfIso);
+    const imps = improvements.filter(
+      (imp) => !imp.doneOn || monthKeyOf(imp.doneOn) <= key
+    );
+    const snap = valueItem({ ...input, asOf }, imps, {});
+    const applyMarket =
+      hasMarket &&
+      (marketOn ? key >= marketOn : key >= todayKey);
+    points.push({
+      date: key,
+      estimatedCents: snap.estimatedCents,
+      currentCents: applyMarket
+        ? Math.round(override.marketValueCents as number)
+        : snap.estimatedCents,
+    });
+  }
+  if (points.length && monthKeyOf(points[points.length - 1].date) !== monthKeyOf(end)) {
+    const asOf = new Date(`${end.slice(0, 10)}T12:00:00`);
+    const key = monthKeyOf(end);
+    const imps = improvements.filter(
+      (imp) => !imp.doneOn || monthKeyOf(imp.doneOn) <= key
+    );
+    const snap = valueItem({ ...input, asOf }, imps, {});
+    const applyMarket =
+      hasMarket && (marketOn ? key >= marketOn : key >= todayKey);
+    points.push({
+      date: key,
+      estimatedCents: snap.estimatedCents,
+      currentCents: applyMarket
+        ? Math.round(override.marketValueCents as number)
+        : snap.estimatedCents,
+    });
+  }
+  return points;
+}
+
 /** Casa − hipoteca. Null when the asset has no linked liability. */
 export function propertyEquityCents(
   assetCurrentCents: number,

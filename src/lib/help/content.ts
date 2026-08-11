@@ -468,6 +468,7 @@ const es: HelpContent = {
           paragraphs: [
             "Instálalo desde el Marketplace. Ahí registras bienes (casa, auto, joyas) y deudas asociadas (hipoteca, préstamos) con un valor de compra y plusvalía o depreciación anual.",
             "Si conoces el valor de mercado (avalúo o anuncio), puedes sobreescribir el estimado. El patrimonio aparece en el inicio y se puede sumar al retiro.",
+            "Una gráfica muestra cómo cambia el valor (y el patrimonio si hay hipoteca). Puedes repartir el % de dueños entre miembros del hogar.",
             "El patrimonio neto es activos menos pasivos. No mueve saldos de cuentas ni sustituye el módulo de Deudas.",
             "Puedes registrar mejoras (cocina, techo) con lo invertido; la app estima cuánto suele sumar o restar al valor (por defecto ~70% del gasto).",
             "Un pasivo se puede vincular a Deudas o crear la deuda con pago mensual. El dinero no se mueve hasta que en Deudas pulses “Pagar este mes”.",
@@ -1003,6 +1004,7 @@ const en: HelpContent = {
           paragraphs: [
             "Install it from the Marketplace. Track valuables (home, car, jewelry) and related liabilities (mortgage, loans) with a purchase value plus yearly appreciation or depreciation.",
             "If you know the market value (appraisal or listing), you can override the estimate. Net worth shows on Home and can be added to retirement savings.",
+            "A chart shows how value (and equity, if there is a mortgage) changes. You can split ownership % among household members.",
             "Net worth is assets minus liabilities. It does not move account balances or replace the Debts module.",
             "You can log improvements (kitchen, roof) with what you invested; the app estimates how much that usually adds or subtracts (default ~70% of cost).",
             "A liability can link to Debts or create the debt with a monthly payment. No cash moves until you tap “Pay this month” on Debts.",

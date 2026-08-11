@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Home, Landmark, Scale } from "lucide-react";
+import { PropertyValueChart } from "@/components/property-value-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import {
   defaultValuePolicy,
   valueItem,
+  valueTimeline,
   type ValueChange,
   type ValueMethod,
 } from "@/lib/properties/valuation";
@@ -86,6 +88,14 @@ type Item = {
     annualRatePercent: number;
     remainingCents: number | null;
   } | null;
+  owners?: { userId: string; percent: number; name: string }[];
+};
+
+type OwnerShare = {
+  userId: string;
+  name: string;
+  assetCents: number;
+  equityCents: number;
 };
 
 type DebtOpt = { id: string; name: string; remainingCents: number };
@@ -100,6 +110,44 @@ const ASSET_CATS = [
   "other",
 ] as const;
 const LIAB_CATS = ["mortgage", "loan", "other"] as const;
+const OWNER_COLORS = [
+  "#2dd4bf",
+  "#a78bfa",
+  "#fb7185",
+  "#fbbf24",
+  "#38bdf8",
+  "#f472b6",
+];
+
+function itemSeries(item: Item, futureYears = 0) {
+  return valueTimeline(
+    {
+      originalCents: item.valueCents,
+      acquiredOn: item.acquiredOn,
+      valueChange: item.valueChange,
+      annualRatePercent: item.annualRatePercent,
+      method: item.method,
+      usefulLifeYears: item.usefulLifeYears,
+      salvageCents: item.salvageCents,
+    },
+    item.improvements || [],
+    {
+      marketValueCents: item.marketValueCents,
+      marketValueOn: item.marketValueOn,
+    },
+    { futureYears }
+  ).map((p) => ({
+    date: p.date,
+    value: p.currentCents,
+    estimate: p.estimatedCents,
+    equity:
+      item.linkedLiability != null
+        ? p.currentCents - item.linkedLiability.currentCents
+        : item.equityCents != null
+          ? p.currentCents - (item.valuation.currentCents - item.equityCents)
+          : undefined,
+  }));
+}
 
 function policyToForm(p: ReturnType<typeof defaultValuePolicy>) {
   return {
@@ -112,7 +160,7 @@ function policyToForm(p: ReturnType<typeof defaultValuePolicy>) {
 }
 
 export default function PropertiesPage() {
-  const { money, t, tr } = useApp();
+  const { money, t, tr, members } = useApp();
   const { confirm } = useConfirm();
   const [items, setItems] = useState<Item[]>([]);
   const [debtOpts, setDebtOpts] = useState<DebtOpt[]>([]);
@@ -120,7 +168,12 @@ export default function PropertiesPage() {
     assetCents: 0,
     liabilityCents: 0,
     netCents: 0,
+    equityCents: 0,
+    ownerShares: [] as OwnerShare[],
+    unassignedAssetCents: 0,
+    unassignedEquityCents: 0,
   });
+  const [futureYears, setFutureYears] = useState(0);
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -145,6 +198,7 @@ export default function PropertiesPage() {
     liabilityValue: "",
     marketValue: "",
     marketValueOn: "",
+    owners: {} as Record<string, string>,
   });
 
   const cats = t.properties.categories;
@@ -185,6 +239,7 @@ export default function PropertiesPage() {
       liabilityValue: "",
       marketValue: "",
       marketValueOn: "",
+      owners: {},
     });
   }
 
@@ -218,11 +273,20 @@ export default function PropertiesPage() {
         ? centsToInput(item.marketValueCents)
         : "",
       marketValueOn: item.marketValueOn || "",
+      owners: Object.fromEntries(
+        (item.owners || []).map((o) => [o.userId, String(o.percent)])
+      ),
     });
   }
 
   async function save() {
     try {
+      if (form.kind === "asset" && ownerPctSum > 100.05) {
+        toast.error(
+          tr(t.properties.ownershipOver, { pct: ownerPctSum.toFixed(1) })
+        );
+        return;
+      }
       const payload = {
         name: form.name,
         kind: form.kind,
@@ -265,6 +329,15 @@ export default function PropertiesPage() {
             : null,
         marketValueOn:
           form.kind === "asset" ? form.marketValueOn || null : null,
+        owners:
+          form.kind === "asset"
+            ? Object.entries(form.owners)
+                .map(([userId, percent]) => ({
+                  userId,
+                  percent: parseFloat(percent) || 0,
+                }))
+                .filter((o) => o.percent > 0)
+            : [],
       };
       if (mode === "edit" && editId) {
         await api("/api/properties", {
@@ -321,6 +394,22 @@ export default function PropertiesPage() {
   const categoryOptions = form.kind === "asset" ? ASSET_CATS : LIAB_CATS;
   const assets = items.filter((i) => i.kind === "asset");
   const liabilities = items.filter((i) => i.kind === "liability");
+  const householdSeries = useMemo(() => {
+    const map = new Map<string, { date: string; value: number; equity: number }>();
+    for (const item of assets) {
+      for (const p of itemSeries(item, futureYears)) {
+        const prev = map.get(p.date) || { date: p.date, value: 0, equity: 0 };
+        prev.value += p.value;
+        prev.equity += p.equity ?? p.value;
+        map.set(p.date, prev);
+      }
+    }
+    return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }, [assets, futureYears]);
+  const ownerPctSum = Object.values(form.owners).reduce(
+    (s, v) => s + (parseFloat(v) || 0),
+    0
+  );
   const linkedForPreview =
     form.financeMode === "existing"
       ? items.find((i) => i.id === form.financedById)
@@ -384,6 +473,74 @@ export default function PropertiesPage() {
           </div>
         </div>
       </div>
+
+      {householdSeries.length >= 2 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle>{t.properties.chartHousehold}</CardTitle>
+            <label className="flex items-center gap-2 text-xs text-[var(--fg-muted)]">
+              <input
+                type="checkbox"
+                checked={futureYears > 0}
+                onChange={(e) => setFutureYears(e.target.checked ? 3 : 0)}
+              />
+              {t.properties.chartFuture}
+            </label>
+          </CardHeader>
+          <CardContent>
+            <PropertyValueChart
+              series={householdSeries}
+              showEquity={householdSeries.some(
+                (p) => p.equity !== undefined && p.equity !== p.value
+              )}
+            />
+            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-[var(--fg-faint)]">
+              <span className="text-teal-200">● {t.properties.chartLegendValue}</span>
+              <span className="text-violet-300">● {t.properties.chartLegendEquity}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(totals.ownerShares.length > 0 || (totals.unassignedEquityCents || 0) > 0) &&
+        assets.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--fg-muted)]">
+              {t.properties.byOwner}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {totals.ownerShares.map((s, i) => (
+                <div
+                  key={s.userId}
+                  className="rounded-xl border border-white/10 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2 text-sm">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        background: OWNER_COLORS[i % OWNER_COLORS.length],
+                      }}
+                    />
+                    {s.name}
+                  </div>
+                  <div className="mt-1 font-display text-lg text-emerald-300">
+                    {money(s.equityCents)}
+                  </div>
+                </div>
+              ))}
+              {(totals.unassignedEquityCents || 0) > 0 && (
+                <div className="rounded-xl border border-white/10 px-3 py-2">
+                  <div className="text-sm text-[var(--fg-muted)]">
+                    {t.properties.ownershipHousehold}
+                  </div>
+                  <div className="mt-1 font-display text-lg">
+                    {money(totals.unassignedEquityCents)}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {mode !== "none" && (
         <Card premium>
@@ -754,6 +911,75 @@ export default function PropertiesPage() {
                 )}
               </div>
             )}
+            {form.kind === "asset" && members.length > 0 && (
+              <div className="sm:col-span-2 space-y-3 rounded-xl border border-white/10 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label>{t.properties.ownership}</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      if (!members.length) return;
+                      const each = Math.round((100 / members.length) * 10) / 10;
+                      setForm({
+                        ...form,
+                        owners: Object.fromEntries(
+                          members.map((m) => [m.user.id, String(each)])
+                        ),
+                      });
+                    }}
+                  >
+                    {t.properties.splitEqual}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-[var(--fg-faint)]">
+                  {t.properties.ownershipHint}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {members.map((m) => (
+                    <div key={m.user.id}>
+                      <Label>{m.user.displayName}</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="100"
+                        className="mt-1"
+                        value={form.owners[m.user.id] || ""}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            owners: {
+                              ...form.owners,
+                              [m.user.id]: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p
+                  className={`text-xs ${
+                    ownerPctSum > 100.05
+                      ? "text-amber-200"
+                      : "text-[var(--fg-muted)]"
+                  }`}
+                >
+                  {ownerPctSum > 100.05
+                    ? tr(t.properties.ownershipOver, {
+                        pct: ownerPctSum.toFixed(1),
+                      })
+                    : tr(t.properties.ownershipTotal, {
+                        pct: ownerPctSum.toFixed(1),
+                      })}
+                  {ownerPctSum < 99.95
+                    ? ` · ${t.properties.ownershipHousehold} ${(100 - ownerPctSum).toFixed(1)}%`
+                    : ""}
+                </p>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <Label>{t.notes}</Label>
               <Textarea
@@ -835,6 +1061,7 @@ function ItemCard({
   const { money, t, tr } = useApp();
   const { confirm } = useConfirm();
   const [open, setOpen] = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [imp, setImp] = useState({
     description: "",
@@ -998,6 +1225,79 @@ function ItemCard({
             </Button>
           </div>
         </div>
+
+        {item.kind === "asset" && (item.owners || []).length > 0 && (
+          <div className="space-y-1">
+            <div className="flex h-2 overflow-hidden rounded-full bg-white/10">
+              {(item.owners || []).map((o, i) => (
+                <div
+                  key={o.userId}
+                  style={{
+                    width: `${Math.min(100, o.percent)}%`,
+                    background: OWNER_COLORS[i % OWNER_COLORS.length],
+                  }}
+                />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--fg-muted)]">
+              {(item.owners || []).map((o, i) => {
+                const base = item.equityCents ?? v?.currentCents ?? 0;
+                return (
+                  <span key={o.userId}>
+                    <span
+                      className="mr-1 inline-block h-1.5 w-1.5 rounded-full"
+                      style={{
+                        background: OWNER_COLORS[i % OWNER_COLORS.length],
+                      }}
+                    />
+                    {tr(t.properties.shareOf, {
+                      name: o.name,
+                      pct: o.percent,
+                    })}{" "}
+                    {money(Math.round((base * o.percent) / 100))}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {item.kind === "asset" && item.acquiredOn && (
+          <div>
+            <button
+              type="button"
+              className="text-xs font-medium text-[var(--fg-muted)] hover:text-[var(--fg)]"
+              onClick={() => setChartOpen((o) => !o)}
+            >
+              {t.properties.chartTitle}
+            </button>
+            {chartOpen && (
+              <div className="mt-2">
+                <PropertyValueChart
+                  series={itemSeries(item)}
+                  showEstimate={v?.source === "market"}
+                  showEquity={item.linkedLiability != null}
+                  height={180}
+                />
+                <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-[var(--fg-faint)]">
+                  <span className="text-teal-200">
+                    ● {t.properties.chartLegendValue}
+                  </span>
+                  {v?.source === "market" && (
+                    <span className="text-amber-200">
+                      – {t.properties.chartLegendEstimate}
+                    </span>
+                  )}
+                  {item.linkedLiability && (
+                    <span className="text-violet-300">
+                      ● {t.properties.chartLegendEquity}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="border-t border-white/10 pt-3">
           <button
