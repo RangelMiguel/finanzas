@@ -8,10 +8,14 @@ import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import {
   amortizeDebt,
+  DEBT_INTEREST_METHODS,
   normalizePaymentPlanCents,
+  parseInterestMethod,
   parsePaymentPlan,
   suggestMonthlyDebtPay,
 } from "@/lib/debts";
+
+const interestMethodSchema = z.enum(DEBT_INTEREST_METHODS);
 
 /** Body payment plan: currency units → cents array, or null to clear. */
 function planCentsFromBody(
@@ -58,17 +62,22 @@ export async function GET() {
       const remaining = Math.max(0, d.principalCents - paidCapital);
       const show = m.visibility.showDebtBalances;
       const paymentPlanCents = parsePaymentPlan(d.paymentPlanCents);
+      const interestMethod = parseInterestMethod(d.interestMethod);
       const nextBudget =
         paymentPlanCents?.[0] ?? d.monthlyPaymentCents;
       const suggested = suggestMonthlyDebtPay({
         remainingCents: remaining,
         monthlyPaymentCents: nextBudget,
         annualRatePercent: d.annualRatePercent,
+        method: interestMethod,
+        originalPrincipalCents: d.principalCents,
       });
       const plan = amortizeDebt({
         remainingCents: remaining,
         monthlyPaymentCents: d.monthlyPaymentCents,
         annualRatePercent: d.annualRatePercent,
+        method: interestMethod,
+        originalPrincipalCents: d.principalCents,
         paymentPlanCents,
         scheduleMonths: Math.max(
           6,
@@ -78,6 +87,7 @@ export async function GET() {
       });
       return {
         ...d,
+        interestMethod,
         paymentPlanCents: show ? paymentPlanCents : null,
         principalCents: show ? d.principalCents : null,
         paidCapitalCents: show ? paidCapital : null,
@@ -94,6 +104,7 @@ export async function GET() {
               schedule: plan.schedule,
               next: plan.next,
               hasCustomPlan: plan.hasCustomPlan,
+              method: plan.method,
             }
           : null,
         balancesHidden: !show,
@@ -121,6 +132,7 @@ export async function POST(req: Request) {
           .array(z.union([z.number(), z.string()]))
           .nullable()
           .optional(),
+        interestMethod: interestMethodSchema.optional(),
       })
       .parse(await req.json());
     const paymentPlanCents = planCentsFromBody(body.paymentPlan);
@@ -134,6 +146,7 @@ export async function POST(req: Request) {
         paymentDay: body.paymentDay,
         notes: body.notes || null,
         paymentPlanCents: toJsonPlan(paymentPlanCents),
+        interestMethod: parseInterestMethod(body.interestMethod),
       },
     });
     return jsonOk({ debt }, 201);
@@ -159,6 +172,7 @@ export async function PATCH(req: Request) {
           .array(z.union([z.number(), z.string()]))
           .nullable()
           .optional(),
+        interestMethod: interestMethodSchema.optional(),
       })
       .parse(await req.json());
     const existing = await prisma.debt.findFirst({
@@ -179,6 +193,9 @@ export async function PATCH(req: Request) {
             : undefined,
         paymentDay: body.paymentDay,
         notes: body.notes,
+        ...(body.interestMethod !== undefined
+          ? { interestMethod: parseInterestMethod(body.interestMethod) }
+          : {}),
         ...(paymentPlanCents !== undefined
           ? { paymentPlanCents: toJsonPlan(paymentPlanCents) }
           : {}),

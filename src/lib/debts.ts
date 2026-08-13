@@ -1,25 +1,114 @@
-/** Suggested split for one monthly debt payment. No ledger movement until the user pays. */
+/**
+ * Debt interest and amortization.
+ * Interest methods match common bank loan systems:
+ * - french: declining balance (cuota fija / French system) — default
+ * - german: fixed principal each period (German system)
+ * - flat: interest always on original principal (flat / global rate)
+ * - interest_only: interest on remaining; principal only if payment exceeds interest
+ */
 
-export function monthlyInterestCents(
-  remainingCents: number,
-  annualRatePercent: number
-): number {
-  const remaining = Math.max(0, Math.round(remainingCents));
-  const rate = Math.max(0, annualRatePercent || 0);
-  return Math.round((remaining * rate) / 100 / 12);
+export const DEBT_INTEREST_METHODS = [
+  "french",
+  "german",
+  "flat",
+  "interest_only",
+] as const;
+
+export type DebtInterestMethod = (typeof DEBT_INTEREST_METHODS)[number];
+
+export function parseInterestMethod(raw: unknown): DebtInterestMethod {
+  if (typeof raw === "string" && (DEBT_INTEREST_METHODS as readonly string[]).includes(raw)) {
+    return raw as DebtInterestMethod;
+  }
+  return "french";
 }
 
+/** Monthly interest on a base balance: base × annual% / 100 / 12 (nearest cent). */
+export function monthlyInterestCents(
+  baseCents: number,
+  annualRatePercent: number
+): number {
+  const base = Math.max(0, Math.round(baseCents));
+  const rate = Math.max(0, annualRatePercent || 0);
+  return Math.round((base * rate) / 100 / 12);
+}
+
+/**
+ * Interest due this period for the chosen bank method.
+ * @param remainingCents Current unpaid principal
+ * @param originalPrincipalCents Financed amount (used by flat rate)
+ */
+export function periodInterestCents(opts: {
+  method?: DebtInterestMethod | string | null;
+  remainingCents: number;
+  originalPrincipalCents?: number;
+  annualRatePercent: number;
+}): number {
+  const method = parseInterestMethod(opts.method);
+  const remaining = Math.max(0, Math.round(opts.remainingCents));
+  if (remaining <= 0) return 0;
+  const original = Math.max(
+    remaining,
+    Math.round(opts.originalPrincipalCents ?? remaining)
+  );
+  switch (method) {
+    case "flat":
+      // Flat / global: interest charged on the original principal every month.
+      return monthlyInterestCents(original, opts.annualRatePercent);
+    case "french":
+    case "german":
+    case "interest_only":
+    default:
+      // Declining balance (saldo insoluto).
+      return monthlyInterestCents(remaining, opts.annualRatePercent);
+  }
+}
+
+export type DebtPaySplit = {
+  capitalCents: number;
+  interestCents: number;
+  totalCents: number;
+};
+
+/**
+ * Split one payment into interest + capital for the selected method.
+ *
+ * - french / flat / interest_only: `monthlyPaymentCents` is total cash budget
+ * - german: `monthlyPaymentCents` is the fixed principal portion; total = capital + interest
+ */
 export function suggestMonthlyDebtPay(opts: {
   remainingCents: number;
   monthlyPaymentCents: number;
   annualRatePercent: number;
-}): { capitalCents: number; interestCents: number; totalCents: number } {
+  method?: DebtInterestMethod | string | null;
+  originalPrincipalCents?: number;
+}): DebtPaySplit {
   const remaining = Math.max(0, Math.round(opts.remainingCents));
-  const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
+  const method = parseInterestMethod(opts.method);
   if (remaining <= 0) {
     return { capitalCents: 0, interestCents: 0, totalCents: 0 };
   }
-  const interest = monthlyInterestCents(remaining, opts.annualRatePercent);
+
+  const interest = periodInterestCents({
+    method,
+    remainingCents: remaining,
+    originalPrincipalCents: opts.originalPrincipalCents,
+    annualRatePercent: opts.annualRatePercent,
+  });
+
+  if (method === "german") {
+    // Fixed capital amortization; payment grows/shrinks with interest.
+    const capitalTarget = Math.max(0, Math.round(opts.monthlyPaymentCents));
+    const capitalCents = Math.min(remaining, capitalTarget);
+    return {
+      capitalCents,
+      interestCents: interest,
+      totalCents: capitalCents + interest,
+    };
+  }
+
+  // french / flat / interest_only: budget is total cash out.
+  const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
   const budget = monthly > 0 ? monthly : remaining + interest;
   const interestCents = Math.min(interest, budget);
   const capitalCents = Math.min(remaining, Math.max(0, budget - interestCents));
@@ -39,7 +128,7 @@ export type AmortizationRow = {
 };
 
 export type AmortizationSummary = {
-  next: { capitalCents: number; interestCents: number; totalCents: number };
+  next: DebtPaySplit;
   months: number;
   totalInterestCents: number;
   totalPaidCents: number;
@@ -49,6 +138,7 @@ export type AmortizationSummary = {
   schedule: AmortizationRow[];
   /** True when a custom payment plan drives (part of) the schedule. */
   hasCustomPlan: boolean;
+  method: DebtInterestMethod;
 };
 
 const DEFAULT_MAX_MONTHS = 600;
@@ -117,11 +207,34 @@ export type DebtAmortizeOpts = {
   remainingCents: number;
   monthlyPaymentCents: number;
   annualRatePercent: number;
-  /** Remaining planned cash amounts (cents), in order. */
+  method?: DebtInterestMethod | string | null;
+  /** Original financed principal (flat rate base). Defaults to remaining. */
+  originalPrincipalCents?: number;
+  /** Remaining planned cash/capital amounts (cents), in order. */
   paymentPlanCents?: number[] | null;
   maxMonths?: number;
   scheduleMonths?: number;
 };
+
+function emptySummary(
+  next: DebtPaySplit,
+  extras: Partial<AmortizationSummary> & {
+    method: DebtInterestMethod;
+    hasCustomPlan: boolean;
+  }
+): AmortizationSummary {
+  return {
+    next,
+    months: 0,
+    totalInterestCents: 0,
+    totalPaidCents: 0,
+    payoffOk: true,
+    paymentCoversInterest: true,
+    minPaymentCents: 0,
+    schedule: [],
+    ...extras,
+  };
+}
 
 /** Project remaining interest and months with fixed monthly and/or a custom plan. */
 export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
@@ -129,6 +242,11 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
   const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
   const plan = normalizePaymentPlanCents(opts.paymentPlanCents);
   const hasCustomPlan = !!(plan && plan.length > 0);
+  const method = parseInterestMethod(opts.method);
+  const originalPrincipalCents = Math.max(
+    remaining,
+    Math.round(opts.originalPrincipalCents ?? remaining)
+  );
   const maxMonths = opts.maxMonths ?? DEFAULT_MAX_MONTHS;
   const scheduleLimit = opts.scheduleMonths ?? DEFAULT_SCHEDULE;
   const firstBudget = paymentBudgetForStep(0, plan, monthly);
@@ -136,26 +254,39 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
     remainingCents: remaining,
     monthlyPaymentCents: firstBudget,
     annualRatePercent: opts.annualRatePercent,
+    method,
+    originalPrincipalCents,
   });
-  const firstInterest = monthlyInterestCents(remaining, opts.annualRatePercent);
-  const minPaymentCents = firstInterest + 1;
+  const firstInterest = periodInterestCents({
+    method,
+    remainingCents: remaining,
+    originalPrincipalCents,
+    annualRatePercent: opts.annualRatePercent,
+  });
+  // Minimum cash that reduces principal by at least 1 cent.
+  const minPaymentCents =
+    method === "german" ? 1 : firstInterest + 1;
 
   if (remaining <= 0) {
-    return {
-      next,
-      months: 0,
-      totalInterestCents: 0,
-      totalPaidCents: 0,
+    return emptySummary(next, {
+      method,
+      hasCustomPlan,
       payoffOk: true,
       paymentCoversInterest: true,
       minPaymentCents: 0,
-      schedule: [],
-      hasCustomPlan,
-    };
+    });
   }
 
   const schedule: AmortizationRow[] = [];
-  if (firstBudget <= firstInterest && firstInterest > 0) {
+
+  // Underpayment: cash budget never covers interest (non-german total-budget methods).
+  if (
+    method !== "german" &&
+    firstBudget > 0 &&
+    firstBudget <= firstInterest &&
+    firstInterest > 0 &&
+    next.capitalCents <= 0
+  ) {
     schedule.push({
       month: 1,
       interestCents: firstInterest,
@@ -173,6 +304,7 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
       minPaymentCents,
       schedule,
       hasCustomPlan,
+      method,
     };
   }
 
@@ -182,8 +314,7 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
   let totalPaid = 0;
   while (balance > 0 && months < maxMonths) {
     const budget = paymentBudgetForStep(months, plan, monthly);
-    if (budget <= 0) {
-      // Plan exhausted and no fixed monthly — cannot finish.
+    if (budget <= 0 && method !== "german") {
       return {
         next,
         months,
@@ -194,11 +325,33 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
         minPaymentCents,
         schedule,
         hasCustomPlan,
+        method,
       };
     }
-    const interest = monthlyInterestCents(balance, opts.annualRatePercent);
-    const capital = Math.min(balance, Math.max(0, budget - interest));
-    if (capital <= 0) {
+    // German with 0 budget and no plan: cannot continue.
+    if (method === "german" && budget <= 0) {
+      return {
+        next,
+        months,
+        totalInterestCents: totalInterest,
+        totalPaidCents: totalPaid,
+        payoffOk: false,
+        paymentCoversInterest: true,
+        minPaymentCents,
+        schedule,
+        hasCustomPlan,
+        method,
+      };
+    }
+
+    const pay = suggestMonthlyDebtPay({
+      remainingCents: balance,
+      monthlyPaymentCents: budget,
+      annualRatePercent: opts.annualRatePercent,
+      method,
+      originalPrincipalCents,
+    });
+    if (pay.capitalCents <= 0) {
       return {
         next,
         months: maxMonths,
@@ -206,22 +359,30 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
         totalPaidCents: totalPaid,
         payoffOk: false,
         paymentCoversInterest: false,
-        minPaymentCents: interest + 1,
+        minPaymentCents:
+          method === "german"
+            ? 1
+            : periodInterestCents({
+                method,
+                remainingCents: balance,
+                originalPrincipalCents,
+                annualRatePercent: opts.annualRatePercent,
+              }) + 1,
         schedule,
         hasCustomPlan,
+        method,
       };
     }
-    const actual = capital + interest;
-    balance -= capital;
-    totalInterest += interest;
-    totalPaid += actual;
+    balance -= pay.capitalCents;
+    totalInterest += pay.interestCents;
+    totalPaid += pay.totalCents;
     months += 1;
     if (schedule.length < scheduleLimit) {
       schedule.push({
         month: months,
-        interestCents: interest,
-        capitalCents: capital,
-        paymentCents: actual,
+        interestCents: pay.interestCents,
+        capitalCents: pay.capitalCents,
+        paymentCents: pay.totalCents,
         balanceCents: balance,
       });
     }
@@ -237,6 +398,7 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
     minPaymentCents,
     schedule,
     hasCustomPlan,
+    method,
   };
 }
 
@@ -260,10 +422,17 @@ export function projectedDebtPaymentAmounts(opts: {
   annualRatePercent: number;
   maxPayments: number;
   paymentPlanCents?: number[] | null;
+  method?: DebtInterestMethod | string | null;
+  originalPrincipalCents?: number;
 }): number[] {
   let remaining = Math.max(0, Math.round(opts.remainingCents));
   const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
   const plan = normalizePaymentPlanCents(opts.paymentPlanCents);
+  const method = parseInterestMethod(opts.method);
+  const originalPrincipalCents = Math.max(
+    remaining,
+    Math.round(opts.originalPrincipalCents ?? remaining)
+  );
   const maxPayments = Math.max(0, Math.round(opts.maxPayments));
   if (remaining <= 0 || maxPayments <= 0) return [];
   if (!plan?.length && monthly <= 0) return [];
@@ -277,11 +446,13 @@ export function projectedDebtPaymentAmounts(opts: {
       remainingCents: remaining,
       monthlyPaymentCents: budget,
       annualRatePercent: opts.annualRatePercent,
+      method,
+      originalPrincipalCents,
     });
     if (pay.totalCents <= 0) break;
     amounts.push(pay.totalCents);
     if (pay.capitalCents <= 0) {
-      // Interest-only / underpayment: keep reserving this budget for the window.
+      // Interest-only / underpayment: keep reserving this cash for the window.
       while (amounts.length < maxPayments) amounts.push(pay.totalCents);
       break;
     }

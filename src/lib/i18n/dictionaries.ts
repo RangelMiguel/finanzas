@@ -556,6 +556,23 @@ export const es = {
     ratePayDayPlan:
       "Tasa {rate}% · Plan de {n} pagos · Día {day}",
     editPlan: "Editar plan de pagos",
+    interestMethod: "Cálculo de intereses",
+    interestMethodHint: "Sistema de amortización que usa el banco o el prestamista",
+    methodFrench: "Francés (saldo insoluto)",
+    methodFrenchHint:
+      "Interés cada mes sobre lo que aún debes. Cuota total fija; al inicio pagas más intereses.",
+    methodGerman: "Alemán (capital fijo)",
+    methodGermanHint:
+      "El capital de cada mes es fijo; el total baja con el tiempo porque el interés cae.",
+    methodFlat: "Tasa plana / global",
+    methodFlatHint:
+      "El interés se calcula siempre sobre el capital original, no sobre el saldo.",
+    methodInterestOnly: "Solo intereses (americano)",
+    methodInterestOnlyHint:
+      "Interés sobre el saldo. El capital solo baja si pagas más que los intereses (p. ej. al final).",
+    methodLabel: "Método: {method}",
+    germanPaymentIsCapital:
+      "En sistema alemán el “pago mensual” es la parte a capital (el total = capital + intereses).",
   },
 
   goals: {
@@ -2038,6 +2055,23 @@ export const en: Dictionary = {
     customPlanLabel: "Custom plan ({n} payments)",
     ratePayDayPlan: "Rate {rate}% · {n}-payment plan · Day {day}",
     editPlan: "Edit payment plan",
+    interestMethod: "Interest calculation",
+    interestMethodHint: "Amortization system used by the bank or lender",
+    methodFrench: "French (declining balance)",
+    methodFrenchHint:
+      "Interest each month on what you still owe. Fixed total payment; more interest early on.",
+    methodGerman: "German (fixed principal)",
+    methodGermanHint:
+      "Principal portion is fixed each month; total payment falls as interest shrinks.",
+    methodFlat: "Flat / global rate",
+    methodFlatHint:
+      "Interest is always calculated on the original principal, not the remaining balance.",
+    methodInterestOnly: "Interest only (American)",
+    methodInterestOnlyHint:
+      "Interest on the balance. Principal falls only if you pay more than interest (e.g. a balloon).",
+    methodLabel: "Method: {method}",
+    germanPaymentIsCapital:
+      "In the German system the “monthly payment” is the principal portion (total = principal + interest).",
   },
 
   goals: {

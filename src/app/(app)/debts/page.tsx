@@ -13,9 +13,12 @@ import { useConfirm } from "@/components/providers/confirm-provider";
 import { amountToCents, centsToInput } from "@/lib/utils";
 import {
   amortizeDebt,
+  DEBT_INTEREST_METHODS,
   paymentPlanSumCents,
+  parseInterestMethod,
   splitDuration,
   type AmortizationSummary,
+  type DebtInterestMethod,
 } from "@/lib/debts";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
@@ -35,6 +38,7 @@ type Plan = {
   }[];
   next: { capitalCents: number; interestCents: number; totalCents: number };
   hasCustomPlan?: boolean;
+  method?: DebtInterestMethod;
 };
 
 type Debt = {
@@ -44,6 +48,7 @@ type Debt = {
   annualRatePercent: number;
   monthlyPaymentCents: number;
   paymentPlanCents?: number[] | null;
+  interestMethod?: DebtInterestMethod | string;
   paymentDay: number;
   paidCapitalCents: number;
   paidInterestCents?: number | null;
@@ -64,6 +69,29 @@ type Debt = {
 };
 type Acc = { id: string; name: string };
 type PlanMode = "fixed" | "custom";
+
+function methodLabel(
+  method: DebtInterestMethod | string | undefined,
+  t: {
+    debts: {
+      methodFrench: string;
+      methodGerman: string;
+      methodFlat: string;
+      methodInterestOnly: string;
+    };
+  }
+): string {
+  switch (parseInterestMethod(method)) {
+    case "german":
+      return t.debts.methodGerman;
+    case "flat":
+      return t.debts.methodFlat;
+    case "interest_only":
+      return t.debts.methodInterestOnly;
+    default:
+      return t.debts.methodFrench;
+  }
+}
 
 function formatDuration(
   months: number,
@@ -86,6 +114,7 @@ function emptyForm() {
     notes: "",
     planMode: "fixed" as PlanMode,
     planSteps: [""] as string[],
+    interestMethod: "french" as DebtInterestMethod,
   };
 }
 
@@ -167,12 +196,18 @@ export default function DebtsPage() {
     return steps.length > 0 ? steps : null;
   }, [form.planMode, form.planSteps]);
 
+  const formOriginalPrincipalCents = useMemo(() => {
+    return amountToCents(form.principal || 0) || formRemainingCents;
+  }, [form.principal, formRemainingCents]);
+
   const formPlan = useMemo(
     () =>
       amortizeDebt({
         remainingCents: formRemainingCents,
         monthlyPaymentCents: amountToCents(form.monthlyPayment || 0),
         annualRatePercent: parseFloat(form.annualRatePercent) || 0,
+        method: form.interestMethod,
+        originalPrincipalCents: formOriginalPrincipalCents,
         paymentPlanCents: formPlanCents,
         scheduleMonths: Math.max(6, formPlanCents?.length ?? 0, 12),
       }),
@@ -180,6 +215,8 @@ export default function DebtsPage() {
       formRemainingCents,
       form.monthlyPayment,
       form.annualRatePercent,
+      form.interestMethod,
+      formOriginalPrincipalCents,
       formPlanCents,
     ]
   );
@@ -195,6 +232,7 @@ export default function DebtsPage() {
         monthlyPayment: form.monthlyPayment || 0,
         paymentDay: parseInt(form.paymentDay, 10),
         notes: form.notes || null,
+        interestMethod: form.interestMethod,
         paymentPlan:
           form.planMode === "custom"
             ? form.planSteps.filter((s) => amountToCents(s || 0) > 0)
@@ -238,6 +276,7 @@ export default function DebtsPage() {
       planSteps: hasPlan
         ? planStepsFromCents(d.paymentPlanCents)
         : [centsToInput(d.monthlyPaymentCents) || ""],
+      interestMethod: parseInterestMethod(d.interestMethod),
     });
     setMode("edit");
   }
@@ -391,6 +430,42 @@ export default function DebtsPage() {
               />
             </div>
             <div className="sm:col-span-2">
+              <Label>{t.debts.interestMethod}</Label>
+              <p className="mt-0.5 text-xs text-[var(--fg-faint)]">
+                {t.debts.interestMethodHint}
+              </p>
+              <Select
+                className="mt-1"
+                value={form.interestMethod}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    interestMethod: parseInterestMethod(e.target.value),
+                  })
+                }
+              >
+                {DEBT_INTEREST_METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {methodLabel(m, t)}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-[var(--fg-muted)]">
+                {form.interestMethod === "german"
+                  ? t.debts.methodGermanHint
+                  : form.interestMethod === "flat"
+                    ? t.debts.methodFlatHint
+                    : form.interestMethod === "interest_only"
+                      ? t.debts.methodInterestOnlyHint
+                      : t.debts.methodFrenchHint}
+              </p>
+              {form.interestMethod === "german" && (
+                <p className="mt-1 text-xs text-amber-200">
+                  {t.debts.germanPaymentIsCapital}
+                </p>
+              )}
+            </div>
+            <div className="sm:col-span-2">
               <Label>{t.debts.planMode}</Label>
               <div className="mt-1 flex flex-wrap gap-2">
                 <Button
@@ -413,7 +488,11 @@ export default function DebtsPage() {
             </div>
             {form.planMode === "fixed" ? (
               <div>
-                <Label>{t.debts.monthlyPayment}</Label>
+                <Label>
+                  {form.interestMethod === "german"
+                    ? t.debts.capital
+                    : t.debts.monthlyPayment}
+                </Label>
                 <Input
                   money
                   className="mt-1"
@@ -689,6 +768,7 @@ function DebtCard({
   );
   const [saving, setSaving] = useState(false);
   const hasCustomPlan = !!(d.paymentPlanCents && d.paymentPlanCents.length > 0);
+  const interestMethod = parseInterestMethod(d.interestMethod);
 
   const base = d.plan;
   const next = d.suggestedPay || base?.next;
@@ -707,12 +787,16 @@ function DebtCard({
         remainingCents: d.remainingCents,
         monthlyPaymentCents: amountToCents(simPay || 0),
         annualRatePercent: d.annualRatePercent,
+        method: interestMethod,
+        originalPrincipalCents: d.principalCents,
         paymentPlanCents: simMode === "custom" ? simPlanCents : null,
         scheduleMonths: Math.max(6, simPlanCents?.length ?? 0, 12),
       }),
     [
       d.remainingCents,
       d.annualRatePercent,
+      d.principalCents,
+      interestMethod,
       simPay,
       simMode,
       simPlanCents,
@@ -806,6 +890,11 @@ function DebtCard({
                   payment: money(d.monthlyPaymentCents),
                   day: d.paymentDay,
                 })}
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--fg-muted)]">
+            {tr(t.debts.methodLabel, {
+              method: methodLabel(interestMethod, t),
+            })}
           </p>
           {d.propertyItems && d.propertyItems.length > 0 && (
             <p className="mt-1 text-xs text-[var(--fg-muted)]">
@@ -955,9 +1044,19 @@ function DebtCard({
                   </Button>
                 </div>
 
+                {interestMethod === "german" && (
+                  <p className="text-xs text-amber-200">
+                    {t.debts.germanPaymentIsCapital}
+                  </p>
+                )}
+
                 {simMode === "fixed" ? (
                   <div>
-                    <Label>{t.debts.tryPayment}</Label>
+                    <Label>
+                      {interestMethod === "german"
+                        ? t.debts.capital
+                        : t.debts.tryPayment}
+                    </Label>
                     <Input
                       money
                       className="mt-1"

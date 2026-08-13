@@ -519,6 +519,8 @@ model Debt {
   /// Remaining planned cash payments in cents, e.g. [100000, 100000, 200000].
   /// Null = fixed monthlyPaymentCents only. Advanced when a payment is recorded.
   paymentPlanCents   Json?
+  /// Bank interest system: french | german | flat | interest_only
+  interestMethod     String   @default("french")
   paymentDay         Int      @default(1)
   notes              String?
   createdAt          DateTime @default(now())

@@ -230,6 +230,8 @@ async function buildFutureItems(opts: {
       monthlyPaymentCents: debt.monthlyPaymentCents,
       annualRatePercent: debt.annualRatePercent,
       paymentPlanCents,
+      method: debt.interestMethod,
+      originalPrincipalCents: debt.principalCents,
       maxPayments: dates.length,
     });
     for (let i = 0; i < amounts.length; i++) {

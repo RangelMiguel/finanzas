@@ -3,6 +3,7 @@ import {
   consumePaymentPlanStep,
   parsePaymentPlan,
   paymentPlanSumCents,
+  periodInterestCents,
   projectedDebtPaymentAmounts,
   suggestMonthlyDebtPay,
 } from "../src/lib/debts";
@@ -80,6 +81,7 @@ const plan = amortizeDebt({
 });
 assert(plan.months === 5 && plan.payoffOk, "amortize 5 months");
 assert(!plan.hasCustomPlan, "no custom plan");
+assert(plan.method === "french", "default french");
 
 const next = suggestMonthlyDebtPay({
   remainingCents: 50_000,
@@ -144,5 +146,105 @@ assert(
   withFallback[2] === 50_000 && withFallback[4] === 50_000,
   "then monthly"
 );
+
+// —— Interest methods ——
+// French: interest on remaining $1000 @ 12% = $10
+assert(
+  periodInterestCents({
+    method: "french",
+    remainingCents: 100_000,
+    originalPrincipalCents: 500_000,
+    annualRatePercent: 12,
+  }) === 1_000,
+  "french interest on remaining"
+);
+
+// Flat: interest on original $5000 @ 12% = $50 even if remaining is $1000
+assert(
+  periodInterestCents({
+    method: "flat",
+    remainingCents: 100_000,
+    originalPrincipalCents: 500_000,
+    annualRatePercent: 12,
+  }) === 5_000,
+  "flat interest on original"
+);
+
+// French split: $100 payment, $10 interest → $90 capital
+const frenchPay = suggestMonthlyDebtPay({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 10_000,
+  annualRatePercent: 12,
+  method: "french",
+  originalPrincipalCents: 100_000,
+});
+assert(frenchPay.interestCents === 1_000, "french interest split");
+assert(frenchPay.capitalCents === 9_000, "french capital split");
+assert(frenchPay.totalCents === 10_000, "french total");
+
+// German: monthly amount is capital; total = capital + interest
+const germanPay = suggestMonthlyDebtPay({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 10_000, // capital
+  annualRatePercent: 12,
+  method: "german",
+});
+assert(germanPay.capitalCents === 10_000, "german capital fixed");
+assert(germanPay.interestCents === 1_000, "german interest on remaining");
+assert(germanPay.totalCents === 11_000, "german total = capital + interest");
+
+// German amortization: $5000, $1000 capital/mo, 0% → 5 equal total payments of 1000
+const germanAm = amortizeDebt({
+  remainingCents: 500_000,
+  monthlyPaymentCents: 100_000,
+  annualRatePercent: 0,
+  method: "german",
+});
+assert(germanAm.months === 5 && germanAm.payoffOk, "german payoff");
+assert(germanAm.method === "german", "german method flag");
+
+// Flat amortization costs more interest than french for same cash budget
+const frenchCost = amortizeDebt({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 20_000,
+  annualRatePercent: 24,
+  method: "french",
+  originalPrincipalCents: 100_000,
+  scheduleMonths: 12,
+});
+const flatCost = amortizeDebt({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 20_000,
+  annualRatePercent: 24,
+  method: "flat",
+  originalPrincipalCents: 100_000,
+  scheduleMonths: 12,
+});
+assert(flatCost.payoffOk && frenchCost.payoffOk, "both pay off");
+assert(
+  flatCost.totalInterestCents > frenchCost.totalInterestCents,
+  `flat (${flatCost.totalInterestCents}) should cost more than french (${frenchCost.totalInterestCents})`
+);
+
+// Interest-only: payment equal to interest → no principal reduction
+const io = suggestMonthlyDebtPay({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 1_000, // exactly interest at 12%
+  annualRatePercent: 12,
+  method: "interest_only",
+});
+assert(io.interestCents === 1_000 && io.capitalCents === 0, "interest only");
+
+// German projection: cash amounts include interest
+const germanProj = projectedDebtPaymentAmounts({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 50_000,
+  annualRatePercent: 12,
+  method: "german",
+  maxPayments: 3,
+});
+assert(germanProj.length === 2, "german two capital steps of 500");
+assert(germanProj[0] === 50_000 + 1_000, "first german payment capital+int");
+assert(germanProj[1] === 50_000 + 500, "second after balance drop");
 
 console.log("verify-debts: ok");
