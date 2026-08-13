@@ -8,6 +8,7 @@ import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import { computeRetirement, type RetirementInputs } from "@/lib/retirement";
 import { householdPropertyTotalsIfInstalled } from "@/lib/properties/summary";
+import { suggestRetirementFromHousehold } from "@/lib/retirement-suggest";
 
 function pesosField(v: number | string | undefined, fallback = 0) {
   if (v === undefined || v === null || v === "") return fallback;
@@ -363,6 +364,49 @@ export async function PUT(req: Request) {
       propertiesAvailable: propertyTotals != null,
       saved: !body.preview,
     });
+  } catch (e) {
+    return jsonError(e);
+  }
+}
+
+/**
+ * Suggest plan fields from recurring income (net pay) and this month's budgets.
+ * Does not save; client applies to the form and can recalculate / save.
+ */
+export async function POST(req: Request) {
+  try {
+    const session = await requireSession();
+    const m = await requireHouseholdAccess(session.userId);
+    if (!canSeeModule(m.visibility, "retirement")) {
+      throw new ForbiddenError("Sin acceso a retiro");
+    }
+
+    let body: { replacementPercent?: number } = {};
+    try {
+      body = await req.json();
+    } catch {
+      /* empty body ok */
+    }
+
+    const plan = await prisma.retirementPlan.findUnique({
+      where: {
+        householdId_userId: {
+          householdId: m.householdId,
+          userId: session.userId,
+        },
+      },
+    });
+
+    const replacementPercent =
+      typeof body.replacementPercent === "number"
+        ? body.replacementPercent
+        : plan?.replacementPercent ?? 70;
+
+    const suggestion = await suggestRetirementFromHousehold(m.householdId, {
+      replacementPercent,
+    });
+
+    return jsonOk({ suggestion });
   } catch (e) {
     return jsonError(e);
   }

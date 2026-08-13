@@ -643,6 +643,15 @@ export const es = {
       "Estima cuánto necesitas ahorrar según tu edad, estilo de vida e inflación",
     saved: "Plan de retiro guardado",
     recalculate: "Recalcular",
+    fromPayBudgets: "Desde sueldo y presupuestos",
+    fromPayBudgetsHint:
+      "Usa ingresos recurrentes como sueldo neto y los presupuestos de este mes. Aportación = sueldo − presupuestos. Meta de gasto = % de reemplazo del ingreso anual.",
+    fromPayBudgetsOk:
+      "Plan rellenado: ingreso {income}/mes, presupuestos {budget}/mes, aportación {contrib}/mes.",
+    fromPayBudgetsNoIncome:
+      "No hay ingresos recurrentes. Añade el sueldo en Ingresos recurrentes y vuelve a intentar.",
+    fromPayBudgetsTight:
+      "Los presupuestos cubren (o superan) el sueldo: aportación en 0. Ajusta presupuestos o pon una aportación a mano.",
     onTrack: "Vas en buen camino",
     offTrack: "Hay un hueco por cerrar",
     onTrackHint:
@@ -2158,6 +2167,15 @@ export const en: Dictionary = {
       "Estimate how much you need based on age, lifestyle, and inflation",
     saved: "Retirement plan saved",
     recalculate: "Recalculate",
+    fromPayBudgets: "From pay & budgets",
+    fromPayBudgetsHint:
+      "Uses recurring income as net pay and this month's budgets. Contribution = pay − budgets. Target spend = replacement % of annual income.",
+    fromPayBudgetsOk:
+      "Plan filled: income {income}/mo, budgets {budget}/mo, contribution {contrib}/mo.",
+    fromPayBudgetsNoIncome:
+      "No recurring income found. Add your salary under Recurring income and try again.",
+    fromPayBudgetsTight:
+      "Budgets cover (or exceed) pay: contribution set to 0. Adjust budgets or enter a contribution manually.",
     onTrack: "You're on track",
     offTrack: "There's a gap to close",
     onTrackHint:

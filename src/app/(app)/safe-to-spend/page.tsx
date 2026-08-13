@@ -53,7 +53,7 @@ export default function SafeToSpendPage() {
   const { money, t, tr, locale } = useApp();
   const dateLocale = locale === "en" ? enUS : es;
   const [includeIncome, setIncludeIncome] = useState(true);
-  const [reserveBudgets, setReserveBudgets] = useState(false);
+  const [reserveBudgets, setReserveBudgets] = useState(true);
   const [horizon, setHorizon] = useState("120");
   const [mode, setMode] = useState<Mode>("overview");
   const [targetDate, setTargetDate] = useState(() => {

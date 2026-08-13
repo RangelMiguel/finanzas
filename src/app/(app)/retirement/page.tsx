@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Info,
+  Wallet,
 } from "lucide-react";
 import type { RetirementResult } from "@/lib/retirement";
 import { RetirementRatesCard } from "@/components/retirement-rates-card";
@@ -158,6 +159,7 @@ export default function RetirementPage() {
   const [autoNestEgg, setAutoNestEgg] = useState(0);
   const [effectiveSavings, setEffectiveSavings] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
   const [showTable, setShowTable] = useState(false);
   const [propertiesAvailable, setPropertiesAvailable] = useState(false);
 
@@ -247,6 +249,74 @@ export default function RetirementPage() {
     set("desiredAnnualIncome", suggested);
   }
 
+  async function fromPayAndBudgets() {
+    if (!form) return;
+    setSuggesting(true);
+    try {
+      const pct = parseFloat(form.replacementPercent) || 70;
+      const data = await api<{
+        suggestion: {
+          monthlyIncomeCents: number;
+          monthlyBudgetCents: number;
+          monthlySurplusCents: number;
+          currentAnnualIncomeCents: number;
+          desiredAnnualIncomeCents: number;
+          monthlyContributionCents: number;
+          replacementPercent: number;
+          incomeCount: number;
+        };
+      }>("/api/retirement", {
+        method: "POST",
+        json: { replacementPercent: pct },
+      });
+      const s = data.suggestion;
+      if (s.incomeCount === 0 || s.monthlyIncomeCents <= 0) {
+        toast.error(t.retirement.fromPayBudgetsNoIncome);
+        return;
+      }
+
+      const nextForm: FormState = {
+        ...form,
+        currentAnnualIncome: centsToInput(s.currentAnnualIncomeCents),
+        replacementPercent: String(s.replacementPercent),
+        desiredAnnualIncome: centsToInput(s.desiredAnnualIncomeCents),
+        monthlyContribution: centsToInput(s.monthlyContributionCents),
+        useAutoSavings: true,
+        includeAccountBalances: true,
+        includeGoalReserves: true,
+      };
+      setForm(nextForm);
+
+      const preview = await api<{
+        plan: Plan;
+        result: RetirementResult;
+        autoNestEggCents: number;
+        effectiveSavingsCents: number;
+      }>("/api/retirement", {
+        method: "PUT",
+        json: formToPayload(nextForm, true),
+      });
+      setResult(preview.result);
+      setAutoNestEgg(preview.autoNestEggCents);
+      setEffectiveSavings(preview.effectiveSavingsCents);
+
+      toast.success(
+        tr(t.retirement.fromPayBudgetsOk, {
+          income: money(s.monthlyIncomeCents),
+          budget: money(s.monthlyBudgetCents),
+          contrib: money(s.monthlyContributionCents),
+        })
+      );
+      if (s.monthlySurplusCents <= 0) {
+        toast.warning(t.retirement.fromPayBudgetsTight);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   const chartMax = useMemo(() => {
     if (!result) return 1;
     return Math.max(
@@ -273,6 +343,15 @@ export default function RetirementPage() {
         subtitle={t.retirement.subtitle}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={fromPayAndBudgets}
+              disabled={suggesting}
+              title={t.retirement.fromPayBudgetsHint}
+            >
+              <Wallet className="h-4 w-4" />
+              {suggesting ? t.loading : t.retirement.fromPayBudgets}
+            </Button>
             <Button variant="secondary" onClick={recalculate}>
               <Calculator className="h-4 w-4" />
               {t.retirement.recalculate}
