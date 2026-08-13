@@ -157,3 +157,38 @@ export function splitDuration(totalMonths: number): {
   const t = Math.max(0, Math.round(totalMonths));
   return { years: Math.floor(t / 12), months: t % 12, totalMonths: t };
 }
+
+/**
+ * Project cash amounts for future debt payments until principal is paid off
+ * (or maxPayments is reached). Last payment may be smaller than monthly.
+ * If the payment never reduces principal, fills remaining slots at the same amount.
+ */
+export function projectedDebtPaymentAmounts(opts: {
+  remainingCents: number;
+  monthlyPaymentCents: number;
+  annualRatePercent: number;
+  maxPayments: number;
+}): number[] {
+  let remaining = Math.max(0, Math.round(opts.remainingCents));
+  const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
+  const maxPayments = Math.max(0, Math.round(opts.maxPayments));
+  if (remaining <= 0 || monthly <= 0 || maxPayments <= 0) return [];
+
+  const amounts: number[] = [];
+  while (remaining > 0 && amounts.length < maxPayments) {
+    const pay = suggestMonthlyDebtPay({
+      remainingCents: remaining,
+      monthlyPaymentCents: monthly,
+      annualRatePercent: opts.annualRatePercent,
+    });
+    if (pay.totalCents <= 0) break;
+    amounts.push(pay.totalCents);
+    if (pay.capitalCents <= 0) {
+      // Interest-only / underpayment: debt never clears; keep reserving the payment.
+      while (amounts.length < maxPayments) amounts.push(pay.totalCents);
+      break;
+    }
+    remaining -= pay.capitalCents;
+  }
+  return amounts;
+}

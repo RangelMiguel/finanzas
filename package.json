@@ -15,7 +15,7 @@
     "db:setup": "prisma migrate deploy && tsx prisma/seed.ts",
     "postinstall": "prisma generate",
     "build:local": "prisma migrate deploy && next build",
-    "test": "tsx scripts/verify-budget-math.ts && tsx scripts/verify-cc-payments.ts && tsx scripts/verify-prices.ts && tsx scripts/verify-investments.ts && tsx scripts/verify-credits.ts"
+    "test": "tsx scripts/verify-budget-math.ts && tsx scripts/verify-cc-payments.ts && tsx scripts/verify-prices.ts && tsx scripts/verify-investments.ts && tsx scripts/verify-credits.ts && tsx scripts/verify-debts.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
