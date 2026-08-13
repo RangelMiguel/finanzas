@@ -79,6 +79,7 @@ export const es = {
     checking: "Cheques",
     debit: "Débito",
     savings: "Ahorro",
+    retirement: "Retiro / AFORE",
     other: "Otro",
   },
 
@@ -684,13 +685,14 @@ export const es = {
     monthlyDraw: "Retiro mensual del portafolio (hoy): {amount}",
     atRetirementIncome: "Gasto anual al retiro (nominal): {amount}",
     sectionCapital: "Capital y aportaciones",
-    useAccounts: "Usar saldos del hogar",
-    includeAccounts: "Incluir cuentas",
-    includeGoals: "Sumar reservas de metas",
-    includeProperties: "Sumar patrimonio de propiedades",
-    includePropertiesHint:
-      "Casa − hipoteca y otros bienes. El dinero de las cuentas no se cuenta dos veces.",
-    autoSavingsValue: "Ahorro detectado: {amount}",
+    useAccounts: "Usar cuentas de retiro",
+    useAccountsHint:
+      "Solo cuentas con tipo «Retiro / AFORE». Crea una en Cuentas y transfiere lo que ya ahorraste para el retiro.",
+    autoSavingsValue: "Ahorro en cuentas de retiro: {amount}",
+    noRetirementAccounts:
+      "No hay cuentas de retiro. En Cuentas crea una con tipo «Retiro / AFORE» (o edita una existente).",
+    goToAccounts: "Ir a Cuentas",
+    retirementAccountsTitle: "Cuentas de retiro",
     manualSavings: "Ahorro actual (manual)",
     monthlyContribution: "Aportación mensual",
     monthlyContributionHint: "Lo que inviertes cada mes hacia el retiro",
@@ -1605,6 +1607,7 @@ export const en: Dictionary = {
     checking: "Checking",
     debit: "Debit",
     savings: "Savings",
+    retirement: "Retirement / pension",
     other: "Other",
   },
 
@@ -2208,13 +2211,14 @@ export const en: Dictionary = {
     monthlyDraw: "Monthly portfolio draw (today): {amount}",
     atRetirementIncome: "Annual spend at retirement (nominal): {amount}",
     sectionCapital: "Capital & contributions",
-    useAccounts: "Use household balances",
-    includeAccounts: "Include accounts",
-    includeGoals: "Add goal reserves",
-    includeProperties: "Add property equity",
-    includePropertiesHint:
-      "Home − mortgage and other valuables. Account cash is not counted twice.",
-    autoSavingsValue: "Detected savings: {amount}",
+    useAccounts: "Use retirement accounts",
+    useAccountsHint:
+      "Only accounts typed as “Retirement / pension”. Create one under Accounts and transfer what you’ve already saved for retirement.",
+    autoSavingsValue: "Savings in retirement accounts: {amount}",
+    noRetirementAccounts:
+      "No retirement accounts yet. In Accounts create one with type “Retirement / pension” (or edit an existing account).",
+    goToAccounts: "Go to Accounts",
+    retirementAccountsTitle: "Retirement accounts",
     manualSavings: "Current savings (manual)",
     monthlyContribution: "Monthly contribution",
     monthlyContributionHint: "What you invest each month toward retirement",

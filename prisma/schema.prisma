@@ -267,7 +267,7 @@ model Account {
   id               String   @id @default(cuid())
   householdId      String
   name             String
-  type             String   // cash | checking | debit | savings | personal | other
+  type             String   // cash | checking | debit | savings | retirement | personal | other
   icon             String   @default("🏦")
   initialBalanceCents Int   @default(0)
   /// If set, this is a private personal account for that household member

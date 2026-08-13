@@ -7,7 +7,6 @@ import { pesosToCents } from "@/lib/utils";
 import { canSeeModule } from "@/lib/visibility";
 import { ForbiddenError } from "@/lib/auth";
 import { computeRetirement, type RetirementInputs } from "@/lib/retirement";
-import { householdPropertyTotalsIfInstalled } from "@/lib/properties/summary";
 import { suggestRetirementFromHousehold } from "@/lib/retirement-suggest";
 
 function pesosField(v: number | string | undefined, fallback = 0) {
@@ -15,69 +14,58 @@ function pesosField(v: number | string | undefined, fallback = 0) {
   return pesosToCents(v);
 }
 
-async function householdNestEgg(
-  householdId: string,
-  opts: {
-    includeAccounts: boolean;
-    includeGoals: boolean;
-    includeProperties?: boolean;
+export type RetirementAccountBalance = {
+  id: string;
+  name: string;
+  icon: string;
+  balanceCents: number;
+};
+
+/**
+ * Nest egg from dedicated retirement accounts only (type = "retirement").
+ * Checking/savings/cash and goals/properties are not auto-counted.
+ */
+async function retirementAccountsNestEgg(householdId: string): Promise<{
+  totalCents: number;
+  accounts: RetirementAccountBalance[];
+}> {
+  const accounts = await prisma.account.findMany({
+    where: { householdId, type: "retirement" },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!accounts.length) {
+    return { totalCents: 0, accounts: [] };
   }
-) {
-  let total = 0;
-  if (opts.includeAccounts) {
-    const accounts = await prisma.account.findMany({
-      where: { householdId },
-    });
-    const txns = await prisma.transaction.findMany({
-      where: { householdId, deletedAt: null },
-      select: {
-        type: true,
-        amountCents: true,
-        accountId: true,
-        toAccountId: true,
-        date: true,
-        deletedAt: true,
-        creditCardId: true,
-        fundings: {
-          select: {
-            amountCents: true,
-            accountId: true,
-            creditCardId: true,
-          },
+  const txns = await prisma.transaction.findMany({
+    where: { householdId, deletedAt: null },
+    select: {
+      type: true,
+      amountCents: true,
+      accountId: true,
+      toAccountId: true,
+      date: true,
+      deletedAt: true,
+      creditCardId: true,
+      fundings: {
+        select: {
+          amountCents: true,
+          accountId: true,
+          creditCardId: true,
         },
       },
-    });
-    for (const a of accounts) {
-      total += accountBalance(a.initialBalanceCents, txns, a.id);
-    }
-  }
-  if (opts.includeGoals) {
-    const reserves = await prisma.goalReserve.aggregate({
-      where: {
-        householdId,
-        // Leftover assigned at close never left accounts — do not double-count.
-        source: "account",
-      },
-      _sum: { amountCents: true },
-    });
-    // Goal reserves already left accounts as expenses — do NOT double count.
-    // includeGoalReserves means: count goal progress as part of retirement savings
-    // only when we are NOT already counting accounts (or as additive "earmarked" view).
-    // Better semantics: when both true, accounts already reflect reduced balances;
-    // goal reserves are earmarked portion of past savings that left accounts.
-    // So if includeAccounts, goal money is NOT in accounts anymore — add reserves back
-    // as retirement-dedicated capital.
-    if (opts.includeAccounts) {
-      total += reserves._sum.amountCents || 0;
-    } else {
-      total += reserves._sum.amountCents || 0;
-    }
-  }
-  if (opts.includeProperties) {
-    const props = await householdPropertyTotalsIfInstalled(householdId);
-    if (props) total += Math.max(0, props.equityCents);
-  }
-  return Math.max(0, total);
+    },
+  });
+  const withBal: RetirementAccountBalance[] = accounts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    icon: a.icon,
+    balanceCents: Math.max(
+      0,
+      accountBalance(a.initialBalanceCents, txns, a.id)
+    ),
+  }));
+  const totalCents = withBal.reduce((s, a) => s + a.balanceCents, 0);
+  return { totalCents, accounts: withBal };
 }
 
 function planToInputs(
@@ -147,25 +135,20 @@ export async function GET() {
       });
     }
 
-    const autoNestEgg = await householdNestEgg(m.householdId, {
-      includeAccounts: plan.includeAccountBalances,
-      includeGoals: plan.includeGoalReserves,
-      includeProperties: plan.includePropertyEquity,
-    });
+    const nest = await retirementAccountsNestEgg(m.householdId);
     const savingsCents =
-      plan.currentSavingsCents != null ? plan.currentSavingsCents : autoNestEgg;
+      plan.currentSavingsCents != null
+        ? plan.currentSavingsCents
+        : nest.totalCents;
 
     const result = computeRetirement(planToInputs(plan, savingsCents));
-    const propertyTotals = await householdPropertyTotalsIfInstalled(
-      m.householdId
-    );
 
     return jsonOk({
       plan,
-      autoNestEggCents: autoNestEgg,
+      autoNestEggCents: nest.totalCents,
       effectiveSavingsCents: savingsCents,
       result,
-      propertiesAvailable: propertyTotals != null,
+      retirementAccounts: nest.accounts,
     });
   } catch (e) {
     return jsonError(e);
@@ -344,24 +327,19 @@ export async function PUT(req: Request) {
       });
     }
 
-    const autoNestEgg = await householdNestEgg(m.householdId, {
-      includeAccounts: plan.includeAccountBalances,
-      includeGoals: plan.includeGoalReserves,
-      includeProperties: plan.includePropertyEquity,
-    });
+    const nest = await retirementAccountsNestEgg(m.householdId);
     const savingsCents =
-      plan.currentSavingsCents != null ? plan.currentSavingsCents : autoNestEgg;
+      plan.currentSavingsCents != null
+        ? plan.currentSavingsCents
+        : nest.totalCents;
     const result = computeRetirement(planToInputs(plan, savingsCents));
-    const propertyTotals = await householdPropertyTotalsIfInstalled(
-      m.householdId
-    );
 
     return jsonOk({
       plan,
-      autoNestEggCents: autoNestEgg,
+      autoNestEggCents: nest.totalCents,
       effectiveSavingsCents: savingsCents,
       result,
-      propertiesAvailable: propertyTotals != null,
+      retirementAccounts: nest.accounts,
       saved: !body.preview,
     });
   } catch (e) {

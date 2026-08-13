@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,13 @@ import {
 import type { RetirementResult } from "@/lib/retirement";
 import { RetirementRatesCard } from "@/components/retirement-rates-card";
 import { formatRatePercent } from "@/lib/market-instruments";
+
+type RetirementAccountRow = {
+  id: string;
+  name: string;
+  icon: string;
+  balanceCents: number;
+};
 
 type Plan = {
   id: string;
@@ -161,7 +169,9 @@ export default function RetirementPage() {
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [showTable, setShowTable] = useState(false);
-  const [propertiesAvailable, setPropertiesAvailable] = useState(false);
+  const [retirementAccounts, setRetirementAccounts] = useState<
+    RetirementAccountRow[]
+  >([]);
 
   const applyResponse = useCallback(
     (data: {
@@ -169,14 +179,14 @@ export default function RetirementPage() {
       result: RetirementResult;
       autoNestEggCents: number;
       effectiveSavingsCents: number;
-      propertiesAvailable?: boolean;
+      retirementAccounts?: RetirementAccountRow[];
     }) => {
       setForm(planToForm(data.plan));
       setResult(data.result);
       setAutoNestEgg(data.autoNestEggCents);
       setEffectiveSavings(data.effectiveSavingsCents);
-      if (data.propertiesAvailable != null) {
-        setPropertiesAvailable(data.propertiesAvailable);
+      if (data.retirementAccounts) {
+        setRetirementAccounts(data.retirementAccounts);
       }
     },
     []
@@ -189,6 +199,7 @@ export default function RetirementPage() {
       result: RetirementResult;
       autoNestEggCents: number;
       effectiveSavingsCents: number;
+      retirementAccounts?: RetirementAccountRow[];
     }>("/api/retirement")
       .then(applyResponse)
       .catch((e) => toast.error(e.message));
@@ -206,6 +217,7 @@ export default function RetirementPage() {
         result: RetirementResult;
         autoNestEggCents: number;
         effectiveSavingsCents: number;
+        retirementAccounts?: RetirementAccountRow[];
       }>("/api/retirement", {
         method: "PUT",
         json: formToPayload(form, true),
@@ -213,6 +225,9 @@ export default function RetirementPage() {
       setResult(data.result);
       setAutoNestEgg(data.autoNestEggCents);
       setEffectiveSavings(data.effectiveSavingsCents);
+      if (data.retirementAccounts) {
+        setRetirementAccounts(data.retirementAccounts);
+      }
       // keep form as user typed; merge server plan only for null savings display
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
@@ -283,7 +298,8 @@ export default function RetirementPage() {
         monthlyContribution: centsToInput(s.monthlyContributionCents),
         useAutoSavings: true,
         includeAccountBalances: true,
-        includeGoalReserves: true,
+        includeGoalReserves: false,
+        includePropertyEquity: false,
       };
       setForm(nextForm);
 
@@ -292,6 +308,7 @@ export default function RetirementPage() {
         result: RetirementResult;
         autoNestEggCents: number;
         effectiveSavingsCents: number;
+        retirementAccounts?: RetirementAccountRow[];
       }>("/api/retirement", {
         method: "PUT",
         json: formToPayload(nextForm, true),
@@ -299,6 +316,9 @@ export default function RetirementPage() {
       setResult(preview.result);
       setAutoNestEgg(preview.autoNestEggCents);
       setEffectiveSavings(preview.effectiveSavingsCents);
+      if (preview.retirementAccounts) {
+        setRetirementAccounts(preview.retirementAccounts);
+      }
 
       toast.success(
         tr(t.retirement.fromPayBudgetsOk, {
@@ -576,8 +596,8 @@ export default function RetirementPage() {
             <CardTitle>{t.retirement.sectionCapital}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2 flex flex-wrap items-center gap-3 text-sm">
-              <label className="flex items-center gap-2">
+            <div className="sm:col-span-2 space-y-2">
+              <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={form.useAutoSavings}
@@ -585,50 +605,49 @@ export default function RetirementPage() {
                 />
                 {t.retirement.useAccounts}
               </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.includeAccountBalances}
-                  disabled={!form.useAutoSavings}
-                  onChange={(e) =>
-                    set("includeAccountBalances", e.target.checked)
-                  }
-                />
-                {t.retirement.includeAccounts}
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.includeGoalReserves}
-                  disabled={!form.useAutoSavings}
-                  onChange={(e) => set("includeGoalReserves", e.target.checked)}
-                />
-                {t.retirement.includeGoals}
-              </label>
-              {propertiesAvailable && (
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={form.includePropertyEquity}
-                    disabled={!form.useAutoSavings}
-                    onChange={(e) =>
-                      set("includePropertyEquity", e.target.checked)
-                    }
-                  />
-                  {t.retirement.includeProperties}
-                </label>
-              )}
-            </div>
-            {propertiesAvailable && form.useAutoSavings && (
-              <p className="sm:col-span-2 text-[11px] text-[var(--fg-faint)]">
-                {t.retirement.includePropertiesHint}
+              <p className="text-[11px] text-[var(--fg-faint)]">
+                {t.retirement.useAccountsHint}
               </p>
-            )}
+            </div>
             {form.useAutoSavings ? (
-              <div className="sm:col-span-2 rounded-xl border border-teal-500/20 bg-teal-500/10 px-3 py-2 text-sm">
-                {tr(t.retirement.autoSavingsValue, {
-                  amount: money(autoNestEgg),
-                })}
+              <div className="sm:col-span-2 space-y-2">
+                <div className="rounded-xl border border-teal-500/20 bg-teal-500/10 px-3 py-2 text-sm">
+                  {tr(t.retirement.autoSavingsValue, {
+                    amount: money(autoNestEgg),
+                  })}
+                </div>
+                {retirementAccounts.length === 0 ? (
+                  <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                    <p>{t.retirement.noRetirementAccounts}</p>
+                    <Link
+                      href="/accounts"
+                      className="mt-2 inline-flex text-sm font-medium text-teal-200 underline-offset-2 hover:underline"
+                    >
+                      {t.retirement.goToAccounts}
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--fg-faint)]">
+                      {t.retirement.retirementAccountsTitle}
+                    </p>
+                    <ul className="space-y-1.5 text-sm">
+                      {retirementAccounts.map((a) => (
+                        <li
+                          key={a.id}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="text-[var(--fg-muted)]">
+                            <span aria-hidden>{a.icon}</span> {a.name}
+                          </span>
+                          <span className="font-medium">
+                            {money(a.balanceCents)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <Field label={t.retirement.manualSavings}>

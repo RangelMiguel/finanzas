@@ -201,6 +201,7 @@ export default function AccountsPage() {
               </p>
               <p className="mt-1 text-xs text-[var(--fg-faint)]">
                 {typeLabel(a.type)}
+                {a.type === "retirement" ? " · 🌴" : ""}
               </p>
             </CardContent>
           </Card>
@@ -229,12 +230,26 @@ export default function AccountsPage() {
               <Select
                 className="mt-1"
                 value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                onChange={(e) => {
+                  const type = e.target.value;
+                  setForm({
+                    ...form,
+                    type,
+                    icon:
+                      type === "retirement" &&
+                      (form.icon === "🏦" || !form.icon)
+                        ? "🌴"
+                        : form.icon,
+                  });
+                }}
               >
                 <option value="cash">{t.accountTypes.cash}</option>
                 <option value="checking">{t.accountTypes.checking}</option>
                 <option value="debit">{t.accountTypes.debit}</option>
                 <option value="savings">{t.accountTypes.savings}</option>
+                <option value="retirement">
+                  {t.accountTypes.retirement}
+                </option>
                 <option value="other">{t.accountTypes.other}</option>
               </Select>
             </div>
