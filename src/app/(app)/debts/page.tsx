@@ -94,6 +94,33 @@ function planStepsFromCents(plan: number[] | null | undefined): string[] {
   return plan.map((c) => centsToInput(c));
 }
 
+function seedStepsFromMonthly(
+  remainingCents: number,
+  monthlyCents: number
+): string[] {
+  if (monthlyCents <= 0 || remainingCents <= 0) {
+    return [monthlyCents > 0 ? centsToInput(monthlyCents) : ""];
+  }
+  const steps: string[] = [];
+  let left = remainingCents;
+  while (left > 0 && steps.length < 60) {
+    const take = Math.min(monthlyCents, left);
+    steps.push(centsToInput(take));
+    left -= take;
+  }
+  return steps.length ? steps : [centsToInput(monthlyCents)];
+}
+
+function planCentsEqual(
+  a: number[] | null | undefined,
+  b: number[] | null | undefined
+): boolean {
+  const aa = a?.filter((x) => x > 0) ?? [];
+  const bb = b?.filter((x) => x > 0) ?? [];
+  if (aa.length !== bb.length) return false;
+  return aa.every((v, i) => v === bb[i]);
+}
+
 export default function DebtsPage() {
   const { money, t, tr } = useApp();
   const { confirm } = useConfirm();
@@ -651,32 +678,101 @@ function DebtCard({
   const { money, t, tr } = useApp();
   const [simOpen, setSimOpen] = useState(false);
   const [schedOpen, setSchedOpen] = useState(false);
+  const [simMode, setSimMode] = useState<PlanMode>(
+    d.paymentPlanCents?.length ? "custom" : "fixed"
+  );
   const [simPay, setSimPay] = useState(centsToInput(d.monthlyPaymentCents));
+  const [simSteps, setSimSteps] = useState<string[]>(
+    d.paymentPlanCents?.length
+      ? planStepsFromCents(d.paymentPlanCents)
+      : seedStepsFromMonthly(d.remainingCents, d.monthlyPaymentCents)
+  );
   const [saving, setSaving] = useState(false);
   const hasCustomPlan = !!(d.paymentPlanCents && d.paymentPlanCents.length > 0);
 
   const base = d.plan;
   const next = d.suggestedPay || base?.next;
+
+  const simPlanCents = useMemo(() => {
+    if (simMode !== "custom") return null;
+    const steps = simSteps
+      .map((s) => amountToCents(s || 0))
+      .filter((c) => c > 0);
+    return steps.length > 0 ? steps : null;
+  }, [simMode, simSteps]);
+
   const sim = useMemo(
     () =>
       amortizeDebt({
         remainingCents: d.remainingCents,
         monthlyPaymentCents: amountToCents(simPay || 0),
         annualRatePercent: d.annualRatePercent,
-        paymentPlanCents: null,
+        paymentPlanCents: simMode === "custom" ? simPlanCents : null,
+        scheduleMonths: Math.max(6, simPlanCents?.length ?? 0, 12),
       }),
-    [d.remainingCents, d.annualRatePercent, simPay]
+    [
+      d.remainingCents,
+      d.annualRatePercent,
+      simPay,
+      simMode,
+      simPlanCents,
+    ]
   );
+
+  const simPlanSum = paymentPlanSumCents(simPlanCents);
+
+  function seedSimFromDebt() {
+    const custom = !!(d.paymentPlanCents && d.paymentPlanCents.length > 0);
+    setSimMode(custom ? "custom" : "fixed");
+    setSimPay(centsToInput(d.monthlyPaymentCents));
+    setSimSteps(
+      custom
+        ? planStepsFromCents(d.paymentPlanCents)
+        : seedStepsFromMonthly(d.remainingCents, d.monthlyPaymentCents)
+    );
+  }
+
+  function setSimPlanMode(mode: PlanMode) {
+    if (mode === "custom" && simMode === "fixed") {
+      setSimSteps(
+        seedStepsFromMonthly(d.remainingCents, amountToCents(simPay || 0))
+      );
+    }
+    if (mode === "fixed" && simMode === "custom" && simPlanCents?.[0]) {
+      setSimPay(centsToInput(simPlanCents[0]));
+    }
+    setSimMode(mode);
+  }
 
   async function saveSimPayment() {
     try {
       setSaving(true);
-      // Saving a fixed monthly replaces any custom plan.
-      await api("/api/debts", {
-        method: "PATCH",
-        json: { id: d.id, monthlyPayment: simPay, paymentPlan: null },
-      });
-      toast.success(t.debts.paymentSaved);
+      if (simMode === "custom") {
+        const steps = (simPlanCents ?? []).map((c) => c / 100);
+        if (!steps.length) {
+          toast.error(t.error);
+          return;
+        }
+        await api("/api/debts", {
+          method: "PATCH",
+          json: {
+            id: d.id,
+            monthlyPayment: simPay || 0,
+            paymentPlan: steps,
+          },
+        });
+        toast.success(t.debts.planSaved);
+      } else {
+        await api("/api/debts", {
+          method: "PATCH",
+          json: {
+            id: d.id,
+            monthlyPayment: simPay,
+            paymentPlan: null,
+          },
+        });
+        toast.success(t.debts.paymentSaved);
+      }
       await onPaymentSaved();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
@@ -686,7 +782,12 @@ function DebtCard({
   }
 
   const simChanged =
-    amountToCents(simPay) !== d.monthlyPaymentCents && amountToCents(simPay) > 0;
+    simMode === "custom"
+      ? !planCentsEqual(simPlanCents, d.paymentPlanCents) &&
+        (simPlanCents?.length ?? 0) > 0
+      : (amountToCents(simPay) !== d.monthlyPaymentCents &&
+          amountToCents(simPay) > 0) ||
+        hasCustomPlan;
 
   return (
     <Card className="mb-4" premium>
@@ -824,27 +925,150 @@ function DebtCard({
             <button
               type="button"
               className="text-xs font-medium text-[var(--fg-muted)] hover:text-[var(--fg)]"
-              onClick={() => setSimOpen((o) => !o)}
+              onClick={() =>
+                setSimOpen((o) => {
+                  if (!o) seedSimFromDebt();
+                  return !o;
+                })
+              }
             >
               {t.debts.simulate}
             </button>
             {simOpen && (
               <div className="mt-3 space-y-3 rounded-xl border border-white/10 p-3">
-                <div>
-                  <Label>{t.debts.tryPayment}</Label>
-                  <Input
-                    money
-                    className="mt-1"
-                    value={simPay}
-                    onChange={(e) => setSimPay(e.target.value)}
-                  />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={simMode === "fixed" ? "default" : "secondary"}
+                    onClick={() => setSimPlanMode("fixed")}
+                  >
+                    {t.debts.planFixed}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={simMode === "custom" ? "default" : "secondary"}
+                    onClick={() => setSimPlanMode("custom")}
+                  >
+                    {t.debts.planCustom}
+                  </Button>
                 </div>
+
+                {simMode === "fixed" ? (
+                  <div>
+                    <Label>{t.debts.tryPayment}</Label>
+                    <Input
+                      money
+                      className="mt-1"
+                      value={simPay}
+                      onChange={(e) => setSimPay(e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-[var(--fg-faint)]">
+                      {t.debts.planCustomHint}
+                    </p>
+                    {simSteps.map((step, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 text-xs text-[var(--fg-muted)]">
+                          {tr(t.debts.planStep, { n: idx + 1 })}
+                        </span>
+                        <Input
+                          money
+                          value={step}
+                          onChange={(e) => {
+                            const nextSteps = [...simSteps];
+                            nextSteps[idx] = e.target.value;
+                            setSimSteps(nextSteps);
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={t.delete}
+                          disabled={simSteps.length <= 1}
+                          onClick={() =>
+                            setSimSteps(simSteps.filter((_, i) => i !== idx))
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        setSimSteps([
+                          ...simSteps,
+                          simPay || centsToInput(d.monthlyPaymentCents) || "",
+                        ])
+                      }
+                    >
+                      <Plus className="mr-1 h-4 w-4" />
+                      {t.debts.planAddStep}
+                    </Button>
+                    {simPlanSum > 0 && (
+                      <div className="space-y-0.5 text-xs text-[var(--fg-muted)]">
+                        <p>
+                          {tr(t.debts.planSum, {
+                            amount: money(simPlanSum),
+                          })}
+                          {" · "}
+                          {tr(t.debts.planVsRemaining, {
+                            remaining: money(d.remainingCents),
+                          })}
+                        </p>
+                        {simPlanSum < d.remainingCents && (
+                          <p className="text-amber-200">
+                            {tr(t.debts.planShort, {
+                              amount: money(d.remainingCents - simPlanSum),
+                            })}
+                          </p>
+                        )}
+                        {simPlanSum > d.remainingCents && (
+                          <p>
+                            {tr(t.debts.planLong, {
+                              amount: money(simPlanSum - d.remainingCents),
+                            })}
+                          </p>
+                        )}
+                        {simPlanSum === d.remainingCents && (
+                          <p className="text-emerald-300">
+                            {t.debts.planMatch}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <div>
+                      <Label>{t.debts.monthlyPayment}</Label>
+                      <p className="mb-1 text-[11px] text-[var(--fg-faint)]">
+                        {t.debts.planFallback}
+                      </p>
+                      <Input
+                        money
+                        value={simPay}
+                        onChange={(e) => setSimPay(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <SimResult
                   base={base}
                   sim={sim}
                   simChanged={simChanged}
                   onSave={saveSimPayment}
                   saving={saving}
+                  saveLabel={
+                    simMode === "custom"
+                      ? t.debts.savePlan
+                      : t.debts.savePayment
+                  }
                 />
               </div>
             )}
@@ -981,12 +1205,14 @@ function SimResult({
   simChanged,
   onSave,
   saving,
+  saveLabel,
 }: {
   base?: Plan | null;
   sim: AmortizationSummary;
   simChanged: boolean;
   onSave: () => void;
   saving: boolean;
+  saveLabel?: string;
 }) {
   const { money, t, tr } = useApp();
 
@@ -997,6 +1223,11 @@ function SimResult({
         <p>
           {tr(t.debts.minToReduce, { amount: money(sim.minPaymentCents) })}
         </p>
+        {simChanged && (
+          <Button size="sm" onClick={onSave} disabled={saving}>
+            {saveLabel || t.debts.savePayment}
+          </Button>
+        )}
       </div>
     );
   }
@@ -1009,6 +1240,9 @@ function SimResult({
   return (
     <div className="space-y-2 text-xs">
       <p>
+        {sim.hasCustomPlan
+          ? `${tr(t.debts.customPlanLabel, { n: sim.months })} · `
+          : ""}
         {tr(t.debts.payoffIn, {
           duration: formatDuration(sim.months, tr, t),
         })}{" "}
@@ -1021,6 +1255,19 @@ function SimResult({
         {t.debts.nextInterest}: {money(sim.next.interestCents)} ·{" "}
         {t.debts.nextCapital}: {money(sim.next.capitalCents)}
       </p>
+      {sim.schedule.length > 0 && sim.hasCustomPlan && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {sim.schedule.map((row) => (
+            <span
+              key={row.month}
+              className="rounded-lg bg-white/5 px-2 py-0.5 text-[11px] text-[var(--fg-muted)]"
+            >
+              {tr(t.debts.planStep, { n: row.month })}:{" "}
+              {money(row.paymentCents)}
+            </span>
+          ))}
+        </div>
+      )}
       {!same && base?.payoffOk && (
         <p className={deltaInterest >= 0 ? "text-emerald-300" : "text-amber-200"}>
           {deltaInterest > 0
@@ -1043,7 +1290,7 @@ function SimResult({
       )}
       {simChanged && (
         <Button size="sm" onClick={onSave} disabled={saving}>
-          {t.debts.savePayment}
+          {saveLabel || t.debts.savePayment}
         </Button>
       )}
     </div>
