@@ -78,6 +78,7 @@ function methodLabel(
       methodGerman: string;
       methodFlat: string;
       methodInterestOnly: string;
+      methodSimpleDaily: string;
     };
   }
 ): string {
@@ -88,8 +89,36 @@ function methodLabel(
       return t.debts.methodFlat;
     case "interest_only":
       return t.debts.methodInterestOnly;
+    case "simple_daily":
+      return t.debts.methodSimpleDaily;
     default:
       return t.debts.methodFrench;
+  }
+}
+
+function methodHint(
+  method: DebtInterestMethod | string | undefined,
+  t: {
+    debts: {
+      methodFrenchHint: string;
+      methodGermanHint: string;
+      methodFlatHint: string;
+      methodInterestOnlyHint: string;
+      methodSimpleDailyHint: string;
+    };
+  }
+): string {
+  switch (parseInterestMethod(method)) {
+    case "german":
+      return t.debts.methodGermanHint;
+    case "flat":
+      return t.debts.methodFlatHint;
+    case "interest_only":
+      return t.debts.methodInterestOnlyHint;
+    case "simple_daily":
+      return t.debts.methodSimpleDailyHint;
+    default:
+      return t.debts.methodFrenchHint;
   }
 }
 
@@ -451,13 +480,7 @@ export default function DebtsPage() {
                 ))}
               </Select>
               <p className="mt-1 text-xs text-[var(--fg-muted)]">
-                {form.interestMethod === "german"
-                  ? t.debts.methodGermanHint
-                  : form.interestMethod === "flat"
-                    ? t.debts.methodFlatHint
-                    : form.interestMethod === "interest_only"
-                      ? t.debts.methodInterestOnlyHint
-                      : t.debts.methodFrenchHint}
+                {methodHint(form.interestMethod, t)}
               </p>
               {form.interestMethod === "german" && (
                 <p className="mt-1 text-xs text-amber-200">

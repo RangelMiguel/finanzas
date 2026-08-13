@@ -5,6 +5,7 @@
  * - german: fixed principal each period (German system)
  * - flat: interest always on original principal (flat / global rate)
  * - interest_only: interest on remaining; principal only if payment exceeds interest
+ * - simple_daily: simple daily interest on remaining (balance × rate × days / 365)
  */
 
 export const DEBT_INTEREST_METHODS = [
@@ -12,9 +13,13 @@ export const DEBT_INTEREST_METHODS = [
   "german",
   "flat",
   "interest_only",
+  "simple_daily",
 ] as const;
 
 export type DebtInterestMethod = (typeof DEBT_INTEREST_METHODS)[number];
+
+/** Default accrual window when projecting a monthly installment without calendar dates. */
+export const DEFAULT_PERIOD_DAYS = 30;
 
 export function parseInterestMethod(raw: unknown): DebtInterestMethod {
   if (typeof raw === "string" && (DEBT_INTEREST_METHODS as readonly string[]).includes(raw)) {
@@ -34,15 +39,41 @@ export function monthlyInterestCents(
 }
 
 /**
+ * Simple daily interest (Actual/365): base × annual% / 100 × days / 365.
+ * Does not compound within the period.
+ */
+export function simpleDailyInterestCents(
+  baseCents: number,
+  annualRatePercent: number,
+  days: number
+): number {
+  const base = Math.max(0, Math.round(baseCents));
+  const rate = Math.max(0, annualRatePercent || 0);
+  const d = Math.max(0, Math.round(days));
+  if (base <= 0 || rate <= 0 || d <= 0) return 0;
+  return Math.round((base * rate * d) / 100 / 365);
+}
+
+/** Calendar days from `fromISO` to `toISO` (YYYY-MM-DD), never negative. */
+export function daysBetweenISO(fromISO: string, toISO: string): number {
+  const a = new Date(fromISO + "T12:00:00").getTime();
+  const b = new Date(toISO + "T12:00:00").getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return DEFAULT_PERIOD_DAYS;
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+/**
  * Interest due this period for the chosen bank method.
  * @param remainingCents Current unpaid principal
  * @param originalPrincipalCents Financed amount (used by flat rate)
+ * @param daysInPeriod Accrual days (used by simple_daily; default 30)
  */
 export function periodInterestCents(opts: {
   method?: DebtInterestMethod | string | null;
   remainingCents: number;
   originalPrincipalCents?: number;
   annualRatePercent: number;
+  daysInPeriod?: number;
 }): number {
   const method = parseInterestMethod(opts.method);
   const remaining = Math.max(0, Math.round(opts.remainingCents));
@@ -55,11 +86,18 @@ export function periodInterestCents(opts: {
     case "flat":
       // Flat / global: interest charged on the original principal every month.
       return monthlyInterestCents(original, opts.annualRatePercent);
+    case "simple_daily": {
+      const days =
+        opts.daysInPeriod != null && opts.daysInPeriod > 0
+          ? Math.round(opts.daysInPeriod)
+          : DEFAULT_PERIOD_DAYS;
+      return simpleDailyInterestCents(remaining, opts.annualRatePercent, days);
+    }
     case "french":
     case "german":
     case "interest_only":
     default:
-      // Declining balance (saldo insoluto).
+      // Declining balance (saldo insoluto), monthly rate = annual / 12.
       return monthlyInterestCents(remaining, opts.annualRatePercent);
   }
 }
@@ -73,7 +111,7 @@ export type DebtPaySplit = {
 /**
  * Split one payment into interest + capital for the selected method.
  *
- * - french / flat / interest_only: `monthlyPaymentCents` is total cash budget
+ * - french / flat / interest_only / simple_daily: `monthlyPaymentCents` is total cash budget
  * - german: `monthlyPaymentCents` is the fixed principal portion; total = capital + interest
  */
 export function suggestMonthlyDebtPay(opts: {
@@ -82,6 +120,8 @@ export function suggestMonthlyDebtPay(opts: {
   annualRatePercent: number;
   method?: DebtInterestMethod | string | null;
   originalPrincipalCents?: number;
+  /** Days in this accrual window (simple_daily). Defaults to 30. */
+  daysInPeriod?: number;
 }): DebtPaySplit {
   const remaining = Math.max(0, Math.round(opts.remainingCents));
   const method = parseInterestMethod(opts.method);
@@ -94,6 +134,7 @@ export function suggestMonthlyDebtPay(opts: {
     remainingCents: remaining,
     originalPrincipalCents: opts.originalPrincipalCents,
     annualRatePercent: opts.annualRatePercent,
+    daysInPeriod: opts.daysInPeriod,
   });
 
   if (method === "german") {
@@ -107,7 +148,7 @@ export function suggestMonthlyDebtPay(opts: {
     };
   }
 
-  // french / flat / interest_only: budget is total cash out.
+  // french / flat / interest_only / simple_daily: budget is total cash out.
   const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
   const budget = monthly > 0 ? monthly : remaining + interest;
   const interestCents = Math.min(interest, budget);
@@ -212,9 +253,28 @@ export type DebtAmortizeOpts = {
   originalPrincipalCents?: number;
   /** Remaining planned cash/capital amounts (cents), in order. */
   paymentPlanCents?: number[] | null;
+  /** Days per installment for simple_daily (single value or per-step). Default 30. */
+  daysInPeriod?: number | number[];
   maxMonths?: number;
   scheduleMonths?: number;
 };
+
+function daysForStep(
+  stepIndex: number,
+  daysInPeriod?: number | number[]
+): number {
+  if (Array.isArray(daysInPeriod)) {
+    const d = daysInPeriod[stepIndex];
+    if (d != null && d > 0) return Math.round(d);
+    if (daysInPeriod.length > 0) {
+      const last = daysInPeriod[daysInPeriod.length - 1];
+      if (last != null && last > 0) return Math.round(last);
+    }
+    return DEFAULT_PERIOD_DAYS;
+  }
+  if (daysInPeriod != null && daysInPeriod > 0) return Math.round(daysInPeriod);
+  return DEFAULT_PERIOD_DAYS;
+}
 
 function emptySummary(
   next: DebtPaySplit,
@@ -250,18 +310,21 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
   const maxMonths = opts.maxMonths ?? DEFAULT_MAX_MONTHS;
   const scheduleLimit = opts.scheduleMonths ?? DEFAULT_SCHEDULE;
   const firstBudget = paymentBudgetForStep(0, plan, monthly);
+  const firstDays = daysForStep(0, opts.daysInPeriod);
   const next = suggestMonthlyDebtPay({
     remainingCents: remaining,
     monthlyPaymentCents: firstBudget,
     annualRatePercent: opts.annualRatePercent,
     method,
     originalPrincipalCents,
+    daysInPeriod: firstDays,
   });
   const firstInterest = periodInterestCents({
     method,
     remainingCents: remaining,
     originalPrincipalCents,
     annualRatePercent: opts.annualRatePercent,
+    daysInPeriod: firstDays,
   });
   // Minimum cash that reduces principal by at least 1 cent.
   const minPaymentCents =
@@ -344,12 +407,14 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
       };
     }
 
+    const stepDays = daysForStep(months, opts.daysInPeriod);
     const pay = suggestMonthlyDebtPay({
       remainingCents: balance,
       monthlyPaymentCents: budget,
       annualRatePercent: opts.annualRatePercent,
       method,
       originalPrincipalCents,
+      daysInPeriod: stepDays,
     });
     if (pay.capitalCents <= 0) {
       return {
@@ -367,6 +432,7 @@ export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
                 remainingCents: balance,
                 originalPrincipalCents,
                 annualRatePercent: opts.annualRatePercent,
+                daysInPeriod: stepDays,
               }) + 1,
         schedule,
         hasCustomPlan,
@@ -424,6 +490,8 @@ export function projectedDebtPaymentAmounts(opts: {
   paymentPlanCents?: number[] | null;
   method?: DebtInterestMethod | string | null;
   originalPrincipalCents?: number;
+  /** Days per step for simple_daily (single value or per payment date). */
+  daysInPeriod?: number | number[];
 }): number[] {
   let remaining = Math.max(0, Math.round(opts.remainingCents));
   const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
@@ -448,6 +516,7 @@ export function projectedDebtPaymentAmounts(opts: {
       annualRatePercent: opts.annualRatePercent,
       method,
       originalPrincipalCents,
+      daysInPeriod: daysForStep(step, opts.daysInPeriod),
     });
     if (pay.totalCents <= 0) break;
     amounts.push(pay.totalCents);

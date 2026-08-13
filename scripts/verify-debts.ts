@@ -1,10 +1,12 @@
 import {
   amortizeDebt,
   consumePaymentPlanStep,
+  daysBetweenISO,
   parsePaymentPlan,
   paymentPlanSumCents,
   periodInterestCents,
   projectedDebtPaymentAmounts,
+  simpleDailyInterestCents,
   suggestMonthlyDebtPay,
 } from "../src/lib/debts";
 
@@ -246,5 +248,54 @@ const germanProj = projectedDebtPaymentAmounts({
 assert(germanProj.length === 2, "german two capital steps of 500");
 assert(germanProj[0] === 50_000 + 1_000, "first german payment capital+int");
 assert(germanProj[1] === 50_000 + 500, "second after balance drop");
+
+// —— Simple daily interest (Actual/365) ——
+// $1000 @ 36.5% annual for 10 days: 1000 * 0.365 * 10/365 = $10
+assert(
+  simpleDailyInterestCents(100_000, 36.5, 10) === 1_000,
+  "simple daily 10 days"
+);
+assert(
+  periodInterestCents({
+    method: "simple_daily",
+    remainingCents: 100_000,
+    annualRatePercent: 36.5,
+    daysInPeriod: 10,
+  }) === 1_000,
+  "period simple daily"
+);
+// Default period is 30 days: 1000 * 0.365 * 30/365 = $30
+assert(
+  periodInterestCents({
+    method: "simple_daily",
+    remainingCents: 100_000,
+    annualRatePercent: 36.5,
+  }) === 3_000,
+  "simple daily default 30d"
+);
+
+const dailyPay = suggestMonthlyDebtPay({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 20_000,
+  annualRatePercent: 36.5,
+  method: "simple_daily",
+  daysInPeriod: 10,
+});
+assert(dailyPay.interestCents === 1_000, "daily pay interest");
+assert(dailyPay.capitalCents === 19_000, "daily pay capital");
+
+const dailyAm = amortizeDebt({
+  remainingCents: 100_000,
+  monthlyPaymentCents: 20_000,
+  annualRatePercent: 36.5,
+  method: "simple_daily",
+  daysInPeriod: 10,
+  scheduleMonths: 12,
+});
+assert(dailyAm.method === "simple_daily" && dailyAm.payoffOk, "daily amortize");
+assert(dailyAm.schedule[0].interestCents === 1_000, "first period 10d interest");
+
+assert(daysBetweenISO("2026-01-01", "2026-01-31") === 30, "days between");
+assert(daysBetweenISO("2026-01-15", "2026-01-15") === 0, "same day");
 
 console.log("verify-debts: ok");

@@ -570,6 +570,9 @@ export const es = {
     methodInterestOnly: "Solo intereses (americano)",
     methodInterestOnlyHint:
       "Interés sobre el saldo. El capital solo baja si pagas más que los intereses (p. ej. al final).",
+    methodSimpleDaily: "Interés simple diario",
+    methodSimpleDailyHint:
+      "Interés = saldo × tasa anual × días / 365 (sin capitalizar cada día). Usa los días reales entre pagos.",
     methodLabel: "Método: {method}",
     germanPaymentIsCapital:
       "En sistema alemán el “pago mensual” es la parte a capital (el total = capital + intereses).",
@@ -2069,6 +2072,9 @@ export const en: Dictionary = {
     methodInterestOnly: "Interest only (American)",
     methodInterestOnlyHint:
       "Interest on the balance. Principal falls only if you pay more than interest (e.g. a balloon).",
+    methodSimpleDaily: "Simple daily interest",
+    methodSimpleDailyHint:
+      "Interest = balance × annual rate × days / 365 (no daily compounding). Uses real days between payments.",
     methodLabel: "Method: {method}",
     germanPaymentIsCapital:
       "In the German system the “monthly payment” is the principal portion (total = principal + interest).",

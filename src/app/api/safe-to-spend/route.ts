@@ -19,6 +19,8 @@ import {
 import { recurringExpenseOccurrenceHandled } from "@/lib/recurring-expense";
 import { ensureRecurringPosted } from "@/lib/recurring";
 import {
+  daysBetweenISO,
+  parseInterestMethod,
   parsePaymentPlan,
   projectedDebtPaymentAmounts,
 } from "@/lib/debts";
@@ -225,13 +227,24 @@ async function buildFutureItems(opts: {
     }
     if (!dates.length) continue;
 
+    // Accrual days between consecutive payment dates (for simple daily interest).
+    const method = parseInterestMethod(debt.interestMethod);
+    const periodDays: number[] = [];
+    let prev = todayStr;
+    for (const ds of dates) {
+      const days = daysBetweenISO(prev, ds);
+      periodDays.push(days > 0 ? days : 30);
+      prev = ds;
+    }
+
     const amounts = projectedDebtPaymentAmounts({
       remainingCents: remaining,
       monthlyPaymentCents: debt.monthlyPaymentCents,
       annualRatePercent: debt.annualRatePercent,
       paymentPlanCents,
-      method: debt.interestMethod,
+      method,
       originalPrincipalCents: debt.principalCents,
+      daysInPeriod: method === "simple_daily" ? periodDays : undefined,
       maxPayments: dates.length,
     });
     for (let i = 0; i < amounts.length; i++) {
