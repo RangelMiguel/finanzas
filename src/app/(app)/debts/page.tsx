@@ -13,10 +13,12 @@ import { useConfirm } from "@/components/providers/confirm-provider";
 import { amountToCents, centsToInput } from "@/lib/utils";
 import {
   amortizeDebt,
+  paymentPlanSumCents,
   splitDuration,
   type AmortizationSummary,
 } from "@/lib/debts";
 import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
 
 type Plan = {
   months: number;
@@ -32,6 +34,7 @@ type Plan = {
     balanceCents: number;
   }[];
   next: { capitalCents: number; interestCents: number; totalCents: number };
+  hasCustomPlan?: boolean;
 };
 
 type Debt = {
@@ -40,6 +43,7 @@ type Debt = {
   principalCents: number;
   annualRatePercent: number;
   monthlyPaymentCents: number;
+  paymentPlanCents?: number[] | null;
   paymentDay: number;
   paidCapitalCents: number;
   paidInterestCents?: number | null;
@@ -59,6 +63,7 @@ type Debt = {
   plan?: Plan | null;
 };
 type Acc = { id: string; name: string };
+type PlanMode = "fixed" | "custom";
 
 function formatDuration(
   months: number,
@@ -79,7 +84,14 @@ function emptyForm() {
     monthlyPayment: "",
     paymentDay: "1",
     notes: "",
+    planMode: "fixed" as PlanMode,
+    planSteps: [""] as string[],
   };
+}
+
+function planStepsFromCents(plan: number[] | null | undefined): string[] {
+  if (!plan?.length) return [""];
+  return plan.map((c) => centsToInput(c));
 }
 
 export default function DebtsPage() {
@@ -120,15 +132,32 @@ export default function DebtsPage() {
     return amountToCents(form.principal || 0);
   }, [mode, editId, debts, form.principal]);
 
+  const formPlanCents = useMemo(() => {
+    if (form.planMode !== "custom") return null;
+    const steps = form.planSteps
+      .map((s) => amountToCents(s || 0))
+      .filter((c) => c > 0);
+    return steps.length > 0 ? steps : null;
+  }, [form.planMode, form.planSteps]);
+
   const formPlan = useMemo(
     () =>
       amortizeDebt({
         remainingCents: formRemainingCents,
         monthlyPaymentCents: amountToCents(form.monthlyPayment || 0),
         annualRatePercent: parseFloat(form.annualRatePercent) || 0,
+        paymentPlanCents: formPlanCents,
+        scheduleMonths: Math.max(6, formPlanCents?.length ?? 0, 12),
       }),
-    [formRemainingCents, form.monthlyPayment, form.annualRatePercent]
+    [
+      formRemainingCents,
+      form.monthlyPayment,
+      form.annualRatePercent,
+      formPlanCents,
+    ]
   );
+
+  const formPlanSum = paymentPlanSumCents(formPlanCents);
 
   async function save() {
     try {
@@ -139,6 +168,10 @@ export default function DebtsPage() {
         monthlyPayment: form.monthlyPayment || 0,
         paymentDay: parseInt(form.paymentDay, 10),
         notes: form.notes || null,
+        paymentPlan:
+          form.planMode === "custom"
+            ? form.planSteps.filter((s) => amountToCents(s || 0) > 0)
+            : null,
       };
       if (mode === "edit" && editId) {
         await api("/api/debts", {
@@ -166,6 +199,7 @@ export default function DebtsPage() {
 
   function openEdit(d: Debt) {
     setEditId(d.id);
+    const hasPlan = !!(d.paymentPlanCents && d.paymentPlanCents.length > 0);
     setForm({
       name: d.name,
       principal: centsToInput(d.principalCents),
@@ -173,8 +207,42 @@ export default function DebtsPage() {
       monthlyPayment: centsToInput(d.monthlyPaymentCents),
       paymentDay: String(d.paymentDay),
       notes: "",
+      planMode: hasPlan ? "custom" : "fixed",
+      planSteps: hasPlan
+        ? planStepsFromCents(d.paymentPlanCents)
+        : [centsToInput(d.monthlyPaymentCents) || ""],
     });
     setMode("edit");
+  }
+
+  function setPlanMode(planMode: PlanMode) {
+    if (planMode === "custom" && form.planMode === "fixed") {
+      // Seed custom rows from fixed monthly until principal is covered
+      const monthly = amountToCents(form.monthlyPayment || 0);
+      const remaining = formRemainingCents;
+      if (monthly > 0 && remaining > 0) {
+        const steps: string[] = [];
+        let left = remaining;
+        while (left > 0 && steps.length < 60) {
+          const take = Math.min(monthly, left);
+          steps.push(centsToInput(take));
+          left -= take;
+        }
+        setForm({
+          ...form,
+          planMode,
+          planSteps: steps.length ? steps : [form.monthlyPayment || ""],
+        });
+        return;
+      }
+      setForm({
+        ...form,
+        planMode,
+        planSteps: form.planSteps.length ? form.planSteps : [form.monthlyPayment || ""],
+      });
+      return;
+    }
+    setForm({ ...form, planMode });
   }
 
   function openPayMonth(d: Debt) {
@@ -295,17 +363,137 @@ export default function DebtsPage() {
                 }
               />
             </div>
-            <div>
-              <Label>{t.debts.monthlyPayment}</Label>
-              <Input
-                money
-                className="mt-1"
-                value={form.monthlyPayment}
-                onChange={(e) =>
-                  setForm({ ...form, monthlyPayment: e.target.value })
-                }
-              />
+            <div className="sm:col-span-2">
+              <Label>{t.debts.planMode}</Label>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={form.planMode === "fixed" ? "default" : "secondary"}
+                  onClick={() => setPlanMode("fixed")}
+                >
+                  {t.debts.planFixed}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={form.planMode === "custom" ? "default" : "secondary"}
+                  onClick={() => setPlanMode("custom")}
+                >
+                  {t.debts.planCustom}
+                </Button>
+              </div>
             </div>
+            {form.planMode === "fixed" ? (
+              <div>
+                <Label>{t.debts.monthlyPayment}</Label>
+                <Input
+                  money
+                  className="mt-1"
+                  value={form.monthlyPayment}
+                  onChange={(e) =>
+                    setForm({ ...form, monthlyPayment: e.target.value })
+                  }
+                />
+              </div>
+            ) : (
+              <div className="sm:col-span-2 space-y-2">
+                <Label>{t.debts.planCustom}</Label>
+                <p className="text-xs text-[var(--fg-faint)]">
+                  {t.debts.planCustomHint}
+                </p>
+                {form.planSteps.map((step, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="w-20 shrink-0 text-xs text-[var(--fg-muted)]">
+                      {tr(t.debts.planStep, { n: idx + 1 })}
+                    </span>
+                    <Input
+                      money
+                      value={step}
+                      onChange={(e) => {
+                        const next = [...form.planSteps];
+                        next[idx] = e.target.value;
+                        setForm({ ...form, planSteps: next });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t.delete}
+                      disabled={form.planSteps.length <= 1}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          planSteps: form.planSteps.filter((_, i) => i !== idx),
+                        })
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      planSteps: [...form.planSteps, form.monthlyPayment || ""],
+                    })
+                  }
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  {t.debts.planAddStep}
+                </Button>
+                {formPlanSum > 0 && (
+                  <div className="text-xs text-[var(--fg-muted)] space-y-0.5">
+                    <p>
+                      {tr(t.debts.planSum, { amount: money(formPlanSum) })}
+                      {" · "}
+                      {tr(t.debts.planVsRemaining, {
+                        remaining: money(formRemainingCents),
+                      })}
+                    </p>
+                    {formRemainingCents > 0 &&
+                      formPlanSum < formRemainingCents && (
+                        <p className="text-amber-200">
+                          {tr(t.debts.planShort, {
+                            amount: money(formRemainingCents - formPlanSum),
+                          })}
+                        </p>
+                      )}
+                    {formRemainingCents > 0 &&
+                      formPlanSum > formRemainingCents && (
+                        <p>
+                          {tr(t.debts.planLong, {
+                            amount: money(formPlanSum - formRemainingCents),
+                          })}
+                        </p>
+                      )}
+                    {formRemainingCents > 0 &&
+                      formPlanSum === formRemainingCents && (
+                        <p className="text-emerald-300">{t.debts.planMatch}</p>
+                      )}
+                  </div>
+                )}
+                <div>
+                  <Label>{t.debts.monthlyPayment}</Label>
+                  <p className="mb-1 text-[11px] text-[var(--fg-faint)]">
+                    {t.debts.planFallback}
+                  </p>
+                  <Input
+                    money
+                    className="mt-0.5"
+                    value={form.monthlyPayment}
+                    onChange={(e) =>
+                      setForm({ ...form, monthlyPayment: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            )}
             <div>
               <Label>{t.debts.paymentDay}</Label>
               <Input
@@ -329,12 +517,17 @@ export default function DebtsPage() {
                 {t.cancel}
               </Button>
             </div>
-            {(form.principal || form.monthlyPayment) && (
+            {(form.principal ||
+              form.monthlyPayment ||
+              (form.planMode === "custom" && formPlanSum > 0)) && (
               <PlanPreview
                 className="sm:col-span-2"
                 plan={formPlan}
                 rate={parseFloat(form.annualRatePercent) || 0}
-                paymentCents={amountToCents(form.monthlyPayment || 0)}
+                paymentCents={
+                  formPlanCents?.[0] ??
+                  amountToCents(form.monthlyPayment || 0)
+                }
                 title={t.debts.formPreview}
               />
             )}
@@ -460,6 +653,7 @@ function DebtCard({
   const [schedOpen, setSchedOpen] = useState(false);
   const [simPay, setSimPay] = useState(centsToInput(d.monthlyPaymentCents));
   const [saving, setSaving] = useState(false);
+  const hasCustomPlan = !!(d.paymentPlanCents && d.paymentPlanCents.length > 0);
 
   const base = d.plan;
   const next = d.suggestedPay || base?.next;
@@ -469,6 +663,7 @@ function DebtCard({
         remainingCents: d.remainingCents,
         monthlyPaymentCents: amountToCents(simPay || 0),
         annualRatePercent: d.annualRatePercent,
+        paymentPlanCents: null,
       }),
     [d.remainingCents, d.annualRatePercent, simPay]
   );
@@ -476,9 +671,10 @@ function DebtCard({
   async function saveSimPayment() {
     try {
       setSaving(true);
+      // Saving a fixed monthly replaces any custom plan.
       await api("/api/debts", {
         method: "PATCH",
-        json: { id: d.id, monthlyPayment: simPay },
+        json: { id: d.id, monthlyPayment: simPay, paymentPlan: null },
       });
       toast.success(t.debts.paymentSaved);
       await onPaymentSaved();
@@ -498,11 +694,17 @@ function DebtCard({
         <div>
           <CardTitle>{d.name}</CardTitle>
           <p className="text-xs text-[var(--fg-faint)]">
-            {tr(t.debts.ratePayDay, {
-              rate: d.annualRatePercent,
-              payment: money(d.monthlyPaymentCents),
-              day: d.paymentDay,
-            })}
+            {hasCustomPlan
+              ? tr(t.debts.ratePayDayPlan, {
+                  rate: d.annualRatePercent,
+                  n: d.paymentPlanCents!.length,
+                  day: d.paymentDay,
+                })
+              : tr(t.debts.ratePayDay, {
+                  rate: d.annualRatePercent,
+                  payment: money(d.monthlyPaymentCents),
+                  day: d.paymentDay,
+                })}
           </p>
           {d.propertyItems && d.propertyItems.length > 0 && (
             <p className="mt-1 text-xs text-[var(--fg-muted)]">
@@ -584,15 +786,35 @@ function DebtCard({
             {base && (
               <p className="mt-2 text-xs text-[var(--fg-muted)]">
                 {base.payoffOk
-                  ? `${tr(t.debts.ifYouKeepPaying, {
-                      payment: money(d.monthlyPaymentCents),
-                    })} · ${tr(t.debts.payoffIn, {
-                      duration: formatDuration(base.months, tr, t),
-                    })} · ${tr(t.debts.totalInterestLeft, {
-                      amount: money(base.totalInterestCents),
-                    })}`
+                  ? hasCustomPlan
+                    ? `${tr(t.debts.customPlanLabel, {
+                        n: d.paymentPlanCents!.length,
+                      })} · ${tr(t.debts.payoffIn, {
+                        duration: formatDuration(base.months, tr, t),
+                      })} · ${tr(t.debts.totalInterestLeft, {
+                        amount: money(base.totalInterestCents),
+                      })}`
+                    : `${tr(t.debts.ifYouKeepPaying, {
+                        payment: money(d.monthlyPaymentCents),
+                      })} · ${tr(t.debts.payoffIn, {
+                        duration: formatDuration(base.months, tr, t),
+                      })} · ${tr(t.debts.totalInterestLeft, {
+                        amount: money(base.totalInterestCents),
+                      })}`
                   : t.debts.wontPayOff}
               </p>
+            )}
+            {hasCustomPlan && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {d.paymentPlanCents!.map((amt, i) => (
+                  <span
+                    key={i}
+                    className="rounded-lg bg-white/5 px-2 py-0.5 text-[11px] text-[var(--fg-muted)]"
+                  >
+                    {tr(t.debts.planStep, { n: i + 1 })}: {money(amt)}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -647,6 +869,9 @@ function DebtCard({
                         {t.debts.scheduleMonth}
                       </th>
                       <th className="py-1 pr-3 font-medium">
+                        {t.debts.thisPayTotal}
+                      </th>
+                      <th className="py-1 pr-3 font-medium">
                         {t.debts.interest}
                       </th>
                       <th className="py-1 pr-3 font-medium">
@@ -659,6 +884,7 @@ function DebtCard({
                     {(base?.schedule || []).map((row) => (
                       <tr key={row.month} className="border-t border-white/5">
                         <td className="py-1 pr-3">{row.month}</td>
+                        <td className="py-1 pr-3">{money(row.paymentCents)}</td>
                         <td className="py-1 pr-3 text-amber-200">
                           {money(row.interestCents)}
                         </td>

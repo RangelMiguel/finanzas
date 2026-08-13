@@ -47,24 +47,96 @@ export type AmortizationSummary = {
   paymentCoversInterest: boolean;
   minPaymentCents: number;
   schedule: AmortizationRow[];
+  /** True when a custom payment plan drives (part of) the schedule. */
+  hasCustomPlan: boolean;
 };
 
 const DEFAULT_MAX_MONTHS = 600;
 const DEFAULT_SCHEDULE = 6;
 
-/** Project remaining interest and months if the monthly payment stays constant. */
-export function amortizeDebt(opts: {
+/** Normalize stored JSON into a list of positive payment amounts (cents). */
+export function parsePaymentPlan(raw: unknown): number[] | null {
+  if (raw == null) return null;
+  if (!Array.isArray(raw)) return null;
+  const amounts: number[] = [];
+  for (const item of raw) {
+    const n =
+      typeof item === "number"
+        ? item
+        : typeof item === "string" && item.trim() !== ""
+          ? Number(item)
+          : NaN;
+    const cents = Number.isFinite(n) ? Math.round(n) : NaN;
+    if (!Number.isFinite(cents) || cents <= 0) continue;
+    amounts.push(cents);
+  }
+  return amounts.length > 0 ? amounts : null;
+}
+
+/** Coerce an array of cent amounts; drop non-positive. Empty → null. */
+export function normalizePaymentPlanCents(
+  amounts: number[] | null | undefined
+): number[] | null {
+  if (!amounts?.length) return null;
+  const out = amounts
+    .map((a) => Math.round(a))
+    .filter((a) => Number.isFinite(a) && a > 0);
+  return out.length > 0 ? out : null;
+}
+
+export function paymentPlanSumCents(plan: number[] | null | undefined): number {
+  if (!plan?.length) return 0;
+  return plan.reduce((s, a) => s + Math.max(0, Math.round(a)), 0);
+}
+
+/** Budget for installment index (0-based): custom plan first, then fixed monthly. */
+export function paymentBudgetForStep(
+  stepIndex: number,
+  paymentPlanCents: number[] | null | undefined,
+  monthlyPaymentCents: number
+): number {
+  const plan = normalizePaymentPlanCents(paymentPlanCents);
+  if (plan && stepIndex < plan.length) return plan[stepIndex];
+  return Math.max(0, Math.round(monthlyPaymentCents || 0));
+}
+
+/**
+ * Drop the first remaining plan installment after a payment is recorded.
+ * Leaves null when the plan is exhausted.
+ */
+export function consumePaymentPlanStep(
+  paymentPlanCents: unknown
+): number[] | null {
+  const plan = parsePaymentPlan(paymentPlanCents);
+  if (!plan?.length) return null;
+  const rest = plan.slice(1);
+  return rest.length > 0 ? rest : null;
+}
+
+export type DebtAmortizeOpts = {
   remainingCents: number;
   monthlyPaymentCents: number;
   annualRatePercent: number;
+  /** Remaining planned cash amounts (cents), in order. */
+  paymentPlanCents?: number[] | null;
   maxMonths?: number;
   scheduleMonths?: number;
-}): AmortizationSummary {
+};
+
+/** Project remaining interest and months with fixed monthly and/or a custom plan. */
+export function amortizeDebt(opts: DebtAmortizeOpts): AmortizationSummary {
   const remaining = Math.max(0, Math.round(opts.remainingCents));
-  const payment = Math.max(0, Math.round(opts.monthlyPaymentCents));
+  const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
+  const plan = normalizePaymentPlanCents(opts.paymentPlanCents);
+  const hasCustomPlan = !!(plan && plan.length > 0);
   const maxMonths = opts.maxMonths ?? DEFAULT_MAX_MONTHS;
   const scheduleLimit = opts.scheduleMonths ?? DEFAULT_SCHEDULE;
-  const next = suggestMonthlyDebtPay(opts);
+  const firstBudget = paymentBudgetForStep(0, plan, monthly);
+  const next = suggestMonthlyDebtPay({
+    remainingCents: remaining,
+    monthlyPaymentCents: firstBudget,
+    annualRatePercent: opts.annualRatePercent,
+  });
   const firstInterest = monthlyInterestCents(remaining, opts.annualRatePercent);
   const minPaymentCents = firstInterest + 1;
 
@@ -78,11 +150,12 @@ export function amortizeDebt(opts: {
       paymentCoversInterest: true,
       minPaymentCents: 0,
       schedule: [],
+      hasCustomPlan,
     };
   }
 
   const schedule: AmortizationRow[] = [];
-  if (payment <= firstInterest && firstInterest > 0) {
+  if (firstBudget <= firstInterest && firstInterest > 0) {
     schedule.push({
       month: 1,
       interestCents: firstInterest,
@@ -99,6 +172,7 @@ export function amortizeDebt(opts: {
       paymentCoversInterest: false,
       minPaymentCents,
       schedule,
+      hasCustomPlan,
     };
   }
 
@@ -107,8 +181,23 @@ export function amortizeDebt(opts: {
   let totalInterest = 0;
   let totalPaid = 0;
   while (balance > 0 && months < maxMonths) {
+    const budget = paymentBudgetForStep(months, plan, monthly);
+    if (budget <= 0) {
+      // Plan exhausted and no fixed monthly — cannot finish.
+      return {
+        next,
+        months,
+        totalInterestCents: totalInterest,
+        totalPaidCents: totalPaid,
+        payoffOk: false,
+        paymentCoversInterest: true,
+        minPaymentCents,
+        schedule,
+        hasCustomPlan,
+      };
+    }
     const interest = monthlyInterestCents(balance, opts.annualRatePercent);
-    const capital = Math.min(balance, Math.max(0, payment - interest));
+    const capital = Math.min(balance, Math.max(0, budget - interest));
     if (capital <= 0) {
       return {
         next,
@@ -119,6 +208,7 @@ export function amortizeDebt(opts: {
         paymentCoversInterest: false,
         minPaymentCents: interest + 1,
         schedule,
+        hasCustomPlan,
       };
     }
     const actual = capital + interest;
@@ -146,6 +236,7 @@ export function amortizeDebt(opts: {
     paymentCoversInterest: true,
     minPaymentCents,
     schedule,
+    hasCustomPlan,
   };
 }
 
@@ -160,35 +251,42 @@ export function splitDuration(totalMonths: number): {
 
 /**
  * Project cash amounts for future debt payments until principal is paid off
- * (or maxPayments is reached). Last payment may be smaller than monthly.
- * If the payment never reduces principal, fills remaining slots at the same amount.
+ * (or maxPayments is reached). Uses custom plan installments first, then
+ * fixed monthly. Last payment may be smaller than the budget.
  */
 export function projectedDebtPaymentAmounts(opts: {
   remainingCents: number;
   monthlyPaymentCents: number;
   annualRatePercent: number;
   maxPayments: number;
+  paymentPlanCents?: number[] | null;
 }): number[] {
   let remaining = Math.max(0, Math.round(opts.remainingCents));
   const monthly = Math.max(0, Math.round(opts.monthlyPaymentCents));
+  const plan = normalizePaymentPlanCents(opts.paymentPlanCents);
   const maxPayments = Math.max(0, Math.round(opts.maxPayments));
-  if (remaining <= 0 || monthly <= 0 || maxPayments <= 0) return [];
+  if (remaining <= 0 || maxPayments <= 0) return [];
+  if (!plan?.length && monthly <= 0) return [];
 
   const amounts: number[] = [];
+  let step = 0;
   while (remaining > 0 && amounts.length < maxPayments) {
+    const budget = paymentBudgetForStep(step, plan, monthly);
+    if (budget <= 0) break;
     const pay = suggestMonthlyDebtPay({
       remainingCents: remaining,
-      monthlyPaymentCents: monthly,
+      monthlyPaymentCents: budget,
       annualRatePercent: opts.annualRatePercent,
     });
     if (pay.totalCents <= 0) break;
     amounts.push(pay.totalCents);
     if (pay.capitalCents <= 0) {
-      // Interest-only / underpayment: debt never clears; keep reserving the payment.
+      // Interest-only / underpayment: keep reserving this budget for the window.
       while (amounts.length < maxPayments) amounts.push(pay.totalCents);
       break;
     }
     remaining -= pay.capitalCents;
+    step += 1;
   }
   return amounts;
 }

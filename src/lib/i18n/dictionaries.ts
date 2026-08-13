@@ -537,6 +537,23 @@ export const es = {
     thisPayTotal: "Total de este pago",
     thisPaySplit: "{interest} de intereses + {capital} a capital",
     formPreview: "Con este plan",
+    planMode: "Cómo planeas pagar",
+    planFixed: "Pago fijo cada mes",
+    planCustom: "Plan personalizado",
+    planCustomHint:
+      "Lista de pagos en orden (ej. 1000, 1000, 1000, 2000). Se avanza al registrar un pago.",
+    planAddStep: "Agregar pago",
+    planStep: "Pago {n}",
+    planSum: "Suma del plan: {amount}",
+    planVsRemaining: "Saldo restante: {remaining}",
+    planShort: "La suma del plan es menor que el saldo (faltan {amount}).",
+    planLong: "La suma del plan cubre el saldo (sobran {amount} en el plan).",
+    planMatch: "La suma del plan cubre el saldo.",
+    planFallback: "Después del plan se usa el pago mensual fijo si queda saldo.",
+    customPlanLabel: "Plan personalizado ({n} pagos)",
+    ratePayDayPlan:
+      "Tasa {rate}% · Plan de {n} pagos · Día {day}",
+    editPlan: "Editar plan de pagos",
   },
 
   goals: {
@@ -2001,6 +2018,22 @@ export const en: Dictionary = {
     thisPayTotal: "This payment total",
     thisPaySplit: "{interest} interest + {capital} principal",
     formPreview: "With this plan",
+    planMode: "How you plan to pay",
+    planFixed: "Same amount every month",
+    planCustom: "Custom plan",
+    planCustomHint:
+      "List of payments in order (e.g. 1000, 1000, 1000, 2000). Advances when you record a payment.",
+    planAddStep: "Add payment",
+    planStep: "Payment {n}",
+    planSum: "Plan total: {amount}",
+    planVsRemaining: "Remaining balance: {remaining}",
+    planShort: "Plan is short of the balance by {amount}.",
+    planLong: "Plan exceeds the balance by {amount}.",
+    planMatch: "Plan covers the balance.",
+    planFallback: "After the plan ends, the fixed monthly payment is used if balance remains.",
+    customPlanLabel: "Custom plan ({n} payments)",
+    ratePayDayPlan: "Rate {rate}% · {n}-payment plan · Day {day}",
+    editPlan: "Edit payment plan",
   },
 
   goals: {

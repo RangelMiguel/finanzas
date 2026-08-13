@@ -1,5 +1,8 @@
 import {
   amortizeDebt,
+  consumePaymentPlanStep,
+  parsePaymentPlan,
+  paymentPlanSumCents,
   projectedDebtPaymentAmounts,
   suggestMonthlyDebtPay,
 } from "../src/lib/debts";
@@ -76,6 +79,7 @@ const plan = amortizeDebt({
   annualRatePercent: 0,
 });
 assert(plan.months === 5 && plan.payoffOk, "amortize 5 months");
+assert(!plan.hasCustomPlan, "no custom plan");
 
 const next = suggestMonthlyDebtPay({
   remainingCents: 50_000,
@@ -83,5 +87,62 @@ const next = suggestMonthlyDebtPay({
   annualRatePercent: 0,
 });
 assert(next.totalCents === 50_000 && next.capitalCents === 50_000, "last pay");
+
+// Custom plan: 3×1000 + 1×2000 on $5000
+const custom = [100_000, 100_000, 100_000, 200_000];
+assert(paymentPlanSumCents(custom) === 500_000, "custom plan sum");
+const customProj = projectedDebtPaymentAmounts({
+  remainingCents: 500_000,
+  monthlyPaymentCents: 0,
+  annualRatePercent: 0,
+  paymentPlanCents: custom,
+  maxPayments: 24,
+});
+assert(customProj.length === 4, `custom proj length ${customProj.length}`);
+assert(
+  JSON.stringify(customProj) === JSON.stringify(custom),
+  "custom proj amounts"
+);
+
+const customAm = amortizeDebt({
+  remainingCents: 500_000,
+  monthlyPaymentCents: 0,
+  annualRatePercent: 0,
+  paymentPlanCents: custom,
+  scheduleMonths: 12,
+});
+assert(customAm.payoffOk && customAm.months === 4, "custom amortize 4 mo");
+assert(customAm.hasCustomPlan, "has custom plan flag");
+assert(customAm.schedule.length === 4, "full custom schedule");
+assert(customAm.schedule[3].paymentCents === 200_000, "last step 2000");
+assert(customAm.next.totalCents === 100_000, "next is first plan step");
+
+// After first payment, remaining plan advances
+const afterOne = consumePaymentPlanStep(custom);
+assert(
+  JSON.stringify(afterOne) === JSON.stringify([100_000, 100_000, 200_000]),
+  "consume first step"
+);
+assert(consumePaymentPlanStep([50_000]) === null, "last step clears plan");
+assert(parsePaymentPlan(null) === null, "null plan");
+assert(
+  JSON.stringify(parsePaymentPlan([100, 200])) === JSON.stringify([100, 200]),
+  "parse plan"
+);
+
+// Custom plan then fixed monthly fallback
+const withFallback = projectedDebtPaymentAmounts({
+  remainingCents: 350_000,
+  monthlyPaymentCents: 50_000,
+  annualRatePercent: 0,
+  paymentPlanCents: [100_000, 100_000],
+  maxPayments: 12,
+});
+assert(withFallback.length === 5, `fallback length ${withFallback.length}`);
+assert(withFallback[0] === 100_000 && withFallback[1] === 100_000, "plan first");
+assert(
+  withFallback[2] === 50_000 && withFallback[4] === 50_000,
+  "then monthly"
+);
 
 console.log("verify-debts: ok");

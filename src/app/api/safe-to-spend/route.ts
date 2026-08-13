@@ -18,7 +18,10 @@ import {
 } from "@/lib/recurring-income";
 import { recurringExpenseOccurrenceHandled } from "@/lib/recurring-expense";
 import { ensureRecurringPosted } from "@/lib/recurring";
-import { projectedDebtPaymentAmounts } from "@/lib/debts";
+import {
+  parsePaymentPlan,
+  projectedDebtPaymentAmounts,
+} from "@/lib/debts";
 import { addMonths, format, setDate, differenceInCalendarDays } from "date-fns";
 
 async function buildFutureItems(opts: {
@@ -201,7 +204,9 @@ async function buildFutureItems(opts: {
     include: { payments: { select: { capitalCents: true } } },
   });
   for (const debt of debts) {
-    if (debt.monthlyPaymentCents <= 0) continue;
+    const paymentPlanCents = parsePaymentPlan(debt.paymentPlanCents);
+    const hasPlan = !!(paymentPlanCents && paymentPlanCents.length > 0);
+    if (debt.monthlyPaymentCents <= 0 && !hasPlan) continue;
     const paidCapital = debt.payments.reduce((s, p) => s + p.capitalCents, 0);
     const remaining = Math.max(0, debt.principalCents - paidCapital);
     if (remaining <= 0) continue;
@@ -224,6 +229,7 @@ async function buildFutureItems(opts: {
       remainingCents: remaining,
       monthlyPaymentCents: debt.monthlyPaymentCents,
       annualRatePercent: debt.annualRatePercent,
+      paymentPlanCents,
       maxPayments: dates.length,
     });
     for (let i = 0; i < amounts.length; i++) {

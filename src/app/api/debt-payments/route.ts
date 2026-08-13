@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { pesosToCents, todayISO } from "@/lib/utils";
+import { consumePaymentPlanStep, parsePaymentPlan } from "@/lib/debts";
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +18,8 @@ export async function POST(req: Request) {
         interest: z.union([z.number(), z.string()]).optional(),
         accountId: z.string().optional().nullable(),
         notes: z.string().optional().nullable(),
+        /** Advance custom plan by one installment (default true when a plan exists). */
+        consumePlan: z.boolean().optional(),
       })
       .parse(await req.json());
     const debt = await prisma.debt.findFirst({
@@ -37,6 +41,19 @@ export async function POST(req: Request) {
         notes: body.notes || null,
       },
     });
+
+    // Advance custom plan so projections stay in sync after "pay this month".
+    const hasPlan = !!parsePaymentPlan(debt.paymentPlanCents)?.length;
+    const shouldConsume = body.consumePlan !== false && hasPlan && capitalCents > 0;
+    if (shouldConsume) {
+      const rest = consumePaymentPlanStep(debt.paymentPlanCents);
+      await prisma.debt.update({
+        where: { id: debt.id },
+        data: {
+          paymentPlanCents: rest === null ? Prisma.DbNull : rest,
+        },
+      });
+    }
 
     // Ledger movement only when the user pays from an account (same as cards).
     if (body.accountId && capitalCents + interestCents > 0) {
