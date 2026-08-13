@@ -15,6 +15,7 @@ import {
   amortizeDebt,
   DEBT_INTEREST_METHODS,
   paymentPlanSumCents,
+  planCoverageFromAmortization,
   parseInterestMethod,
   splitDuration,
   type AmortizationSummary,
@@ -259,6 +260,39 @@ export default function DebtsPage() {
   );
 
   const formPlanSum = paymentPlanSumCents(formPlanCents);
+  // Evaluate custom steps alone (no monthly fallback) so interest shortfall is honest.
+  const formPlanOnly = useMemo(
+    () =>
+      formPlanCents?.length
+        ? amortizeDebt({
+            remainingCents: formRemainingCents,
+            monthlyPaymentCents: 0,
+            annualRatePercent: parseFloat(form.annualRatePercent) || 0,
+            method: form.interestMethod,
+            originalPrincipalCents: formOriginalPrincipalCents,
+            paymentPlanCents: formPlanCents,
+            scheduleMonths: Math.max(formPlanCents.length, 12),
+          })
+        : null,
+    [
+      formPlanCents,
+      formRemainingCents,
+      form.annualRatePercent,
+      form.interestMethod,
+      formOriginalPrincipalCents,
+    ]
+  );
+  const formCoverage = useMemo(
+    () =>
+      formPlanSum > 0 && formPlanOnly
+        ? planCoverageFromAmortization({
+            remainingCents: formRemainingCents,
+            planSumCents: formPlanSum,
+            amortization: formPlanOnly,
+          })
+        : null,
+    [formPlanSum, formRemainingCents, formPlanOnly]
+  );
 
   async function save() {
     try {
@@ -584,36 +618,8 @@ export default function DebtsPage() {
                   <Plus className="mr-1 h-4 w-4" />
                   {t.debts.planAddStep}
                 </Button>
-                {formPlanSum > 0 && (
-                  <div className="text-xs text-[var(--fg-muted)] space-y-0.5">
-                    <p>
-                      {tr(t.debts.planSum, { amount: money(formPlanSum) })}
-                      {" · "}
-                      {tr(t.debts.planVsRemaining, {
-                        remaining: money(formRemainingCents),
-                      })}
-                    </p>
-                    {formRemainingCents > 0 &&
-                      formPlanSum < formRemainingCents && (
-                        <p className="text-amber-200">
-                          {tr(t.debts.planShort, {
-                            amount: money(formRemainingCents - formPlanSum),
-                          })}
-                        </p>
-                      )}
-                    {formRemainingCents > 0 &&
-                      formPlanSum > formRemainingCents && (
-                        <p>
-                          {tr(t.debts.planLong, {
-                            amount: money(formPlanSum - formRemainingCents),
-                          })}
-                        </p>
-                      )}
-                    {formRemainingCents > 0 &&
-                      formPlanSum === formRemainingCents && (
-                        <p className="text-emerald-300">{t.debts.planMatch}</p>
-                      )}
-                  </div>
+                {formCoverage && formRemainingCents > 0 && (
+                  <PlanCoverageNote coverage={formCoverage} />
                 )}
                 <div>
                   <Label>{t.debts.monthlyPayment}</Label>
@@ -878,6 +884,39 @@ function DebtCard({
   );
 
   const simPlanSum = paymentPlanSumCents(simPlanCents);
+  const simPlanOnly = useMemo(
+    () =>
+      simMode === "custom" && simPlanCents?.length
+        ? amortizeDebt({
+            remainingCents: d.remainingCents,
+            monthlyPaymentCents: 0,
+            annualRatePercent: d.annualRatePercent,
+            method: interestMethod,
+            originalPrincipalCents: d.principalCents,
+            paymentPlanCents: simPlanCents,
+            scheduleMonths: Math.max(simPlanCents.length, 12),
+          })
+        : null,
+    [
+      simMode,
+      simPlanCents,
+      d.remainingCents,
+      d.annualRatePercent,
+      d.principalCents,
+      interestMethod,
+    ]
+  );
+  const simCoverage = useMemo(
+    () =>
+      simPlanSum > 0 && simPlanOnly
+        ? planCoverageFromAmortization({
+            remainingCents: d.remainingCents,
+            planSumCents: simPlanSum,
+            amortization: simPlanOnly,
+          })
+        : null,
+    [simPlanSum, d.remainingCents, simPlanOnly]
+  );
 
   function seedSimFromDebt() {
     const custom = !!(d.paymentPlanCents && d.paymentPlanCents.length > 0);
@@ -1204,37 +1243,8 @@ function DebtCard({
                       <Plus className="mr-1 h-4 w-4" />
                       {t.debts.planAddStep}
                     </Button>
-                    {simPlanSum > 0 && (
-                      <div className="space-y-0.5 text-xs text-[var(--fg-muted)]">
-                        <p>
-                          {tr(t.debts.planSum, {
-                            amount: money(simPlanSum),
-                          })}
-                          {" · "}
-                          {tr(t.debts.planVsRemaining, {
-                            remaining: money(d.remainingCents),
-                          })}
-                        </p>
-                        {simPlanSum < d.remainingCents && (
-                          <p className="text-amber-200">
-                            {tr(t.debts.planShort, {
-                              amount: money(d.remainingCents - simPlanSum),
-                            })}
-                          </p>
-                        )}
-                        {simPlanSum > d.remainingCents && (
-                          <p>
-                            {tr(t.debts.planLong, {
-                              amount: money(simPlanSum - d.remainingCents),
-                            })}
-                          </p>
-                        )}
-                        {simPlanSum === d.remainingCents && (
-                          <p className="text-emerald-300">
-                            {t.debts.planMatch}
-                          </p>
-                        )}
-                      </div>
+                    {simCoverage && d.remainingCents > 0 && (
+                      <PlanCoverageNote coverage={simCoverage} />
                     )}
                     <div>
                       <Label>{t.debts.monthlyPayment}</Label>
@@ -1347,6 +1357,60 @@ function DebtCard({
   );
 }
 
+function PlanCoverageNote({
+  coverage,
+}: {
+  coverage: ReturnType<typeof planCoverageFromAmortization>;
+}) {
+  const { money, t, tr } = useApp();
+  return (
+    <div className="space-y-0.5 text-xs text-[var(--fg-muted)]">
+      <p>
+        {tr(t.debts.planSum, { amount: money(coverage.planSumCents) })}
+        {" · "}
+        {tr(t.debts.planVsRemaining, {
+          remaining: money(coverage.principalCents),
+        })}
+      </p>
+      {coverage.payoffOk ? (
+        <p className="text-emerald-300">
+          {tr(t.debts.planPaysOff, {
+            interest: money(coverage.totalInterestCents),
+          })}
+        </p>
+      ) : coverage.interestShortfall ? (
+        <p className="text-amber-200">
+          {tr(t.debts.planInterestShort, {
+            amount: money(coverage.remainingAfterCents),
+          })}
+        </p>
+      ) : (
+        <p className="text-amber-200">
+          {tr(t.debts.planLeavesBalance, {
+            amount: money(coverage.remainingAfterCents),
+          })}
+        </p>
+      )}
+      {coverage.cashBelowPrincipal && !coverage.payoffOk && (
+        <p className="text-[var(--fg-faint)]">
+          {tr(t.debts.planShort, {
+            amount: money(coverage.principalCents - coverage.planSumCents),
+          })}
+        </p>
+      )}
+      {!coverage.cashBelowPrincipal &&
+        coverage.planSumCents > coverage.principalCents &&
+        !coverage.payoffOk && (
+          <p className="text-[var(--fg-faint)]">
+            {tr(t.debts.planLong, {
+              amount: money(coverage.planSumCents - coverage.principalCents),
+            })}
+          </p>
+        )}
+    </div>
+  );
+}
+
 function PlanPreview({
   plan,
   rate,
@@ -1361,6 +1425,10 @@ function PlanPreview({
   className?: string;
 }) {
   const { money, t, tr } = useApp();
+  const leftAfter =
+    plan.payoffOk || plan.schedule.length === 0
+      ? 0
+      : plan.schedule[plan.schedule.length - 1].balanceCents;
   return (
     <div
       className={`rounded-xl border border-white/10 p-3 text-xs text-[var(--fg-muted)] ${className || ""}`}
@@ -1371,7 +1439,7 @@ function PlanPreview({
         {t.debts.nextInterest}: {money(plan.next.interestCents)} ·{" "}
         {t.debts.nextCapital}: {money(plan.next.capitalCents)}
       </p>
-      {plan.payoffOk && paymentCents > 0 ? (
+      {plan.payoffOk && (paymentCents > 0 || plan.hasCustomPlan) ? (
         <p>
           {tr(t.debts.payoffIn, {
             duration: formatDuration(plan.months, tr, t),
@@ -1381,10 +1449,13 @@ function PlanPreview({
             amount: money(plan.totalInterestCents),
           })}
         </p>
-      ) : paymentCents > 0 ? (
+      ) : paymentCents > 0 || plan.hasCustomPlan ? (
         <p className="text-amber-200">
-          {t.debts.wontPayOff}{" "}
-          {tr(t.debts.minToReduce, { amount: money(plan.minPaymentCents) })}
+          {leftAfter > 0
+            ? tr(t.debts.planLeavesBalance, { amount: money(leftAfter) })
+            : t.debts.wontPayOff}{" "}
+          {!plan.paymentCoversInterest &&
+            tr(t.debts.minToReduce, { amount: money(plan.minPaymentCents) })}
         </p>
       ) : null}
     </div>

@@ -5,6 +5,7 @@ import {
   parsePaymentPlan,
   paymentPlanSumCents,
   periodInterestCents,
+  planCoverageFromAmortization,
   projectedDebtPaymentAmounts,
   simpleDailyInterestCents,
   suggestMonthlyDebtPay,
@@ -297,5 +298,36 @@ assert(dailyAm.schedule[0].interestCents === 1_000, "first period 10d interest")
 
 assert(daysBetweenISO("2026-01-01", "2026-01-31") === 30, "days between");
 assert(daysBetweenISO("2026-01-15", "2026-01-15") === 0, "same day");
+
+// Plan cash == principal but interest leaves a balance
+const equalCash = [100_000, 100_000, 100_000, 100_000, 100_000];
+const equalAm = amortizeDebt({
+  remainingCents: 500_000,
+  monthlyPaymentCents: 0,
+  annualRatePercent: 12,
+  paymentPlanCents: equalCash,
+  scheduleMonths: 12,
+});
+const cov = planCoverageFromAmortization({
+  remainingCents: 500_000,
+  planSumCents: 500_000,
+  amortization: equalAm,
+});
+assert(!cov.payoffOk && cov.interestShortfall, "interest shortfall flagged");
+assert(cov.remainingAfterCents > 0, "balance left after plan");
+assert(cov.planSumCents === cov.principalCents, "cash equals principal");
+
+const zeroRateCov = planCoverageFromAmortization({
+  remainingCents: 500_000,
+  planSumCents: 500_000,
+  amortization: amortizeDebt({
+    remainingCents: 500_000,
+    monthlyPaymentCents: 0,
+    annualRatePercent: 0,
+    paymentPlanCents: equalCash,
+    scheduleMonths: 12,
+  }),
+});
+assert(zeroRateCov.payoffOk && !zeroRateCov.interestShortfall, "0% plan covers");
 
 console.log("verify-debts: ok");

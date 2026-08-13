@@ -220,6 +220,49 @@ export function paymentPlanSumCents(plan: number[] | null | undefined): number {
   return plan.reduce((s, a) => s + Math.max(0, Math.round(a)), 0);
 }
 
+/**
+ * How a custom plan fares against principal + interest (not just cash sum vs principal).
+ * A plan that only sums to the principal can still leave a balance once interest is taken.
+ */
+export function planCoverageFromAmortization(opts: {
+  remainingCents: number;
+  planSumCents: number;
+  amortization: Pick<
+    AmortizationSummary,
+    "payoffOk" | "schedule" | "totalInterestCents" | "totalPaidCents"
+  >;
+}): {
+  planSumCents: number;
+  principalCents: number;
+  remainingAfterCents: number;
+  totalInterestCents: number;
+  totalPaidCents: number;
+  payoffOk: boolean;
+  /** Cash sum is less than principal (ignores interest). */
+  cashBelowPrincipal: boolean;
+  /** Cash sum >= principal but interest still leaves a balance. */
+  interestShortfall: boolean;
+} {
+  const principal = Math.max(0, Math.round(opts.remainingCents));
+  const planSum = Math.max(0, Math.round(opts.planSumCents));
+  const am = opts.amortization;
+  const remainingAfter = am.payoffOk
+    ? 0
+    : am.schedule.length > 0
+      ? Math.max(0, am.schedule[am.schedule.length - 1].balanceCents)
+      : principal;
+  return {
+    planSumCents: planSum,
+    principalCents: principal,
+    remainingAfterCents: remainingAfter,
+    totalInterestCents: am.totalInterestCents,
+    totalPaidCents: am.totalPaidCents,
+    payoffOk: am.payoffOk && remainingAfter <= 0,
+    cashBelowPrincipal: planSum < principal,
+    interestShortfall: planSum >= principal && remainingAfter > 0,
+  };
+}
+
 /** Budget for installment index (0-based): custom plan first, then fixed monthly. */
 export function paymentBudgetForStep(
   stepIndex: number,
