@@ -20,8 +20,12 @@ import {
   type AmortizationSummary,
   type DebtInterestMethod,
 } from "@/lib/debts";
+import { DebtAmortizationCharts } from "@/components/debt-amortization-chart";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
+
+/** Full schedule for charts (cap long loans so SVG stays usable). */
+const CHART_SCHEDULE_MONTHS = 120;
 
 type Plan = {
   months: number;
@@ -238,7 +242,11 @@ export default function DebtsPage() {
         method: form.interestMethod,
         originalPrincipalCents: formOriginalPrincipalCents,
         paymentPlanCents: formPlanCents,
-        scheduleMonths: Math.max(6, formPlanCents?.length ?? 0, 12),
+        scheduleMonths: Math.max(
+          6,
+          formPlanCents?.length ?? 0,
+          CHART_SCHEDULE_MONTHS
+        ),
       }),
     [
       formRemainingCents,
@@ -649,16 +657,29 @@ export default function DebtsPage() {
             {(form.principal ||
               form.monthlyPayment ||
               (form.planMode === "custom" && formPlanSum > 0)) && (
-              <PlanPreview
-                className="sm:col-span-2"
-                plan={formPlan}
-                rate={parseFloat(form.annualRatePercent) || 0}
-                paymentCents={
-                  formPlanCents?.[0] ??
-                  amountToCents(form.monthlyPayment || 0)
-                }
-                title={t.debts.formPreview}
-              />
+              <div className="sm:col-span-2 space-y-3">
+                <PlanPreview
+                  plan={formPlan}
+                  rate={parseFloat(form.annualRatePercent) || 0}
+                  paymentCents={
+                    formPlanCents?.[0] ??
+                    amountToCents(form.monthlyPayment || 0)
+                  }
+                  title={t.debts.formPreview}
+                />
+                {formPlan.schedule.length > 0 && formRemainingCents > 0 && (
+                  <div className="rounded-xl border border-white/10 p-3">
+                    <p className="mb-2 text-xs font-medium text-[var(--fg)]">
+                      {t.debts.chartTitle}
+                    </p>
+                    <DebtAmortizationCharts
+                      schedule={formPlan.schedule}
+                      startingBalanceCents={formRemainingCents}
+                      height={140}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -804,6 +825,32 @@ function DebtCard({
     return steps.length > 0 ? steps : null;
   }, [simMode, simSteps]);
 
+  /** Full chart schedule for the saved plan (API schedule may be short). */
+  const chartPlan = useMemo(
+    () =>
+      amortizeDebt({
+        remainingCents: d.remainingCents,
+        monthlyPaymentCents: d.monthlyPaymentCents,
+        annualRatePercent: d.annualRatePercent,
+        method: interestMethod,
+        originalPrincipalCents: d.principalCents,
+        paymentPlanCents: d.paymentPlanCents,
+        scheduleMonths: Math.max(
+          6,
+          d.paymentPlanCents?.length ?? 0,
+          CHART_SCHEDULE_MONTHS
+        ),
+      }),
+    [
+      d.remainingCents,
+      d.monthlyPaymentCents,
+      d.annualRatePercent,
+      d.principalCents,
+      d.paymentPlanCents,
+      interestMethod,
+    ]
+  );
+
   const sim = useMemo(
     () =>
       amortizeDebt({
@@ -813,7 +860,11 @@ function DebtCard({
         method: interestMethod,
         originalPrincipalCents: d.principalCents,
         paymentPlanCents: simMode === "custom" ? simPlanCents : null,
-        scheduleMonths: Math.max(6, simPlanCents?.length ?? 0, 12),
+        scheduleMonths: Math.max(
+          6,
+          simPlanCents?.length ?? 0,
+          CHART_SCHEDULE_MONTHS
+        ),
       }),
     [
       d.remainingCents,
@@ -1029,6 +1080,25 @@ function DebtCard({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {d.remainingCents > 0 && chartPlan.schedule.length > 0 && (
+          <div className="rounded-xl border border-white/10 p-3">
+            <p className="mb-2 text-xs font-medium text-[var(--fg-muted)]">
+              {t.debts.chartTitle}
+            </p>
+            <DebtAmortizationCharts
+              schedule={chartPlan.schedule}
+              startingBalanceCents={d.remainingCents}
+              height={150}
+              compareSchedule={
+                simOpen && sim.schedule.length > 0 && simChanged
+                  ? sim.schedule
+                  : null
+              }
+              compareStartingBalanceCents={d.remainingCents}
+            />
           </div>
         )}
 

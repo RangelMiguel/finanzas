@@ -576,6 +576,14 @@ export const es = {
     methodLabel: "Método: {method}",
     germanPaymentIsCapital:
       "En sistema alemán el “pago mensual” es la parte a capital (el total = capital + intereses).",
+    chartBalance: "Saldo restante en el tiempo",
+    chartSplit: "Cada pago: intereses vs capital",
+    chartTotals: "Del total a pagar",
+    chartStart: "Hoy",
+    chartCurrentPlan: "Plan actual",
+    chartSimPlan: "Plan simulado",
+    chartTitle: "Gráficas del plan",
+    chartEmpty: "Define un pago o un plan para ver las gráficas.",
   },
 
   goals: {
@@ -2078,6 +2086,14 @@ export const en: Dictionary = {
     methodLabel: "Method: {method}",
     germanPaymentIsCapital:
       "In the German system the “monthly payment” is the principal portion (total = principal + interest).",
+    chartBalance: "Remaining balance over time",
+    chartSplit: "Each payment: interest vs principal",
+    chartTotals: "Of total amount paid",
+    chartStart: "Today",
+    chartCurrentPlan: "Current plan",
+    chartSimPlan: "Simulated plan",
+    chartTitle: "Plan charts",
+    chartEmpty: "Set a payment or plan to see the charts.",
   },
 
   goals: {
