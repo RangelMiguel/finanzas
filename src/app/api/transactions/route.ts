@@ -94,6 +94,7 @@ export async function GET(req: Request) {
     const type = searchParams.get("type");
     const q = searchParams.get("q");
     const spentById = searchParams.get("spentById");
+    const categoryId = searchParams.get("categoryId");
     const accountId = searchParams.get("accountId");
     const creditCardId = searchParams.get("creditCardId");
     const minAmount = searchParams.get("minAmount");
@@ -115,6 +116,11 @@ export async function GET(req: Request) {
       where.spentById = null;
     } else if (spentById) {
       where.spentById = spentById;
+    }
+    if (categoryId === "unassigned") {
+      where.categoryId = null;
+    } else if (categoryId) {
+      where.categoryId = categoryId;
     }
     if (accountId) {
       where.OR = [

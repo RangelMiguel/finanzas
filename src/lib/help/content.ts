@@ -159,7 +159,7 @@ const es: HelpContent = {
             "Al crear un gasto puedes pagar con una o varias fuentes: combinar cuentas y tarjetas de crédito. La suma de los montos de pago debe igualar el total del movimiento.",
             "Si eliges tarjeta de crédito, el gasto no reduce el saldo de una cuenta bancaria el mismo día: queda en el ciclo de la tarjeta. Opcionalmente puedes marcar MSI (meses sin intereses) para repartir el cargo en cuotas.",
             "“Quién gastó” asocia el movimiento a un miembro (útil para mesadas, reportes y políticas “solo lo mío”).",
-            "Filtra la lista por quién gastó, cuenta o tarjeta, y un rango de monto (además del mes).",
+            "Filtra la lista por quién gastó, categoría, cuenta o tarjeta, y un rango de monto (además del mes). Los filtros vienen cerrados; ábrelos cuando los necesites.",
           ],
           bullets: [
             {
@@ -728,7 +728,7 @@ const en: HelpContent = {
             "When creating an expense you can split across accounts and credit cards. Payment line amounts must sum to the total.",
             "Credit card spend does not reduce a bank balance the same day—it sits on the card cycle. Optionally enable installments (MSI) to spread charges.",
             "“Spent by” links the transaction to a member (allowances, reports, and “only my activity” policies).",
-            "Filter the list by who spent, account or card, and an amount range (in addition to the month).",
+            "Filter the list by who spent, category, account or card, and an amount range (in addition to the month). Filters start collapsed; open them when you need them.",
           ],
           bullets: [
             {

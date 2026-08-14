@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { parseSourceKey, sourceKey } from "@/lib/transaction-funding";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 type FundingRow = {
   id: string;
@@ -152,9 +153,11 @@ export default function TransactionsPage() {
   ]);
   const [spentByFilter, setSpentByFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [amountDebounced, setAmountDebounced] = useState({ min: "", max: "" });
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -163,9 +166,17 @@ export default function TransactionsPage() {
     return () => window.clearTimeout(id);
   }, [minAmount, maxAmount]);
 
+  const filterCount = [
+    spentByFilter,
+    sourceFilter,
+    categoryFilter,
+    minAmount.trim(),
+    maxAmount.trim(),
+  ].filter(Boolean).length;
   const filtersActive = Boolean(
     spentByFilter ||
       sourceFilter ||
+      categoryFilter ||
       amountDebounced.min.trim() ||
       amountDebounced.max.trim()
   );
@@ -177,6 +188,7 @@ export default function TransactionsPage() {
     const emptyCc = { creditCards: [] as CardT[] };
     const params = new URLSearchParams({ month });
     if (spentByFilter) params.set("spentById", spentByFilter);
+    if (categoryFilter) params.set("categoryId", categoryFilter);
     const source = parseSourceKey(sourceFilter);
     if (source?.kind === "account") params.set("accountId", source.id);
     if (source?.kind === "card") params.set("creditCardId", source.id);
@@ -218,11 +230,12 @@ export default function TransactionsPage() {
   useEffect(() => {
     load().catch((e) => toast.error(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, spentByFilter, sourceFilter, amountDebounced.min, amountDebounced.max]);
+  }, [month, spentByFilter, sourceFilter, categoryFilter, amountDebounced.min, amountDebounced.max]);
 
   function clearFilters() {
     setSpentByFilter("");
     setSourceFilter("");
+    setCategoryFilter("");
     setMinAmount("");
     setMaxAmount("");
     setAmountDebounced({ min: "", max: "" });
@@ -433,6 +446,8 @@ export default function TransactionsPage() {
   }
 
   const filteredCats = categories.filter((c) => c.type === form.type);
+  const expenseCats = categories.filter((c) => c.type === "expense");
+  const incomeCats = categories.filter((c) => c.type === "income");
   const memberList: Member[] = members.length > 0 ? members : [];
 
   return (
@@ -456,79 +471,134 @@ export default function TransactionsPage() {
       />
 
       <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <Label>{t.transactions.filterSpentBy}</Label>
-            <Select
-              className="mt-1"
-              value={spentByFilter}
-              onChange={(e) => setSpentByFilter(e.target.value)}
+        <CardHeader className="p-0">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen((v) => !v)}
             >
-              <option value="">{t.transactions.filterAll}</option>
-              <option value="unassigned">{t.transactions.filterUnassigned}</option>
-              {memberList.map((m) => (
-                <option key={m.user.id} value={m.user.id}>
-                  {m.user.displayName}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>{t.transactions.filterSource}</Label>
-            <Select
-              className="mt-1"
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-            >
-              <option value="">{t.transactions.filterAll}</option>
-              {accounts.length > 0 && (
-                <optgroup label={t.transactions.sourceAccounts}>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={sourceKey("account", a.id)}>
-                      {a.name}
-                    </option>
-                  ))}
-                </optgroup>
+              <div className="flex min-w-0 items-center gap-2">
+                <CardTitle className="text-sm">{t.transactions.filters}</CardTitle>
+                {filterCount > 0 && (
+                  <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-[var(--fg-faint)]">
+                    {tr(t.transactions.filtersActiveN, { n: filterCount })}
+                  </span>
+                )}
+              </div>
+              {filtersOpen ? (
+                <ChevronDown className="h-4 w-4 shrink-0 text-[var(--fg-muted)]" />
+              ) : (
+                <ChevronRight className="h-4 w-4 shrink-0 text-[var(--fg-muted)]" />
               )}
-              {cards.length > 0 && (
-                <optgroup label={t.transactions.sourceCards}>
-                  {cards.map((c) => (
-                    <option key={c.id} value={sourceKey("card", c.id)}>
-                      {c.lastFour ? `${c.name} · ${c.lastFour}` : c.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </Select>
-          </div>
-          <div>
-            <Label>{t.transactions.filterMin}</Label>
-            <Input
-              money
-              className="mt-1"
-              placeholder={t.transactions.filterMinHint}
-              value={minAmount}
-              onChange={(e) => setMinAmount(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label>{t.transactions.filterMax}</Label>
-            <Input
-              money
-              className="mt-1"
-              placeholder={t.transactions.filterMaxHint}
-              value={maxAmount}
-              onChange={(e) => setMaxAmount(e.target.value)}
-            />
-          </div>
-          {filtersActive && (
-            <div className="flex items-end sm:col-span-2 lg:col-span-4">
+            </button>
+            {filterCount > 0 && (
               <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
                 {t.transactions.filterClear}
               </Button>
+            )}
+          </div>
+        </CardHeader>
+        {filtersOpen && (
+          <CardContent className="grid gap-3 border-t border-white/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <Label>{t.transactions.filterSpentBy}</Label>
+              <Select
+                className="mt-1"
+                value={spentByFilter}
+                onChange={(e) => setSpentByFilter(e.target.value)}
+              >
+                <option value="">{t.transactions.filterAll}</option>
+                <option value="unassigned">{t.transactions.filterUnassigned}</option>
+                {memberList.map((m) => (
+                  <option key={m.user.id} value={m.user.id}>
+                    {m.user.displayName}
+                  </option>
+                ))}
+              </Select>
             </div>
-          )}
-        </CardContent>
+            <div>
+              <Label>{t.transactions.filterSource}</Label>
+              <Select
+                className="mt-1"
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+              >
+                <option value="">{t.transactions.filterAll}</option>
+                {accounts.length > 0 && (
+                  <optgroup label={t.transactions.sourceAccounts}>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={sourceKey("account", a.id)}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {cards.length > 0 && (
+                  <optgroup label={t.transactions.sourceCards}>
+                    {cards.map((c) => (
+                      <option key={c.id} value={sourceKey("card", c.id)}>
+                        {c.lastFour ? `${c.name} · ${c.lastFour}` : c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </Select>
+            </div>
+            <div>
+              <Label>{t.transactions.filterCategory}</Label>
+              <Select
+                className="mt-1"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                <option value="">{t.transactions.filterAll}</option>
+                <option value="unassigned">
+                  {t.transactions.filterUncategorized}
+                </option>
+                {expenseCats.length > 0 && (
+                  <optgroup label={t.expense}>
+                    {expenseCats.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {incomeCats.length > 0 && (
+                  <optgroup label={t.income}>
+                    {incomeCats.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </Select>
+            </div>
+            <div>
+              <Label>{t.transactions.filterMin}</Label>
+              <Input
+                money
+                className="mt-1"
+                placeholder={t.transactions.filterMinHint}
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>{t.transactions.filterMax}</Label>
+              <Input
+                money
+                className="mt-1"
+                placeholder={t.transactions.filterMaxHint}
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+              />
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {mode !== "none" && (
