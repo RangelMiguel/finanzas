@@ -189,6 +189,8 @@ export const es = {
     propertiesOpen: "Ver propiedades",
     propertiesAssets: "Activos {amount}",
     propertiesLiabilities: "Pasivos {amount}",
+    newTxn: "Nuevo movimiento",
+    seeAllTxns: "Ver todos",
   },
 
   accounts: {
@@ -1720,6 +1722,8 @@ export const en: Dictionary = {
     propertiesOpen: "Open properties",
     propertiesAssets: "Assets {amount}",
     propertiesLiabilities: "Liabilities {amount}",
+    newTxn: "New transaction",
+    seeAllTxns: "See all",
   },
 
   accounts: {

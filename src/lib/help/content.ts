@@ -113,6 +113,7 @@ const es: HelpContent = {
           paragraphs: [
             "Es la pantalla de aterrizaje. Resume el mes (o el periodo visible) con totales de ingresos, gastos y balance, según lo que tu política permita mostrar.",
             "Suele incluir: franja de saldos por cuenta, top de gastos por categoría, tarjetas de crédito, alertas de presupuesto (cerca o excedido) y las últimas transacciones.",
+            "Desde Inicio puedes pulsar “Nuevo movimiento” para abrir el formulario de captura sin pasar por el menú.",
             "Si un admin ocultó ingresos o saldos para tu perfil, esos bloques no aparecen o se muestran vacíos a propósito.",
           ],
           tips: [
@@ -682,6 +683,7 @@ const en: HelpContent = {
           paragraphs: [
             "Landing screen. Summarizes the period with income, expenses, and balance totals—if your policy allows those figures.",
             "Often includes: account balance strip, top spending by category, credit cards, budget alerts (near/over), and latest transactions.",
+            "From Home you can tap “New transaction” to open the capture form without going through the menu.",
             "If an admin hid income or balances for your profile, those blocks are intentionally missing or empty.",
           ],
           tips: [

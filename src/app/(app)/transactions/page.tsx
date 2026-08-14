@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,6 +130,7 @@ function fundingLabel(txn: Txn): string {
 export default function TransactionsPage() {
   const { t, money, members, tr } = useApp();
   const { confirm } = useConfirm();
+  const router = useRouter();
   const [month, setMonth] = useState(monthKey());
   const [txns, setTxns] = useState<Txn[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
@@ -231,6 +233,13 @@ export default function TransactionsPage() {
     load().catch((e) => toast.error(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, spentByFilter, sourceFilter, categoryFilter, amountDebounced.min, amountDebounced.max]);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") !== "1") return;
+    setMode("new");
+    setEditId(null);
+    router.replace("/transactions", { scroll: false });
+  }, [router]);
 
   function clearFilters() {
     setSpentByFilter("");

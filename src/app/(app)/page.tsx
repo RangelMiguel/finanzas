@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { budgetPeriodKey, monthKey } from "@/lib/utils";
 import { CatchupDialog } from "@/components/catchup-dialog";
 import { format, parse, addMonths, subMonths } from "date-fns";
 import { es, enUS } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Suspense } from "react";
 import { useApp } from "@/components/providers/app-provider";
 import { PwaSetup } from "@/components/pwa/pwa-setup";
@@ -70,7 +70,9 @@ type CloseStatus = {
 
 function DashboardInner() {
   const params = useSearchParams();
-  const { t, tr, money, locale } = useApp();
+  const router = useRouter();
+  const { t, tr, money, locale, visibility } = useApp();
+  const canAddTxn = !!visibility.modules.transactions;
   const moneyOrHidden = (cents: number | null | undefined) =>
     cents == null ? "—" : money(cents);
   const [month, setMonth] = useState(monthKey());
@@ -185,9 +187,17 @@ function DashboardInner() {
               </Button>
             </div>
           </div>
-          <Button variant="secondary" onClick={() => setCatchup(true)}>
-            {t.nav.catchUp}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {canAddTxn && (
+              <Button onClick={() => router.push("/transactions?new=1")}>
+                <Plus className="h-4 w-4" />
+                {t.dashboard.newTxn}
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => setCatchup(true)}>
+              {t.nav.catchUp}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -439,8 +449,28 @@ function DashboardInner() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle>{t.dashboard.recent}</CardTitle>
+          <div className="flex items-center gap-2">
+            {canAddTxn && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => router.push("/transactions?new=1")}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t.dashboard.newTxn}
+              </Button>
+            )}
+            {visibility.modules.transactions && (
+              <Link
+                href="/transactions"
+                className="text-xs font-semibold text-[var(--accent)]"
+              >
+                {t.dashboard.seeAllTxns} →
+              </Link>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-0.5">
           {data.recentTransactions.length === 0 && (
