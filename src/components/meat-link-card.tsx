@@ -55,13 +55,20 @@ export function MeatLinkCard() {
   }, []);
 
   async function savePatch(patch: Partial<MeatState>) {
-    if (!canAdmin) return;
-    const res = await api<{ meat: MeatState }>("/api/integrations/meat", {
-      method: "PATCH",
-      json: patch,
-    });
-    setMeat(res.meat);
-    toast.success(copy.saved);
+    if (!canAdmin || !meat) return;
+    const previous = meat;
+    setMeat({ ...meat, ...patch });
+    try {
+      const res = await api<{ meat: MeatState }>("/api/integrations/meat", {
+        method: "PATCH",
+        json: patch,
+      });
+      if (res.meat) setMeat({ ...previous, ...res.meat });
+      toast.success(copy.saved);
+    } catch (e) {
+      setMeat(previous);
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
   }
 
   async function generate() {
@@ -166,7 +173,7 @@ export function MeatLinkCard() {
             <Label>{copy.account}</Label>
             <Select
               className="mt-1"
-              disabled={!canAdmin}
+              disabled={!canAdmin || !meat.hasToken}
               value={meat.accountId ?? ""}
               onChange={(e) =>
                 savePatch({
@@ -187,7 +194,7 @@ export function MeatLinkCard() {
             <Label>{copy.card}</Label>
             <Select
               className="mt-1"
-              disabled={!canAdmin}
+              disabled={!canAdmin || !meat.hasToken}
               value={meat.creditCardId ?? ""}
               onChange={(e) =>
                 savePatch({
@@ -209,7 +216,7 @@ export function MeatLinkCard() {
             <Label>{copy.category}</Label>
             <Select
               className="mt-1"
-              disabled={!canAdmin}
+              disabled={!canAdmin || !meat.hasToken}
               value={meat.categoryId ?? ""}
               onChange={(e) => savePatch({ categoryId: e.target.value || null })}
             >

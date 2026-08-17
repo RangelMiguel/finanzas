@@ -35,7 +35,7 @@ export async function PATCH(req: Request) {
       where: { householdId: m.householdId },
     });
     if (!existing) {
-      return jsonOk({ meat: serializeMeatLink(null) });
+      throw new Error("Genera una llave antes de elegir cuenta, tarjeta o categoría");
     }
 
     if (body.accountId) {
