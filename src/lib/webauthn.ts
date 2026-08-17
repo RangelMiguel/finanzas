@@ -24,7 +24,7 @@ export function webauthnConfig(req: Request) {
     process.env.WEBAUTHN_ORIGIN?.trim() || `${proto}://${host}`;
   const rpID =
     process.env.WEBAUTHN_RP_ID?.trim() || host.replace(/:\d+$/, "");
-  const rpName = process.env.WEBAUTHN_RP_NAME?.trim() || "MisFinanzas Familiar";
+  const rpName = process.env.WEBAUTHN_RP_NAME?.trim() || "Finance";
   return { rpID, rpName, origin };
 }
 

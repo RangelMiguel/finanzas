@@ -1,6 +1,6 @@
 export const es = {
-  appName: "MisFinanzas",
-  appTagline: "Familiar",
+  appName: "Finance",
+  appTagline: "Hogar",
   loading: "Cargando…",
   save: "Guardar",
   cancel: "Cancelar",
@@ -129,7 +129,7 @@ export const es = {
   },
 
   auth: {
-    loginTitle: "MisFinanzas Familiar",
+    loginTitle: "Finance",
     loginSubtitle: "Inicia sesión para ver las finanzas del hogar",
     loginPasskeyOnly:
       "Solo llaves de acceso: Face ID, huella o llave de seguridad. Sin contraseñas.",
@@ -888,7 +888,7 @@ export const es = {
       "Crea un enlace para que se unan con su propia cuenta (sin crear otro hogar). Compártelo por WhatsApp o mensaje.",
     shareInvite: "Comparte este enlace con la persona invitada",
     shareMessage:
-      "Te invito a unirte a {name} en MisFinanzas Familiar. Abre el enlace, crea tu cuenta con {email} y entra al hogar (no necesitas crear un hogar nuevo):\n{url}",
+      "Te invito a unirte a {name} en Finance. Abre el enlace, crea tu cuenta con {email} y entra al hogar (no necesitas crear un hogar nuevo):\n{url}",
     shareWhatsApp: "WhatsApp",
     shareSms: "Mensaje",
     share: "Compartir",
@@ -1103,12 +1103,12 @@ export const es = {
   pwa: {
     setupTitle: "Instalar app y avisos",
     setupSubtitle:
-      "Pon MisFinanzas en tu pantalla de inicio y activa notificaciones para no perder alertas importantes.",
+      "Pon Finance en tu pantalla de inicio y activa notificaciones para no perder alertas importantes.",
     setupFooter:
       "Si cierras esto, no volverá a aparecer aquí. Siempre puedes instalar y activar avisos en Ajustes.",
     dismissSetup: "No mostrar de nuevo",
     installTitle: "Instalar en el teléfono",
-    installHint: "Añade MisFinanzas a tu pantalla de inicio (funciona mejor y offline)",
+    installHint: "Añade Finance a tu pantalla de inicio (funciona mejor y offline)",
     installCta: "Instalar app",
     howToInstall: "Cómo instalar",
     installManual:
@@ -1129,7 +1129,7 @@ export const es = {
     pushEnabled: "Notificaciones del sistema activadas",
     pushDisabled: "Notificaciones del sistema desactivadas",
     pushDenied:
-      "Permiso denegado. Actívalo en Ajustes del teléfono → Notificaciones → MisFinanzas / el navegador.",
+      "Permiso denegado. Actívalo en Ajustes del teléfono → Notificaciones → Finance / el navegador.",
     pushUnsupported: "Este navegador no soporta notificaciones push",
     pushNotConfigured:
       "Las notificaciones push no están configuradas en el servidor (faltan claves VAPID).",
@@ -1559,8 +1559,8 @@ type DeepStringify<T> = {
 export type Dictionary = DeepStringify<typeof es>;
 
 export const en: Dictionary = {
-  appName: "MyFinances",
-  appTagline: "Family",
+  appName: "Finance",
+  appTagline: "Home",
   loading: "Loading…",
   save: "Save",
   cancel: "Cancel",
@@ -1687,7 +1687,7 @@ export const en: Dictionary = {
   },
 
   auth: {
-    loginTitle: "MyFinances Family",
+    loginTitle: "Finance",
     loginSubtitle: "Sign in to view household finances",
     loginPasskeyOnly:
       "Passkeys only: Face ID, fingerprint, or a security key. No passwords.",
@@ -2444,7 +2444,7 @@ export const en: Dictionary = {
       "Create a link so they can join with their own account (no need to create another household). Share it on WhatsApp or by message.",
     shareInvite: "Share this link with the invited person",
     shareMessage:
-      "You're invited to join {name} on MyFinances Family. Open the link, create your account with {email}, and join the household (you don't need to create a new home):\n{url}",
+      "You're invited to join {name} on Finance. Open the link, create your account with {email}, and join the household (you don't need to create a new home):\n{url}",
     shareWhatsApp: "WhatsApp",
     shareSms: "Message",
     share: "Share",
@@ -2658,12 +2658,12 @@ export const en: Dictionary = {
   pwa: {
     setupTitle: "Install app & alerts",
     setupSubtitle:
-      "Add MyFinances to your home screen and turn on notifications so you don’t miss important alerts.",
+      "Add Finance to your home screen and turn on notifications so you don’t miss important alerts.",
     setupFooter:
       "If you dismiss this, it won’t show here again. You can always install and enable alerts in Settings.",
     dismissSetup: "Don’t show again",
     installTitle: "Install on your phone",
-    installHint: "Add MyFinances to your home screen (better experience and offline)",
+    installHint: "Add Finance to your home screen (better experience and offline)",
     installCta: "Install app",
     howToInstall: "How to install",
     installManual:
@@ -2684,7 +2684,7 @@ export const en: Dictionary = {
     pushEnabled: "System notifications enabled",
     pushDisabled: "System notifications turned off",
     pushDenied:
-      "Permission denied. Enable it in phone Settings → Notifications → MyFinances / your browser.",
+      "Permission denied. Enable it in phone Settings → Notifications → Finance / your browser.",
     pushUnsupported: "This browser does not support push notifications",
     pushNotConfigured:
       "Push is not configured on the server (missing VAPID keys).",

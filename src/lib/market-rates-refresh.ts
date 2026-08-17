@@ -21,7 +21,7 @@ import {
 const SNAPSHOT_ID = "global";
 const FETCH_TIMEOUT_MS = 12_000;
 const USER_AGENT =
-  "MisFinanzas/1.0 (+https://github.com; monthly reference rates)";
+  "Finance/1.0 (+https://github.com; monthly reference rates)";
 
 export type MarketRatesPayload = {
   instruments: MarketInstrument[];

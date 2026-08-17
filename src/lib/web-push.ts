@@ -107,8 +107,8 @@ export async function pushSecurityAlert(opts: {
   return sendPushToUsers(userIds, {
     title:
       opts.severity === "critical"
-        ? "MisFinanzas · Alerta crítica"
-        : "MisFinanzas · Aviso de seguridad",
+        ? "Finance · Alerta crítica"
+        : "Finance · Aviso de seguridad",
     body: opts.detail
       ? `${opts.summary} — ${opts.detail}`.slice(0, 180)
       : opts.summary.slice(0, 180),

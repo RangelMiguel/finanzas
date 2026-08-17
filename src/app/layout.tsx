@@ -20,14 +20,14 @@ const display = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "MisFinanzas Familiar",
+  title: "Finance",
   description: "Finanzas del hogar seguras con passkeys",
-  applicationName: "MisFinanzas",
+  applicationName: "Finance",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "MisFinanzas",
+    title: "Finance",
   },
   icons: {
     icon: [

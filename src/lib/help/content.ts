@@ -33,7 +33,7 @@ export type HelpContent = {
 
 const es: HelpContent = {
   intro:
-    "Esta guía explica cada pantalla y opción de MisFinanzas Familiar. Úsala como manual del hogar: desde registrar un gasto hasta configurar quién ve qué. Algunas secciones solo aparecen si un administrador te dio acceso a ese módulo.",
+    "Esta guía explica cada pantalla y opción de Finance. Úsala como manual del hogar: desde registrar un gasto hasta configurar quién ve qué. Algunas secciones solo aparecen si un administrador te dio acceso a ese módulo.",
   groups: [
     {
       id: "start",
@@ -42,10 +42,10 @@ const es: HelpContent = {
       sections: [
         {
           id: "overview",
-          title: "Qué es MisFinanzas Familiar",
+          title: "Qué es Finance",
           summary: "Un hogar compartido con cuentas, presupuestos y permisos por persona.",
           paragraphs: [
-            "MisFinanzas Familiar es una app de finanzas del hogar. Un “hogar” reúne a varias personas (pareja, hijos, familiares) que comparten o ven parte de las finanzas.",
+            "Finance es una app de finanzas del hogar. Un “hogar” reúne a varias personas (pareja, hijos, familiares) que comparten o ven parte de las finanzas.",
             "Los datos viven en el servidor del hogar. Cada persona entra con su propia cuenta y una llave de acceso (passkey: Face ID, huella o llave de seguridad). No se usan contraseñas.",
             "Lo que cada uno ve depende de su rol y de la política de seguridad que configure un administrador.",
           ],
@@ -555,7 +555,7 @@ const es: HelpContent = {
           ],
           tips: [
             "Solo admin o dueño pueden generar, regenerar o revocar la llave.",
-            "El monto se escribe en meat, en la moneda del hogar de MisFinanzas.",
+            "El monto se escribe en meat, en la moneda del hogar de Finance.",
           ],
         },
         {
@@ -634,7 +634,7 @@ const es: HelpContent = {
 
 const en: HelpContent = {
   intro:
-    "This guide explains every screen and option in MyFinances Family. Use it as the household manual—from logging a purchase to controlling who sees what. Some sections only appear if an admin granted you that module.",
+    "This guide explains every screen and option in Finance. Use it as the household manual—from logging a purchase to controlling who sees what. Some sections only appear if an admin granted you that module.",
   groups: [
     {
       id: "start",
@@ -643,10 +643,10 @@ const en: HelpContent = {
       sections: [
         {
           id: "overview",
-          title: "What is MyFinances Family?",
+          title: "What is Finance?",
           summary: "A shared household with accounts, budgets, and per-person permissions.",
           paragraphs: [
-            "MyFinances Family is a household finance app. A “household” brings together people (partners, kids, relatives) who share or view part of the money picture.",
+            "Finance is a household finance app. A “household” brings together people (partners, kids, relatives) who share or view part of the money picture.",
             "Data lives with the household. Each person signs in with their own account and a passkey (Face ID, fingerprint, or security key). Passwords are not used.",
             "What each person sees depends on their role and the security policy an admin sets.",
           ],
@@ -1156,7 +1156,7 @@ const en: HelpContent = {
           ],
           tips: [
             "Only an admin or owner can generate, regenerate, or revoke the key.",
-            "The amount is entered in meat, in the MisFinanzas household currency.",
+            "The amount is entered in meat, in the Finance household currency.",
           ],
         },
         {

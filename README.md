@@ -1,4 +1,4 @@
-# MisFinanzas Familiar
+# Finance
 
 Clone of [MisFinanzas Local Only](https://finanzaslocales.lovable.app/) with a **secure multi-user database**, **authentication**, and **household/family sharing**.
 

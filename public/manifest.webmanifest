@@ -1,6 +1,6 @@
 {
-  "name": "MisFinanzas Familiar",
-  "short_name": "MisFinanzas",
+  "name": "Finance",
+  "short_name": "Finance",
   "description": "Finanzas del hogar seguras con passkeys",
   "start_url": "/",
   "scope": "/",
