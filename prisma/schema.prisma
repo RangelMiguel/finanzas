@@ -476,6 +476,8 @@ model MeatLink {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   lastUsedAt   DateTime?
+  /// Public web URL of the meat app, for the suite launcher
+  appUrl       String    @default("")
 
   household  Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
   account    Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)

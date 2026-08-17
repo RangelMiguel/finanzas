@@ -1208,10 +1208,19 @@ export const es = {
       tokenCreated: "Llave creada",
       tokenRevoked: "Llave revocada",
       hint: "En meat → Ajustes → Finance, pega la URL de esta app y la llave.",
+      appUrl: "URL de meat",
+      appUrlHint: "Dirección web de la app meat, para el menú de apps arriba a la derecha.",
       noneOption: "Sin asignar",
       confirmRotate: "¿Regenerar la llave? La anterior dejará de funcionar en meat.",
       confirmRevoke: "¿Revocar la llave? meat dejará de poder enviar gastos.",
     },
+  },
+
+  suite: {
+    apps: "Apps",
+    meat: "meat",
+    meatHint: "Comidas y cocina",
+    needUrl: "Pon la URL de meat en Ajustes → conexión meat",
   },
 
   ai: {
@@ -2810,10 +2819,19 @@ export const en: Dictionary = {
       tokenCreated: "Key created",
       tokenRevoked: "Key revoked",
       hint: "In meat → Settings → Finance, paste this app’s URL and the key.",
+      appUrl: "meat URL",
+      appUrlHint: "Web address of the meat app, for the Apps menu at the top right.",
       noneOption: "Unassigned",
       confirmRotate: "Regenerate the key? The old one will stop working in meat.",
       confirmRevoke: "Revoke the key? meat will no longer be able to send expenses.",
     },
+  },
+
+  suite: {
+    apps: "Apps",
+    meat: "meat",
+    meatHint: "Meals and kitchen",
+    needUrl: "Set the meat URL in Settings → meat connection",
   },
 
   ai: {

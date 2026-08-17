@@ -47,6 +47,7 @@ export function serializeMeatLink(
     creditCardId: string | null;
     categoryId: string | null;
     lastUsedAt: Date | null;
+    appUrl?: string | null;
   } | null
 ) {
   return {
@@ -57,6 +58,7 @@ export function serializeMeatLink(
     creditCardId: link?.creditCardId ?? null,
     categoryId: link?.categoryId ?? null,
     lastUsedAt: link?.lastUsedAt?.toISOString() ?? null,
+    appUrl: (link?.appUrl || "").trim(),
   };
 }
 

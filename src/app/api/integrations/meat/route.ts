@@ -3,6 +3,18 @@ import { requireHouseholdAccess, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { generateMeatToken, serializeMeatLink } from "@/lib/integrations/meat";
+
+function normalizeAppUrl(raw: string): string {
+  const value = raw.trim().replace(/\/+$/, "");
+  if (!value) return "";
+  try {
+    const url = new URL(value.includes("://") ? value : `https://${value}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return url.origin + (url.pathname === "/" ? "" : url.pathname.replace(/\/+$/, ""));
+  } catch {
+    return "";
+  }
+}
 import { logActivity } from "@/lib/household";
 
 export async function GET() {
@@ -28,6 +40,7 @@ export async function PATCH(req: Request) {
         accountId: z.string().nullable().optional(),
         creditCardId: z.string().nullable().optional(),
         categoryId: z.string().nullable().optional(),
+        appUrl: z.string().max(300).optional(),
       })
       .parse(await req.json());
 
@@ -64,6 +77,7 @@ export async function PATCH(req: Request) {
         ...(body.accountId !== undefined ? { accountId: body.accountId } : {}),
         ...(body.creditCardId !== undefined ? { creditCardId: body.creditCardId } : {}),
         ...(body.categoryId !== undefined ? { categoryId: body.categoryId } : {}),
+        ...(body.appUrl !== undefined ? { appUrl: normalizeAppUrl(body.appUrl) } : {}),
       },
     });
     await logActivity({

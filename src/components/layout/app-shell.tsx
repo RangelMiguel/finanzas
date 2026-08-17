@@ -7,6 +7,7 @@ import { Menu, X, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SecurityNotifications } from "@/components/security/security-notifications";
 import { OfflineBanner } from "@/components/offline/offline-banner";
+import { AppLauncher } from "./app-launcher";
 
 export function AppShell({
   children,
@@ -115,6 +116,7 @@ export function AppShell({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <SecurityNotifications />
+            <AppLauncher />
             <div className="hidden max-w-[10rem] truncate rounded-full border border-white/20 bg-white/[0.08] px-2.5 py-1 text-xs text-[var(--fg)] sm:block">
               {userName}
             </div>

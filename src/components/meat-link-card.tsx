@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ type MeatState = {
   accountId: string | null;
   creditCardId: string | null;
   categoryId: string | null;
+  appUrl: string;
 };
 
 type Opt = { id: string; name: string; type?: string; lastFour?: string };
@@ -129,6 +131,24 @@ export function MeatLinkCard() {
       <CardContent className="space-y-4">
         <p className="text-sm text-[var(--fg-muted)]">{copy.subtitle}</p>
         <p className="text-xs text-[var(--fg-faint)]">{copy.hint}</p>
+
+        {meat.hasToken && (
+          <div>
+            <Label>{copy.appUrl}</Label>
+            <Input
+              className="mt-1"
+              type="url"
+              disabled={!canAdmin}
+              defaultValue={meat.appUrl}
+              placeholder="https://meat.example.com"
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                if (next !== (meat.appUrl || "")) savePatch({ appUrl: next });
+              }}
+            />
+            <p className="mt-1 text-xs text-[var(--fg-faint)]">{copy.appUrlHint}</p>
+          </div>
+        )}
 
         <label className="flex items-start gap-3 text-sm">
           <input

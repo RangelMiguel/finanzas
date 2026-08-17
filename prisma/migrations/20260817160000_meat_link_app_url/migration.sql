@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "MeatLink" ADD COLUMN "appUrl" TEXT NOT NULL DEFAULT '';
