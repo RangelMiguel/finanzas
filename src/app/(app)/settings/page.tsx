@@ -15,6 +15,7 @@ import { CURRENCIES, LOCALES } from "@/lib/currencies";
 import type { AppLocale } from "@/lib/currencies";
 import { DEFAULT_THEME, THEMES, type ThemeId } from "@/lib/themes";
 import { PwaSetup } from "@/components/pwa/pwa-setup";
+import { MeatLinkCard } from "@/components/meat-link-card";
 
 type Cat = {
   id: string;
@@ -349,6 +350,8 @@ export default function SettingsPage() {
           </label>
         </CardContent>
       </Card>
+
+      <MeatLinkCard />
 
       <Card premium>
         <CardHeader>

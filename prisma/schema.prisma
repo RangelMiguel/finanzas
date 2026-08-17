@@ -108,6 +108,7 @@ model Household {
   investmentProfiles InvestmentProfile[]
   credits            Credit[]
   creditPayments     CreditPayment[]
+  meatLink           MeatLink?
 }
 
 /// Add-on modules installed for this household (marketplace).
@@ -285,6 +286,7 @@ model Account {
   creditPayments     CreditPayment[]
   goalReserves       GoalReserve[]
   fundings           TransactionFunding[]
+  meatLinks          MeatLink[]
 
   @@index([householdId])
   @@index([householdId, ownerUserId])
@@ -310,6 +312,7 @@ model Category {
   recurringExpenses RecurringExpense[]
   allowances       Allowance[]
   goalReserves     GoalReserve[]
+  meatLinks        MeatLink[]
 
   @@index([householdId])
 }
@@ -443,8 +446,29 @@ model CreditCard {
   installmentPlans InstallmentPlan[]
   fundings         TransactionFunding[]
   recurringExpenses RecurringExpense[]
+  meatLinks         MeatLink[]
 
   @@index([householdId])
+}
+
+/// Inbound API from the meat grocery app (token-auth, no session cookie).
+model MeatLink {
+  id           String    @id @default(cuid())
+  householdId  String    @unique
+  enabled      Boolean   @default(true)
+  tokenHash    String    @unique
+  tokenPrefix  String
+  accountId    String?
+  creditCardId String?
+  categoryId   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastUsedAt   DateTime?
+
+  household  Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  account    Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  creditCard CreditCard? @relation(fields: [creditCardId], references: [id], onDelete: SetNull)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
 
 model InstallmentPlan {

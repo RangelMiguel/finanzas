@@ -11,6 +11,9 @@ function isPublic(path: string) {
   if (path.startsWith("/api/auth/webauthn/login")) return true;
   if (path.startsWith("/api/invites/peek")) return true;
   if (path.startsWith("/api/cron/")) return true;
+  // meat → MisFinanzas inbound API (Bearer token, no session cookie)
+  if (path.startsWith("/api/integrations/meat/purchases")) return true;
+  if (path.startsWith("/api/integrations/meat/status")) return true;
   if (path.startsWith("/_next") || path.startsWith("/favicon")) return true;
   return false;
 }
