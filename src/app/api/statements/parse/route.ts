@@ -4,11 +4,12 @@ import { jsonError, jsonOk } from "@/lib/access";
 import { parseStatementRules } from "@/lib/statement-parse";
 import { extractStatementWithLlm } from "@/lib/llm/extract-statement";
 import { loadPrivateAiSettings } from "@/lib/ai/settings";
+import { loadFinancePrivacy } from "@/lib/ai/privacyBook";
 
 export async function POST(req: Request) {
   try {
     const session = await requireSession();
-    await requireHouseholdAccess(session.userId);
+    const access = await requireHouseholdAccess(session.userId);
     const body = z
       .object({
         text: z.string().min(1),
@@ -22,7 +23,8 @@ export async function POST(req: Request) {
 
     if (settings && !body.forceRules) {
       try {
-        const llm = await extractStatementWithLlm(body.text, settings);
+        const privacy = await loadFinancePrivacy(access.householdId, session.userId);
+        const llm = await extractStatementWithLlm(body.text, settings, privacy.book);
         if (llm.items.length > 0) {
           result = llm;
         } else {

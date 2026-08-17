@@ -1,4 +1,5 @@
 import { completeWithUserSettings, type AiSettings } from "../ai/complete";
+import { redactForModel, type PrivacyBook } from "../ai/privacy";
 import { parseJsonFromLlm } from "./client";
 
 export type StatementMsiItem = {
@@ -39,7 +40,8 @@ Rules:
 
 export async function extractStatementWithLlm(
   text: string,
-  settings: AiSettings
+  settings: AiSettings,
+  privacy?: PrivacyBook
 ): Promise<StatementParseResult> {
   const { text: out, provider, model } = await completeWithUserSettings(
     settings,
@@ -47,10 +49,10 @@ export async function extractStatementWithLlm(
       { role: "system", content: SYSTEM },
       {
         role: "user",
-        content: `Extract MSI / installment purchases from this statement:\n\n${text.slice(0, 14000)}`,
+        content: `Extract MSI / installment purchases from this statement:\n\n${redactForModel(text.slice(0, 14000), privacy)}`,
       },
     ],
-    { temperature: 0.05 }
+    { temperature: 0.05, privacy }
   );
 
   const data = parseJsonFromLlm<{

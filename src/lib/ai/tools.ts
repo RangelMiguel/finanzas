@@ -15,6 +15,8 @@ import {
   type MemberVisibility,
 } from "@/lib/visibility";
 import type { ToolCallRequest, ToolExecResult, ToolSpec } from "./complete";
+import { redactForModel } from "./privacy";
+import { loadFinancePrivacy, type FinancePrivacy } from "./privacyBook";
 
 export type FinanceToolContext = {
   userId: string;
@@ -23,6 +25,7 @@ export type FinanceToolContext = {
   subjectUserId: string;
   currency: string;
   locale: string;
+  privacy?: FinancePrivacy;
 };
 
 const fundingInclude = {
@@ -57,7 +60,7 @@ export const FINANCE_TOOLS: ToolSpec[] = [
   },
   {
     name: "list_credit_cards",
-    description: "List household credit cards with ids and last four digits.",
+    description: "List household credit cards as Card 1, Card 2… with ids. Never ask for or return card numbers.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -90,9 +93,9 @@ export const FINANCE_TOOLS: ToolSpec[] = [
         description: { type: "string" },
         date: { type: "string", description: "YYYY-MM-DD, defaults to today" },
         category: { type: "string", description: "Category name or id" },
-        account: { type: "string", description: "Account name or id to pay from" },
-        creditCard: { type: "string", description: "Credit card name, last four, or id" },
-        spentBy: { type: "string", description: "Member name or id; omit for household shared" },
+        account: { type: "string", description: "Account id or alias (Account 1)" },
+        creditCard: { type: "string", description: "Card id or alias (Card 1). Never a card number." },
+        spentBy: { type: "string", description: "Member id or alias (You / Member 2); omit for household shared" },
       },
       required: ["amount", "description"],
       additionalProperties: false,
@@ -148,30 +151,32 @@ export async function executeFinanceTool(
   call: ToolCallRequest
 ): Promise<ToolExecResult> {
   const args = call.arguments ?? {};
+  const privacy = ctx.privacy ?? (await loadFinancePrivacy(ctx.householdId, ctx.subjectUserId));
+  const next = { ...ctx, privacy };
   switch (call.name) {
     case "list_accounts":
-      return listAccounts(ctx);
+      return listAccounts(next);
     case "list_categories":
-      return listCategories(ctx, str(args.type));
+      return listCategories(next, str(args.type));
     case "list_credit_cards":
-      return listCreditCards(ctx);
+      return listCreditCards(next);
     case "list_members":
-      return listMembers(ctx);
+      return listMembers(next);
     case "search_transactions":
-      return searchTransactions(ctx, {
+      return searchTransactions(next, {
         query: str(args.query),
         type: str(args.type),
         month: str(args.month),
         limit: num(args.limit),
       });
     case "add_expense":
-      return addMovement(ctx, "expense", args);
+      return addMovement(next, "expense", args);
     case "add_income":
-      return addMovement(ctx, "income", args);
+      return addMovement(next, "income", args);
     case "update_transaction":
-      return updateMovement(ctx, args);
+      return updateMovement(next, args);
     case "delete_transaction":
-      return deleteMovement(ctx, str(args.id));
+      return deleteMovement(next, str(args.id));
     default:
       return { ok: false, summary: `Unknown tool ${call.name}`, error: "unknown_tool" };
   }
@@ -203,9 +208,8 @@ async function listAccounts(ctx: FinanceToolContext): Promise<ToolExecResult> {
     : [];
   const rows = accounts.map((acc) => ({
     id: acc.id,
-    name: acc.name,
+    alias: ctx.privacy?.accounts.find((row) => row.id === acc.id)?.alias || "Account",
     type: acc.type,
-    icon: acc.icon,
     balance: canSeeAccountBalances(ctx.visibility)
       ? formatMoney(accountBalance(acc.initialBalanceCents, txns, acc.id), ctx.currency, ctx.locale)
       : null,
@@ -231,10 +235,17 @@ async function listCreditCards(ctx: FinanceToolContext): Promise<ToolExecResult>
   }
   const rows = await prisma.creditCard.findMany({
     where: { householdId: ctx.householdId },
-    select: { id: true, name: true, lastFour: true },
+    select: { id: true, name: true },
     take: 30,
   });
-  return { ok: true, summary: `${rows.length} cards`, data: rows };
+  return {
+    ok: true,
+    summary: `${rows.length} cards`,
+    data: rows.map((row) => ({
+      id: row.id,
+      alias: ctx.privacy?.cards.find((item) => item.id === row.id)?.alias || "Card",
+    })),
+  };
 }
 
 async function listMembers(ctx: FinanceToolContext): Promise<ToolExecResult> {
@@ -248,7 +259,7 @@ async function listMembers(ctx: FinanceToolContext): Promise<ToolExecResult> {
     summary: `${rows.length} members`,
     data: rows.map((row) => ({
       id: row.userId,
-      name: row.user.displayName,
+      alias: ctx.privacy?.members.find((item) => item.id === row.userId)?.alias || "Member",
       role: row.role,
     })),
   };
@@ -285,7 +296,7 @@ async function searchTransactions(
       date: txn.date,
       type: txn.type,
       amount: formatMoney(txn.amountCents, ctx.currency, ctx.locale),
-      description: txn.description,
+      description: redactDesc(txn.description, ctx.privacy),
       category: txn.category?.name ?? null,
     }));
   return { ok: true, summary: `${rows.length} movements`, data: rows };
@@ -340,13 +351,23 @@ async function addMovement(
 
   const account = await resolveNamed(
     str(args.account),
-    accounts.map((row) => ({ id: row.id, names: [row.name] })),
+    accounts.map((row) => ({
+      id: row.id,
+      names: [row.name, ctx.privacy?.accounts.find((item) => item.id === row.id)?.alias].filter(
+        Boolean
+      ) as string[],
+    })),
     "account"
   );
   if (account.status === "ambiguous") return account.result;
   const card = await resolveNamed(
     str(args.creditCard),
-    cards.map((row) => ({ id: row.id, names: [row.name, row.lastFour] })),
+    cards.map((row) => ({
+      id: row.id,
+      names: [row.name, ctx.privacy?.cards.find((item) => item.id === row.id)?.alias].filter(
+        Boolean
+      ) as string[],
+    })),
     "credit card"
   );
   if (card.status === "ambiguous") return card.result;
@@ -368,11 +389,13 @@ async function addMovement(
         summary: "Say which account or card to use",
         error: "payment_source",
         data: {
-          accounts: accounts.map((row) => ({ id: row.id, name: row.name })),
+          accounts: accounts.map((row) => ({
+            id: row.id,
+            alias: ctx.privacy?.accounts.find((item) => item.id === row.id)?.alias || "Account",
+          })),
           creditCards: cards.map((row) => ({
             id: row.id,
-            name: row.name,
-            lastFour: row.lastFour,
+            alias: ctx.privacy?.cards.find((item) => item.id === row.id)?.alias || "Card",
           })),
         },
       };
@@ -394,7 +417,13 @@ async function addMovement(
     });
     const spent = await resolveNamed(
       str(args.spentBy),
-      members.map((row) => ({ id: row.userId, names: [row.user.displayName] })),
+      members.map((row) => ({
+        id: row.userId,
+        names: [
+          row.user.displayName,
+          ctx.privacy?.members.find((item) => item.id === row.userId)?.alias,
+        ].filter(Boolean) as string[],
+      })),
       "member"
     );
     if (spent.status === "ambiguous") return spent.result;
@@ -455,20 +484,27 @@ async function addMovement(
     summary: `${type === "income" ? "Ingreso" : "Gasto"} (IA): ${description}`,
   });
   const money = formatMoney(amountCents, ctx.currency, ctx.locale);
-  const via = full?.creditCard?.name || full?.account?.name || "";
+  const via =
+    (full?.creditCardId && ctx.privacy?.cards.find((row) => row.id === full.creditCardId)?.alias) ||
+    (full?.accountId && ctx.privacy?.accounts.find((row) => row.id === full.accountId)?.alias) ||
+    "";
   return {
     ok: true,
     mutated: true,
-    summary: `${type === "income" ? "Income" : "Expense"} ${money} · ${description}${via ? ` · ${via}` : ""}`,
+    summary: `${type === "income" ? "Income" : "Expense"} ${money} · ${redactDesc(description, ctx.privacy)}${via ? ` · ${via}` : ""}`,
     data: {
       id: txn.id,
       date,
       type,
       amount: money,
-      description,
+      description: redactDesc(description, ctx.privacy),
       category: full?.category?.name ?? null,
-      account: full?.account?.name ?? null,
-      creditCard: full?.creditCard?.name ?? null,
+      account: full?.accountId
+        ? ctx.privacy?.accounts.find((row) => row.id === full.accountId)?.alias || "Account"
+        : null,
+      creditCard: full?.creditCardId
+        ? ctx.privacy?.cards.find((row) => row.id === full.creditCardId)?.alias || "Card"
+        : null,
     },
   };
 }
@@ -535,12 +571,12 @@ async function updateMovement(
   return {
     ok: true,
     mutated: true,
-    summary: `Updated ${txn.description} · ${money}`,
+    summary: `Updated ${redactDesc(txn.description, ctx.privacy)} · ${money}`,
     data: {
       id: txn.id,
       date: txn.date,
       amount: money,
-      description: txn.description,
+      description: redactDesc(txn.description, ctx.privacy),
       category: txn.category?.name ?? null,
     },
   };
@@ -595,7 +631,7 @@ async function resolveNamed(
         ok: false,
         summary: `No ${label} matched "${hint}"`,
         error: "not_found",
-        data: { candidates: rows.slice(0, 12).map((row) => ({ id: row.id, name: row.names[0] })) },
+        data: { candidates: rows.slice(0, 12).map((row) => ({ id: row.id })) },
       },
     };
   }
@@ -606,7 +642,7 @@ async function resolveNamed(
       summary: `Several ${label}s match "${hint}". Pick one.`,
       error: "ambiguous",
       data: {
-        candidates: scored.slice(0, 8).map((row) => ({ id: row.id, name: row.names[0], score: row.score })),
+        candidates: scored.slice(0, 8).map((row) => ({ id: row.id })),
       },
     },
   };
@@ -624,6 +660,10 @@ function matchScore(query: string, name?: string | null): number {
   if (n.startsWith(q) || q.startsWith(n)) return 82;
   if (n.includes(q) || q.includes(n)) return 68;
   return 0;
+}
+
+function redactDesc(text: string, privacy?: FinancePrivacy): string {
+  return redactForModel(text, privacy?.book);
 }
 
 function fold(value?: string | null): string {

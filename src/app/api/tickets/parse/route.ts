@@ -6,6 +6,7 @@ import { parseTicketText } from "@/lib/ticket-parse";
 import { resolveCategoryId } from "@/lib/categorize";
 import { extractReceiptWithLlm } from "@/lib/llm/extract-receipt";
 import { loadPrivateAiSettings } from "@/lib/ai/settings";
+import { loadFinancePrivacy } from "@/lib/ai/privacyBook";
 
 export async function POST(req: Request) {
   try {
@@ -31,7 +32,8 @@ export async function POST(req: Request) {
     const settings = await loadPrivateAiSettings(session.userId);
     if (settings && !body.forceRules) {
       try {
-        const llm = await extractReceiptWithLlm(body.text, settings);
+        const privacy = await loadFinancePrivacy(m.householdId, session.userId);
+        const llm = await extractReceiptWithLlm(body.text, settings, privacy.book);
         // Prefer LLM if it found items; otherwise keep rules
         if (llm.items.length > 0) {
           parsed = llm;

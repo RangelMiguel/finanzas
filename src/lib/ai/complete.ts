@@ -1,3 +1,5 @@
+import { redactForModel, redactValue, type PrivacyBook } from "./privacy";
+
 export type AiProvider = "xai" | "openai" | "gemini" | "custom";
 
 export type AiSettings = {
@@ -35,6 +37,8 @@ export type ChatMessage = {
   name?: string;
 };
 
+export type { PrivacyBook };
+
 export type AiAction = { name: string; summary: string };
 
 const OPENAI_COMPAT: Record<Exclude<AiProvider, "gemini">, string> = {
@@ -53,6 +57,7 @@ export function defaultModel(provider: AiProvider): string {
 type CompleteOpts = {
   temperature?: number;
   tools?: ToolSpec[];
+  privacy?: PrivacyBook;
 };
 
 type CompletePayload = {
@@ -65,7 +70,7 @@ type CompletePayload = {
 export async function completeWithUserSettings(
   settings: AiSettings,
   messages: ChatMessage[],
-  opts?: { temperature?: number }
+  opts?: { temperature?: number; privacy?: PrivacyBook }
 ): Promise<{ text: string; provider: string; model: string }> {
   const result = await completeOnce(settings, messages, opts);
   if (!result.text) throw new Error("El modelo no devolvió texto");
@@ -79,6 +84,7 @@ export async function completeWithTools(opts: {
   execute: (call: ToolCallRequest) => Promise<ToolExecResult>;
   maxRounds?: number;
   temperature?: number;
+  privacy?: PrivacyBook;
 }): Promise<{ text: string; provider: string; model: string; actions: AiAction[] }> {
   const maxRounds = opts.maxRounds ?? 6;
   const messages = [...opts.messages];
@@ -91,6 +97,7 @@ export async function completeWithTools(opts: {
       last = await completeOnce(opts.settings, messages, {
         temperature: opts.temperature,
         tools: toolsEnabled ? opts.tools : undefined,
+        privacy: opts.privacy,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -98,6 +105,7 @@ export async function completeWithTools(opts: {
         toolsEnabled = false;
         last = await completeOnce(opts.settings, messages, {
           temperature: opts.temperature,
+          privacy: opts.privacy,
         });
       } else {
         throw err;
@@ -134,7 +142,7 @@ export async function completeWithTools(opts: {
         role: "tool",
         name: call.name,
         tool_call_id: call.id,
-        content: JSON.stringify(result),
+        content: JSON.stringify(redactValue(result, opts.privacy)),
       });
     }
   }
@@ -161,10 +169,22 @@ async function completeOnce(
   messages: ChatMessage[],
   opts?: CompleteOpts
 ): Promise<CompletePayload> {
+  const safe = scrubMessages(messages, opts?.privacy);
   if (settings.provider === "gemini") {
-    return completeGemini(settings, messages, opts);
+    return completeGemini(settings, safe, opts);
   }
-  return completeOpenAiCompat(settings, messages, opts);
+  return completeOpenAiCompat(settings, safe, opts);
+}
+
+function scrubMessages(messages: ChatMessage[], book?: PrivacyBook): ChatMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    content: redactForModel(message.content || "", book),
+    tool_calls: message.tool_calls?.map((call) => ({
+      ...call,
+      arguments: (redactValue(call.arguments ?? {}, book) || {}) as Record<string, unknown>,
+    })),
+  }));
 }
 
 function asOpenAiTools(tools: ToolSpec[]) {

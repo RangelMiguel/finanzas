@@ -1,6 +1,7 @@
 import type { TicketParseResult, TicketLineItem } from "../ticket-parse";
 import { suggestCategoryName } from "../categorize";
 import { completeWithUserSettings, type AiSettings } from "../ai/complete";
+import { redactForModel, type PrivacyBook } from "../ai/privacy";
 import { parseJsonFromLlm } from "./client";
 
 type LlmReceiptJson = {
@@ -36,7 +37,8 @@ Rules:
 
 export async function extractReceiptWithLlm(
   text: string,
-  settings: AiSettings
+  settings: AiSettings,
+  privacy?: PrivacyBook
 ): Promise<TicketParseResult & { engine: "llm"; provider: string; model: string }> {
   const { text: out, provider, model } = await completeWithUserSettings(
     settings,
@@ -44,10 +46,10 @@ export async function extractReceiptWithLlm(
       { role: "system", content: SYSTEM },
       {
         role: "user",
-        content: `Extract products and prices from this receipt text:\n\n${text.slice(0, 12000)}`,
+        content: `Extract products and prices from this receipt text:\n\n${redactForModel(text.slice(0, 12000), privacy)}`,
       },
     ],
-    { temperature: 0.05 }
+    { temperature: 0.05, privacy }
   );
 
   const data = parseJsonFromLlm<LlmReceiptJson>(out);

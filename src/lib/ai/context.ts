@@ -7,6 +7,8 @@ import {
   filterTransaction,
   type MemberVisibility,
 } from "@/lib/visibility";
+import { redactForModel } from "./privacy";
+import { loadFinancePrivacy } from "./privacyBook";
 
 function clip(text: string, max = 12_000): string {
   if (text.length <= max) return text;
@@ -21,13 +23,15 @@ export async function buildFinanceContext(opts: {
   householdName: string;
   locale: string;
 }): Promise<string> {
-  const { householdId, visibility, currency, householdName, locale } = opts;
+  const { householdId, visibility, currency, locale } = opts;
+  const privacy = await loadFinancePrivacy(householdId, opts.subjectUserId);
   const period = budgetPeriodKey();
   const lines: string[] = [
-    `App: Finance (household finances)`,
-    `Household: ${householdName}`,
+    "App: Finance (household finances)",
+    "Household: Household",
     `Currency: ${currency}`,
     `Period: ${period}`,
+    "People, account labels, card numbers, emails, and phones are omitted. Use Account N / Card N / Member N or ids from tools.",
   ];
 
   if (canSeeModule(visibility, "accounts") && canSeeAccountBalances(visibility)) {
@@ -52,8 +56,9 @@ export async function buildFinanceContext(opts: {
     lines.push("Accounts:");
     for (const acc of accounts) {
       const bal = accountBalance(acc.initialBalanceCents, txns, acc.id);
+      const alias = privacy.accounts.find((row) => row.id === acc.id)?.alias || "Account";
       lines.push(
-        `- ${acc.icon} ${acc.name} (${acc.type}): ${formatMoney(bal, currency, locale)}`
+        `- ${alias} (${acc.type}) id=${acc.id}: ${formatMoney(bal, currency, locale)}`
       );
     }
   }
@@ -72,7 +77,7 @@ export async function buildFinanceContext(opts: {
     for (const txn of visible) {
       const cat = txn.category?.name || "uncategorized";
       lines.push(
-        `- ${txn.date} ${txn.type} ${formatMoney(txn.amountCents, currency, locale)} · ${txn.description} [${cat}]`
+        `- ${txn.date} ${txn.type} ${formatMoney(txn.amountCents, currency, locale)} · ${redactForModel(txn.description, privacy.book)} [${cat}]`
       );
     }
   }
@@ -103,7 +108,7 @@ export async function buildFinanceContext(opts: {
       lines.push("Debts:");
       for (const d of debts) {
         lines.push(
-          `- ${d.name}: principal ${formatMoney(d.principalCents, currency, locale)}, monthly ${formatMoney(d.monthlyPaymentCents, currency, locale)}`
+          `- ${redactForModel(d.name, privacy.book)}: principal ${formatMoney(d.principalCents, currency, locale)}, monthly ${formatMoney(d.monthlyPaymentCents, currency, locale)}`
         );
       }
     }
@@ -118,7 +123,9 @@ export async function buildFinanceContext(opts: {
     if (goals.length) {
       lines.push("Goals:");
       for (const g of goals) {
-        lines.push(`- ${g.name}: target ${formatMoney(g.targetAmountCents, currency, locale)}`);
+        lines.push(
+          `- ${redactForModel(g.name, privacy.book)}: target ${formatMoney(g.targetAmountCents, currency, locale)}`
+        );
       }
     }
   }
@@ -127,5 +134,5 @@ export async function buildFinanceContext(opts: {
     "Grocery shops posted from the meat app appear as expenses (often auto-generated, description starts with meat / Compra meat)."
   );
 
-  return clip(lines.join("\n"));
+  return clip(redactForModel(lines.join("\n"), privacy.book));
 }

@@ -7,12 +7,13 @@ import { completeWithTools } from "@/lib/ai/complete";
 import { buildFinanceContext } from "@/lib/ai/context";
 import { loadPrivateAiSettings, loadPublicAiSettings } from "@/lib/ai/settings";
 import { executeFinanceTool, FINANCE_TOOLS } from "@/lib/ai/tools";
+import { loadFinancePrivacy } from "@/lib/ai/privacyBook";
 
 const TOOL_RULES = [
   "You can read and change this household with tools.",
   "When the user asks to add, update, or delete a movement, call the matching tool. Do not pretend you saved it.",
   "Amounts are in household currency units, never cents (185.50 not 18550).",
-  "Resolve account, card, and category by name. If several match, ask or list them.",
+  "Refer to payment sources as Account N / Card N or their ids. Never ask for or repeat names, emails, phones, card numbers, last-four digits, or account numbers.",
   "After the first turn there is no snapshot — use list_* / search_transactions for current numbers.",
   "Do not invent balances or transactions. Confirm what the tool actually saved.",
   "Do not delete unless the user clearly asked.",
@@ -88,10 +89,15 @@ export async function POST(req: Request) {
       ].join("\n");
     }
 
+    const privacy = await loadFinancePrivacy(
+      access.householdId,
+      access.subjectUserId || session.userId
+    );
     const result = await completeWithTools({
       settings,
       messages: [{ role: "system", content: system }, ...body.messages.slice(-12)],
       tools: FINANCE_TOOLS,
+      privacy: privacy.book,
       execute: (call) =>
         executeFinanceTool(
           {
@@ -101,6 +107,7 @@ export async function POST(req: Request) {
             subjectUserId: access.subjectUserId || session.userId,
             currency,
             locale,
+            privacy,
           },
           call
         ),
