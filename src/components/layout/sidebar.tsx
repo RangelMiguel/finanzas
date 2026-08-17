@@ -28,6 +28,7 @@ import {
   ShoppingBasket,
   TrendingUp,
   HandCoins,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -199,6 +200,7 @@ export function Sidebar({
       adminOnly: true,
     },
     { href: "/settings", label: t.nav.settings, icon: Settings, module: "settings" },
+    { href: "/ai", label: t.nav.ai, icon: Sparkles },
     // Always visible — no module gate
     { href: "/help", label: t.nav.help, icon: CircleHelp },
   ];
