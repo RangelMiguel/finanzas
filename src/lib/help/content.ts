@@ -524,7 +524,38 @@ const es: HelpContent = {
             "Preferencias personales: idioma, tamaño de texto, reducir movimiento, alto contraste, subrayar enlaces, y tema visual (varios colores; el predeterminado es midnight).",
             "Admin/dueño: nombre del hogar, moneda del hogar, y gestión de categorías (nombre, tipo ingreso/gasto, icono, color).",
             "Las categorías organizan movimientos y presupuestos. Ocultar una categoría en Seguridad la esconde en listados y presupuestos para ese miembro.",
+            "También puedes conectar la app de compras meat (en meat se llama Finance) para que una lista marcada como comprada llegue aquí como gasto.",
             "Zona peligrosa: borrar datos del hogar exige escribir una palabra de confirmación. Es irreversible.",
+          ],
+        },
+        {
+          id: "meat-link",
+          title: "Conexión con meat (Finance)",
+          summary: "Recibe el gasto del súper cuando marcas la compra como hecha en meat.",
+          href: "/settings",
+          paragraphs: [
+            "meat es la app de comidas y lista de compras del hogar. En meat, esta conexión se llama Finance.",
+            "Un admin o dueño genera una llave en Ajustes → Conexión con meat, elige la cuenta o tarjeta que paga y la categoría (por ejemplo Alimentación), y copia la URL de esta app más la llave en meat → Ajustes → Finance.",
+            "Cuando en meat marcas la lista como comprada, escribes cuánto pagaste. Ese monto se registra aquí como un gasto automático, con un resumen de lo que compraste.",
+            "Si meat no puede enviar el gasto (llave revocada, app apagada o sin monto), la compra igual se guarda en el inventario de meat. Puedes completar sin enviar o registrar el movimiento a mano.",
+          ],
+          bullets: [
+            {
+              title: "Llave",
+              body: "Se muestra completa solo al crearla o regenerarla. Revocarla o regenerarla deja de funcionar la llave anterior en meat.",
+            },
+            {
+              title: "Cuenta o tarjeta",
+              body: "Define de dónde sale el dinero. Si no eliges, el gasto igual se crea; si hay categoría Alimentación, se usa por defecto.",
+            },
+            {
+              title: "Probar conexión",
+              body: "En meat, después de guardar URL y llave, usa “Probar conexión” antes de la primera compra.",
+            },
+          ],
+          tips: [
+            "Solo admin o dueño pueden generar, regenerar o revocar la llave.",
+            "El monto se escribe en meat, en la moneda del hogar de MisFinanzas.",
           ],
         },
         {
@@ -1094,7 +1125,38 @@ const en: HelpContent = {
             "Personal preferences: language, font size, reduced motion, high contrast, underline links, and visual theme (several colors; default is midnight).",
             "Admin/owner: household name, household currency, and categories (name, income/expense type, icon, color).",
             "Categories organize activity and budgets. Hiding a category in Security hides it in lists and budgets for that member.",
+            "You can also connect the meat grocery app (called Finance inside meat) so a completed shopping list arrives here as an expense.",
             "Danger zone: wiping household data requires typing a confirmation word. Irreversible.",
+          ],
+        },
+        {
+          id: "meat-link",
+          title: "meat connection (Finance)",
+          summary: "Receive the grocery spend when a shop is marked bought in meat.",
+          href: "/settings",
+          paragraphs: [
+            "meat is the household meal and shopping-list app. Inside meat, this link is labeled Finance.",
+            "An admin or owner generates a key in Settings → meat connection, picks the paying account or card and a category (for example Food), then pastes this app’s URL and the key in meat → Settings → Finance.",
+            "When you mark the list as bought in meat, you enter what you paid. That amount is posted here as an automatic expense, with a short list of what you bought.",
+            "If meat cannot send the expense (revoked key, Finance is down, or no amount), the shop still lands in meat inventory. You can complete without sending, or log the movement by hand.",
+          ],
+          bullets: [
+            {
+              title: "Key",
+              body: "The full key is shown only when you create or regenerate it. Revoking or regenerating stops the old key from working in meat.",
+            },
+            {
+              title: "Account or card",
+              body: "Chooses where the money comes from. If you leave it blank the expense is still created; the Food category is used when present.",
+            },
+            {
+              title: "Test connection",
+              body: "In meat, after saving the URL and key, use “Test connection” before the first shop.",
+            },
+          ],
+          tips: [
+            "Only an admin or owner can generate, regenerate, or revoke the key.",
+            "The amount is entered in meat, in the MisFinanzas household currency.",
           ],
         },
         {
