@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
 import { Sparkles } from "lucide-react";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Action = { name: string; summary: string };
+type Msg = { role: "user" | "assistant"; content: string; actions?: Action[] };
 
 export default function AiPage() {
   const { t } = useApp();
@@ -60,11 +61,14 @@ export default function AiPage() {
     setDraft("");
     setBusy(true);
     try {
-      const res = await api<{ reply: string }>("/api/ai/ask", {
+      const res = await api<{ reply: string; actions?: Action[] }>("/api/ai/ask", {
         method: "POST",
         json: { messages: next },
       });
-      setMessages([...next, { role: "assistant", content: res.reply }]);
+      setMessages([
+        ...next,
+        { role: "assistant", content: res.reply, actions: res.actions ?? [] },
+      ]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
     } finally {
@@ -127,6 +131,18 @@ export default function AiPage() {
                     {msg.role === "user" ? copy.you : copy.assistant}
                   </div>
                   <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {msg.actions && msg.actions.length > 0 && (
+                    <ul className="mt-2 flex flex-wrap gap-1.5">
+                      {msg.actions.map((action, j) => (
+                        <li
+                          key={`${action.name}-${j}`}
+                          className="rounded-full bg-[var(--accent)]/15 px-2 py-0.5 text-[11px] text-[var(--fg-muted)]"
+                        >
+                          {action.summary}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ))}
               {busy && <p className="text-xs text-[var(--fg-faint)]">{copy.thinking}</p>}

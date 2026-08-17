@@ -1,7 +1,7 @@
 import type { TicketParseResult, TicketLineItem } from "../ticket-parse";
 import { suggestCategoryName } from "../categorize";
-import { llmComplete, parseJsonFromLlm } from "./client";
-import { getLlmConfig } from "./config";
+import { completeWithUserSettings, type AiSettings } from "../ai/complete";
+import { parseJsonFromLlm } from "./client";
 
 type LlmReceiptJson = {
   merchant?: string | null;
@@ -35,12 +35,11 @@ Rules:
 - do not invent items that are not on the receipt`;
 
 export async function extractReceiptWithLlm(
-  text: string
+  text: string,
+  settings: AiSettings
 ): Promise<TicketParseResult & { engine: "llm"; provider: string; model: string }> {
-  const cfg = getLlmConfig();
-  if (!cfg.enabled) throw new Error(cfg.reason);
-
-  const { text: out, provider, model } = await llmComplete(
+  const { text: out, provider, model } = await completeWithUserSettings(
+    settings,
     [
       { role: "system", content: SYSTEM },
       {
@@ -48,7 +47,7 @@ export async function extractReceiptWithLlm(
         content: `Extract products and prices from this receipt text:\n\n${text.slice(0, 12000)}`,
       },
     ],
-    { json: true, temperature: 0.05 }
+    { temperature: 0.05 }
   );
 
   const data = parseJsonFromLlm<LlmReceiptJson>(out);

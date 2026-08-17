@@ -71,6 +71,12 @@ model Household {
   createdBy String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  /// When true, members without their own key use the household AI key
+  aiShared    Boolean  @default(false)
+  aiProvider  String   @default("xai")
+  aiBaseUrl   String   @default("")
+  aiModel     String   @default("grok-4.5")
+  aiApiKeyEnc String   @default("")
 
   creator          User?              @relation("HouseholdCreator", fields: [createdBy], references: [id])
   memberships      Membership[]

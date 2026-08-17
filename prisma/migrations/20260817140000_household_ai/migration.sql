@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Household" ADD COLUMN "aiShared" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Household" ADD COLUMN "aiProvider" TEXT NOT NULL DEFAULT 'xai';
+ALTER TABLE "Household" ADD COLUMN "aiBaseUrl" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Household" ADD COLUMN "aiModel" TEXT NOT NULL DEFAULT 'grok-4.5';
+ALTER TABLE "Household" ADD COLUMN "aiApiKeyEnc" TEXT NOT NULL DEFAULT '';

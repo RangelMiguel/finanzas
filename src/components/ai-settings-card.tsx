@@ -18,6 +18,9 @@ type PublicAi = {
   hasKey: boolean;
   keyHint: string | null;
   consented: boolean;
+  usingFamilyKey: boolean;
+  familyShared: boolean;
+  canManageFamily: boolean;
 };
 
 export function AiSettingsCard() {
@@ -29,6 +32,7 @@ export function AiSettingsCard() {
   const [model, setModel] = useState("grok-4.5");
   const [apiKey, setApiKey] = useState("");
   const [consent, setConsent] = useState(false);
+  const [shareWithFamily, setShareWithFamily] = useState(false);
 
   async function load() {
     const res = await api<{ ai: PublicAi }>("/api/ai/settings");
@@ -37,6 +41,7 @@ export function AiSettingsCard() {
     setBaseUrl(res.ai.baseUrl);
     setModel(res.ai.model);
     setConsent(res.ai.consented);
+    setShareWithFamily(res.ai.familyShared);
     setApiKey("");
   }
 
@@ -46,6 +51,7 @@ export function AiSettingsCard() {
   }, []);
 
   async function save() {
+    if (!ai) return;
     try {
       const res = await api<{ ai: PublicAi }>("/api/ai/settings", {
         method: "PATCH",
@@ -55,10 +61,12 @@ export function AiSettingsCard() {
           model,
           apiKey: apiKey.trim() || undefined,
           consent,
+          shareWithFamily: ai.canManageFamily ? shareWithFamily : undefined,
         },
       });
       setAi(res.ai);
       setApiKey("");
+      setShareWithFamily(res.ai.familyShared);
       toast.success(copy.saved);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t.error);
@@ -139,6 +147,26 @@ export function AiSettingsCard() {
             </button>
           )}
         </div>
+        {ai.usingFamilyKey && (
+          <p className="text-xs text-[var(--fg-muted)]">{copy.usingFamilyKey}</p>
+        )}
+        {ai.canManageFamily && (
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={shareWithFamily}
+              onChange={(e) => setShareWithFamily(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium text-[var(--fg)]">{copy.shareFamily}</span>
+              <span className="mt-1 block text-xs text-[var(--fg-faint)]">{copy.shareFamilyHint}</span>
+              {shareWithFamily && (
+                <span className="mt-1 block text-xs text-[var(--fg-muted)]">{copy.familySharedOn}</span>
+              )}
+            </span>
+          </label>
+        )}
         <label className="flex items-start gap-3 text-sm">
           <input
             type="checkbox"

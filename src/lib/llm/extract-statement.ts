@@ -1,5 +1,5 @@
-import { llmComplete, parseJsonFromLlm } from "./client";
-import { getLlmConfig } from "./config";
+import { completeWithUserSettings, type AiSettings } from "../ai/complete";
+import { parseJsonFromLlm } from "./client";
 
 export type StatementMsiItem = {
   description: string;
@@ -38,12 +38,11 @@ Rules:
 - do not invent entries`;
 
 export async function extractStatementWithLlm(
-  text: string
+  text: string,
+  settings: AiSettings
 ): Promise<StatementParseResult> {
-  const cfg = getLlmConfig();
-  if (!cfg.enabled) throw new Error(cfg.reason);
-
-  const { text: out, provider, model } = await llmComplete(
+  const { text: out, provider, model } = await completeWithUserSettings(
+    settings,
     [
       { role: "system", content: SYSTEM },
       {
@@ -51,7 +50,7 @@ export async function extractStatementWithLlm(
         content: `Extract MSI / installment purchases from this statement:\n\n${text.slice(0, 14000)}`,
       },
     ],
-    { json: true, temperature: 0.05 }
+    { temperature: 0.05 }
   );
 
   const data = parseJsonFromLlm<{

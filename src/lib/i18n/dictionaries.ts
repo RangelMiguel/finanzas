@@ -1158,6 +1158,7 @@ export const es = {
     unit: "P. unit.",
     sample: "Cargar ejemplo",
     review: "Revisa y corrige antes de guardar",
+    needAi: "configura un proveedor y una llave en Ajustes para extraer con IA",
   },
 
   settings: {
@@ -1215,7 +1216,7 @@ export const es = {
 
   ai: {
     title: "Asistente",
-    subtitle: "Pregunta sobre lo que está registrado en este hogar.",
+    subtitle: "Pregunta sobre el hogar, o dile que registre un gasto o ingreso.",
     settingsTitle: "Inteligencia artificial",
     settingsSub:
       "Usa tu propia suscripción. La llave se guarda cifrada en el servidor y nunca se muestra completa.",
@@ -1233,6 +1234,11 @@ export const es = {
     keyCleared: "Llave eliminada",
     save: "Guardar IA",
     saved: "Ajustes de IA guardados",
+    shareFamily: "Compartir esta llave con la familia",
+    shareFamilyHint:
+      "Los demás miembros pueden usar este proveedor y llave salvo que pongan la suya. Cada persona sigue aceptando el aviso de privacidad.",
+    usingFamilyKey: "Estás usando la llave de la familia. Agrega la tuya para sustituirla.",
+    familySharedOn: "La familia puede usar esta llave.",
     openChat: "Abrir asistente",
     consentTitle: "Esto envía tus datos a un tercero",
     consentBody:
@@ -1242,13 +1248,15 @@ export const es = {
     consentRequired: "Marca la casilla para continuar.",
     needKey: "Configura un proveedor y una llave (o una URL local) en Ajustes.",
     goSettings: "Ir a Ajustes",
-    empty: "Prueba: “¿Cuánto gasté en alimentación este mes?” o “¿Qué deudas tengo?”",
+    empty:
+      "Prueba: “¿Cuánto gasté en alimentación este mes?” o “Registra un gasto de 250 de súper con Banorte.”",
     you: "Tú",
     assistant: "Asistente",
     thinking: "Pensando…",
-    placeholder: "Pregunta sobre tus finanzas…",
+    placeholder: "Pregunta, o dile qué movimiento agregar…",
     send: "Enviar",
-    footerHint: "Tus preguntas y el resumen del hogar se envían al proveedor que elegiste.",
+    footerHint:
+      "El resumen del hogar se envía solo con la primera pregunta. El asistente también puede crear, editar o borrar movimientos si se lo pides.",
   },
 
   catchup: {
@@ -2752,6 +2760,7 @@ export const en: Dictionary = {
     unit: "Unit",
     sample: "Load sample",
     review: "Review and fix before saving",
+    needAi: "set a provider and key in Settings for AI extraction",
   },
 
   settings: {
@@ -2809,7 +2818,7 @@ export const en: Dictionary = {
 
   ai: {
     title: "Assistant",
-    subtitle: "Ask about what is logged in this household.",
+    subtitle: "Ask about the household, or tell it to log an expense or income.",
     settingsTitle: "Artificial intelligence",
     settingsSub:
       "Use your own subscription. The key is stored encrypted on the server and never shown in full.",
@@ -2827,6 +2836,11 @@ export const en: Dictionary = {
     keyCleared: "Key removed",
     save: "Save AI",
     saved: "AI settings saved",
+    shareFamily: "Share this key with the family",
+    shareFamilyHint:
+      "Other members can use this provider and key unless they add their own. Each person still accepts the privacy notice.",
+    usingFamilyKey: "You are using the family key. Add your own to override it.",
+    familySharedOn: "Family members can use this key.",
     openChat: "Open assistant",
     consentTitle: "This sends your data to a third party",
     consentBody:
@@ -2836,13 +2850,15 @@ export const en: Dictionary = {
     consentRequired: "Check the box to continue.",
     needKey: "Set a provider and API key (or a local URL) in Settings.",
     goSettings: "Go to Settings",
-    empty: "Try: “How much did I spend on food this month?” or “What debts do I have?”",
+    empty:
+      "Try: “How much did I spend on food this month?” or “Add a 250 grocery expense from Banorte.”",
     you: "You",
     assistant: "Assistant",
     thinking: "Thinking…",
-    placeholder: "Ask about your finances…",
+    placeholder: "Ask, or tell it what movement to add…",
     send: "Send",
-    footerHint: "Your questions and the household snapshot go to the provider you chose.",
+    footerHint:
+      "The household snapshot is sent only with your first question. The assistant can also create, edit, or delete movements when you ask.",
   },
 
   catchup: {

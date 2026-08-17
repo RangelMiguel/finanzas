@@ -1,3 +1,4 @@
+import { canAdmin, getActiveMembership } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto";
 import { defaultModel, type AiProvider, type AiSettings } from "./complete";
@@ -16,50 +17,112 @@ export type PublicAiSettings = {
   keyHint: string | null;
   consented: boolean;
   consentAt: string | null;
+  source: "personal" | "family" | "none";
+  usingFamilyKey: boolean;
+  familyShared: boolean;
+  familyHasKey: boolean;
+  canManageFamily: boolean;
 };
 
-export async function loadPublicAiSettings(userId: string): Promise<PublicAiSettings> {
-  const pref = await prisma.userPreference.findUnique({ where: { userId } });
-  const provider = pref && isAiProvider(pref.aiProvider) ? pref.aiProvider : "xai";
-  let keyHint: string | null = null;
-  if (pref?.aiApiKeyEnc) {
-    try {
-      keyHint = maskSecret(decryptSecret(pref.aiApiKeyEnc));
-    } catch {
-      keyHint = "••••";
-    }
+type HouseholdAi = {
+  aiShared: boolean;
+  aiProvider: string;
+  aiBaseUrl: string;
+  aiModel: string;
+  aiApiKeyEnc: string;
+};
+
+function decryptHint(enc?: string | null): string | null {
+  if (!enc) return null;
+  try {
+    return maskSecret(decryptSecret(enc));
+  } catch {
+    return "••••";
   }
+}
+
+function decryptKey(enc?: string | null): string {
+  if (!enc) return "";
+  try {
+    return decryptSecret(enc);
+  } catch {
+    return "";
+  }
+}
+
+function configured(provider: AiProvider, apiKey: string, baseUrl: string): boolean {
+  if (provider === "custom") return Boolean(baseUrl);
+  return Boolean(apiKey);
+}
+
+export async function loadPublicAiSettings(userId: string): Promise<PublicAiSettings> {
+  const [pref, membership] = await Promise.all([
+    prisma.userPreference.findUnique({ where: { userId } }),
+    getActiveMembership(userId),
+  ]);
+  const household = membership?.household as HouseholdAi | undefined;
+  const familyShared = Boolean(household?.aiShared);
+  const familyKey = familyShared ? decryptKey(household?.aiApiKeyEnc) : "";
+  const familyProvider = household && isAiProvider(household.aiProvider) ? household.aiProvider : "xai";
+  const personalProvider = pref && isAiProvider(pref.aiProvider) ? pref.aiProvider : "xai";
+  const personalKey = decryptKey(pref?.aiApiKeyEnc);
+  const personalReady = pref ? configured(personalProvider, personalKey, pref.aiBaseUrl) : false;
+  const familyReady =
+    familyShared && household ? configured(familyProvider, familyKey, household.aiBaseUrl) : false;
+  const useFamily = !personalReady && familyReady;
+  const provider = useFamily ? familyProvider : personalProvider;
+  const baseUrl = useFamily ? household!.aiBaseUrl : pref?.aiBaseUrl ?? "";
+  const model = useFamily
+    ? household!.aiModel || defaultModel(provider)
+    : pref?.aiModel || defaultModel(provider);
+  const hasKey = useFamily ? Boolean(household?.aiApiKeyEnc) : Boolean(pref?.aiApiKeyEnc);
   return {
     provider,
-    baseUrl: pref?.aiBaseUrl ?? "",
-    model: pref?.aiModel || defaultModel(provider),
-    hasKey: Boolean(pref?.aiApiKeyEnc),
-    keyHint,
+    baseUrl,
+    model,
+    hasKey: hasKey || (provider === "custom" && Boolean(baseUrl)),
+    keyHint: useFamily ? decryptHint(household?.aiApiKeyEnc) : decryptHint(pref?.aiApiKeyEnc),
     consented: Boolean(pref?.aiConsentAt),
     consentAt: pref?.aiConsentAt?.toISOString() ?? null,
+    source: personalReady ? "personal" : familyReady ? "family" : "none",
+    usingFamilyKey: useFamily,
+    familyShared,
+    familyHasKey: Boolean(household?.aiApiKeyEnc),
+    canManageFamily: Boolean(membership && canAdmin(membership.role)),
   };
 }
 
 export async function loadPrivateAiSettings(userId: string): Promise<AiSettings | null> {
-  const pref = await prisma.userPreference.findUnique({ where: { userId } });
-  if (!pref) return null;
-  const provider = isAiProvider(pref.aiProvider) ? pref.aiProvider : "xai";
-  let apiKey = "";
-  if (pref.aiApiKeyEnc) {
-    try {
-      apiKey = decryptSecret(pref.aiApiKeyEnc);
-    } catch {
-      apiKey = "";
+  const [pref, membership] = await Promise.all([
+    prisma.userPreference.findUnique({ where: { userId } }),
+    getActiveMembership(userId),
+  ]);
+  const household = membership?.household as HouseholdAi | undefined;
+  if (pref) {
+    const provider = isAiProvider(pref.aiProvider) ? pref.aiProvider : "xai";
+    const apiKey = decryptKey(pref.aiApiKeyEnc);
+    if (configured(provider, apiKey, pref.aiBaseUrl)) {
+      return {
+        provider,
+        baseUrl: pref.aiBaseUrl,
+        model: pref.aiModel || defaultModel(provider),
+        apiKey,
+      };
     }
   }
-  if (provider !== "custom" && !apiKey) return null;
-  if (provider === "custom" && !pref.aiBaseUrl) return null;
-  return {
-    provider,
-    baseUrl: pref.aiBaseUrl,
-    model: pref.aiModel || defaultModel(provider),
-    apiKey,
-  };
+  if (household?.aiShared) {
+    const provider = isAiProvider(household.aiProvider) ? household.aiProvider : "xai";
+    const apiKey = decryptKey(household.aiApiKeyEnc);
+    if (configured(provider, apiKey, household.aiBaseUrl)) {
+      return {
+        provider,
+        baseUrl: household.aiBaseUrl,
+        model: household.aiModel || defaultModel(provider),
+        apiKey,
+      };
+    }
+  }
+  return null;
 }
 
 export async function saveAiSettings(
@@ -71,9 +134,13 @@ export async function saveAiSettings(
     apiKey?: string;
     clearKey?: boolean;
     consent?: boolean;
+    shareWithFamily?: boolean;
   }
 ) {
-  const current = await prisma.userPreference.findUnique({ where: { userId } });
+  const [current, membership] = await Promise.all([
+    prisma.userPreference.findUnique({ where: { userId } }),
+    getActiveMembership(userId),
+  ]);
   const provider: AiProvider =
     input.provider && isAiProvider(input.provider)
       ? input.provider
@@ -88,15 +155,37 @@ export async function saveAiSettings(
   const data = {
     aiProvider: provider,
     aiBaseUrl: input.baseUrl !== undefined ? input.baseUrl.trim() : current?.aiBaseUrl ?? "",
-    aiModel: input.model !== undefined ? input.model.trim() || defaultModel(provider) : current?.aiModel || defaultModel(provider),
+    aiModel:
+      input.model !== undefined
+        ? input.model.trim() || defaultModel(provider)
+        : current?.aiModel || defaultModel(provider),
     aiApiKeyEnc,
     ...(input.consent === true ? { aiConsentAt: new Date() } : {}),
     ...(input.consent === false ? { aiConsentAt: null } : {}),
   };
   await prisma.userPreference.upsert({
     where: { userId },
-    create: { userId, ...data },
+    create: { userId, householdId: membership?.householdId, ...data },
     update: data,
   });
+
+  if (input.shareWithFamily !== undefined) {
+    if (!membership || !canAdmin(membership.role)) {
+      throw new Error("Solo un admin de la familia puede compartir la llave de IA");
+    }
+    const household = membership.household as HouseholdAi;
+    const familyEnc = data.aiApiKeyEnc || (input.clearKey ? "" : household.aiApiKeyEnc || "");
+    await prisma.household.update({
+      where: { id: membership.householdId },
+      data: {
+        aiShared: input.shareWithFamily && Boolean(familyEnc || data.aiBaseUrl),
+        aiProvider: data.aiProvider,
+        aiBaseUrl: data.aiBaseUrl,
+        aiModel: data.aiModel,
+        aiApiKeyEnc: familyEnc,
+      },
+    });
+  }
+
   return loadPublicAiSettings(userId);
 }

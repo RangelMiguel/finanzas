@@ -3,13 +3,12 @@ import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { jsonError, jsonOk } from "@/lib/access";
 import { parseStatementRules } from "@/lib/statement-parse";
 import { extractStatementWithLlm } from "@/lib/llm/extract-statement";
-import { getLlmConfig, llmStatusPublic } from "@/lib/llm/config";
+import { loadPrivateAiSettings } from "@/lib/ai/settings";
 
 export async function POST(req: Request) {
   try {
-    await requireSession().then((s) =>
-      requireHouseholdAccess(s.userId)
-    );
+    const session = await requireSession();
+    await requireHouseholdAccess(session.userId);
     const body = z
       .object({
         text: z.string().min(1),
@@ -19,11 +18,11 @@ export async function POST(req: Request) {
 
     let result = parseStatementRules(body.text);
     let llmError: string | null = null;
-    const cfg = getLlmConfig();
+    const settings = await loadPrivateAiSettings(session.userId);
 
-    if (cfg.enabled && !body.forceRules) {
+    if (settings && !body.forceRules) {
       try {
-        const llm = await extractStatementWithLlm(body.text);
+        const llm = await extractStatementWithLlm(body.text, settings);
         if (llm.items.length > 0) {
           result = llm;
         } else {
@@ -44,9 +43,11 @@ export async function POST(req: Request) {
         monthlyAmount: String(i.monthlyAmount),
         selected: i.selected !== false,
       })),
-      llmAvailable: cfg.enabled,
+      llmAvailable: Boolean(settings),
       llmError,
-      ai: llmStatusPublic(),
+      ai: settings
+        ? { enabled: true as const, provider: settings.provider, model: settings.model }
+        : { enabled: false as const, provider: null, model: null },
     });
   } catch (e) {
     return jsonError(e);

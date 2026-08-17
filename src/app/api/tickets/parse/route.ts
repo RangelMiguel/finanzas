@@ -4,8 +4,8 @@ import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { parseTicketText } from "@/lib/ticket-parse";
 import { resolveCategoryId } from "@/lib/categorize";
-import { getLlmConfig, llmStatusPublic } from "@/lib/llm/config";
 import { extractReceiptWithLlm } from "@/lib/llm/extract-receipt";
+import { loadPrivateAiSettings } from "@/lib/ai/settings";
 
 export async function POST(req: Request) {
   try {
@@ -28,10 +28,10 @@ export async function POST(req: Request) {
     let parsed = parseTicketText(body.text);
     let llmError: string | null = null;
 
-    const cfg = getLlmConfig();
-    if (cfg.enabled && !body.forceRules) {
+    const settings = await loadPrivateAiSettings(session.userId);
+    if (settings && !body.forceRules) {
       try {
-        const llm = await extractReceiptWithLlm(body.text);
+        const llm = await extractReceiptWithLlm(body.text, settings);
         // Prefer LLM if it found items; otherwise keep rules
         if (llm.items.length > 0) {
           parsed = llm;
@@ -72,9 +72,11 @@ export async function POST(req: Request) {
       engine,
       provider,
       model,
-      llmAvailable: cfg.enabled,
+      llmAvailable: Boolean(settings),
       llmError,
-      ai: llmStatusPublic(),
+      ai: settings
+        ? { enabled: true as const, provider: settings.provider, model: settings.model }
+        : { enabled: false as const, provider: null, model: null },
     });
   } catch (e) {
     return jsonError(e);

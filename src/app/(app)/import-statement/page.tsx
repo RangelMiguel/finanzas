@@ -192,7 +192,7 @@ export default function ImportStatementPage() {
                 : "rules"}
           </span>
           {!engineInfo.llmAvailable && (
-            <span> · set XAI_API_KEY or GEMINI_API_KEY for AI extraction</span>
+            <span> · {t.tickets.needAi}</span>
           )}
         </p>
       )}
