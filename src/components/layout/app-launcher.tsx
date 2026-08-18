@@ -72,7 +72,7 @@ export function AppLauncher() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+0.45rem)] z-50 w-[16.5rem] rounded-2xl border border-[var(--line)] bg-[var(--card)] p-3 shadow-2xl"
+          className="absolute right-0 top-[calc(100%+0.45rem)] z-50 w-[16.5rem] rounded-2xl border border-[var(--line)] bg-[var(--bg-card,#0c101f)] p-3 shadow-2xl"
         >
           <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-[var(--fg-faint)]">
             {t.suite.apps}
@@ -92,7 +92,7 @@ export function AppLauncher() {
                 }}
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-sm font-semibold text-[var(--fg)]">
-                  m
+                  M
                 </span>
                 <strong className="text-xs font-medium text-[var(--fg)]">{app.label}</strong>
                 <em className="text-[10px] not-italic leading-tight text-[var(--fg-faint)]">{app.hint}</em>
