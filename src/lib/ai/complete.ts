@@ -19,6 +19,7 @@ export type ToolCallRequest = {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  thoughtSignature?: string;
 };
 
 export type ToolExecResult = {
@@ -35,6 +36,7 @@ export type ChatMessage = {
   tool_calls?: ToolCallRequest[];
   tool_call_id?: string;
   name?: string;
+  providerParts?: Record<string, unknown>[];
 };
 
 export type { PrivacyBook };
@@ -65,6 +67,7 @@ type CompletePayload = {
   provider: string;
   model: string;
   toolCalls: ToolCallRequest[];
+  providerParts?: Record<string, unknown>[];
 };
 
 export async function completeWithUserSettings(
@@ -101,7 +104,11 @@ export async function completeWithTools(opts: {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (toolsEnabled && /tool|function/i.test(msg) && /\b(400|404|422|unsupported|unknown)\b/i.test(msg)) {
+      if (
+        toolsEnabled &&
+        !/thought_signature/i.test(msg) &&
+        /unsupported|does not support|unknown tool/i.test(msg)
+      ) {
         toolsEnabled = false;
         last = await completeOnce(opts.settings, messages, {
           temperature: opts.temperature,
@@ -122,6 +129,7 @@ export async function completeWithTools(opts: {
       role: "assistant",
       content: last.text,
       tool_calls: last.toolCalls,
+      providerParts: last.providerParts,
     });
 
     for (const call of last.toolCalls) {
@@ -184,6 +192,7 @@ function scrubMessages(messages: ChatMessage[], book?: PrivacyBook): ChatMessage
       ...call,
       arguments: (redactValue(call.arguments ?? {}, book) || {}) as Record<string, unknown>,
     })),
+    providerParts: message.providerParts,
   }));
 }
 
@@ -318,22 +327,13 @@ async function completeGemini(
   const data = (await res.json()) as {
     candidates?: {
       content?: {
-        parts?: {
-          text?: string;
-          functionCall?: {
-            name?: string;
-            args?: Record<string, unknown>;
-            arguments?: Record<string, unknown>;
-          };
-        }[];
+        parts?: GeminiPart[];
       };
     }[];
   };
   const parts = data.candidates?.[0]?.content?.parts ?? [];
-  const text = parts
-    .map((part) => part.text || "")
-    .join("")
-    .trim();
+  const providerParts = echoGeminiParts(parts);
+  const text = visibleGeminiText(parts);
   const toolCalls = parts
     .filter((part) => part.functionCall?.name)
     .map((part, index) => {
@@ -342,10 +342,11 @@ async function completeGemini(
         id: `call_${index}_${call.name}`,
         name: call.name || "",
         arguments: call.args || call.arguments || {},
+        thoughtSignature: thoughtSignatureOf(part),
       };
     });
   if (!text && !toolCalls.length) throw new Error("Gemini no devolvió texto");
-  return { text, provider: "gemini", model, toolCalls };
+  return { text, provider: "gemini", model, toolCalls, providerParts };
 }
 
 function toGeminiContents(messages: ChatMessage[]): { role: string; parts: Record<string, unknown>[] }[] {
@@ -357,10 +358,18 @@ function toGeminiContents(messages: ChatMessage[]): { role: string; parts: Recor
       continue;
     }
     if (message.role === "assistant") {
+      if (message.providerParts?.length) {
+        contents.push({ role: "model", parts: message.providerParts });
+        continue;
+      }
       const parts: Record<string, unknown>[] = [];
       if (message.content) parts.push({ text: message.content });
       for (const call of message.tool_calls ?? []) {
-        parts.push({ functionCall: { name: call.name, args: call.arguments ?? {} } });
+        const part: Record<string, unknown> = {
+          functionCall: { name: call.name, args: call.arguments ?? {} },
+        };
+        if (call.thoughtSignature) part.thoughtSignature = call.thoughtSignature;
+        parts.push(part);
       }
       if (parts.length) contents.push({ role: "model", parts });
       continue;
@@ -379,6 +388,55 @@ function toGeminiContents(messages: ChatMessage[]): { role: string; parts: Recor
     }
   }
   return contents;
+}
+
+type GeminiPart = {
+  text?: string;
+  thought?: boolean;
+  thoughtSignature?: string;
+  thought_signature?: string;
+  functionCall?: {
+    name?: string;
+    args?: Record<string, unknown>;
+    arguments?: Record<string, unknown>;
+    thoughtSignature?: string;
+    thought_signature?: string;
+  };
+};
+
+function thoughtSignatureOf(part: GeminiPart): string | undefined {
+  const candidates = [
+    part.thoughtSignature,
+    part.thought_signature,
+    part.functionCall?.thoughtSignature,
+    part.functionCall?.thought_signature,
+  ];
+  return candidates.find((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function visibleGeminiText(parts: GeminiPart[]): string {
+  return parts
+    .filter((part) => !part.thought && !part.functionCall)
+    .map((part) => part.text || "")
+    .join("")
+    .trim();
+}
+
+function echoGeminiParts(parts: GeminiPart[]): Record<string, unknown>[] {
+  return parts.map((part) => {
+    const out: Record<string, unknown> = {};
+    if (typeof part.text === "string") out.text = part.text;
+    if (part.thought === true) out.thought = true;
+    if (part.functionCall?.name) {
+      out.functionCall = {
+        name: part.functionCall.name,
+        args: part.functionCall.args || part.functionCall.arguments || {},
+      };
+    }
+    const signature = thoughtSignatureOf(part);
+    if (signature) out.thoughtSignature = signature;
+    return out;
+  });
 }
 
 function stripUnsupportedSchema(schema: Record<string, unknown>): Record<string, unknown> {
