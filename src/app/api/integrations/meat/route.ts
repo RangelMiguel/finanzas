@@ -125,7 +125,7 @@ export async function POST() {
       action: existing ? "update" : "create",
       entityType: "meatLink",
       entityId: link.id,
-      summary: existing ? "Llave meat regenerada" : "Llave meat creada",
+      summary: existing ? "Llave Meat regenerada" : "Llave Meat creada",
     });
     return jsonOk({ meat: serializeMeatLink(link), token: generated.token });
   } catch (e) {
@@ -144,7 +144,7 @@ export async function DELETE() {
       action: "delete",
       entityType: "meatLink",
       entityId: m.householdId,
-      summary: "Llave meat revocada",
+      summary: "Llave Meat revocada",
     });
     return jsonOk({ meat: serializeMeatLink(null) });
   } catch (e) {

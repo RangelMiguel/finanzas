@@ -98,7 +98,7 @@ export async function createMeatPurchase(opts: {
     .slice(0, 8);
   const extra = names.length ? ` · ${names.join(", ")}` : "";
   const description = (
-    opts.description?.trim() || `Compra meat${extra}`
+    opts.description?.trim() || `Compra Meat${extra}`
   ).slice(0, 240);
 
   const fundings: FundingInput[] = [];
@@ -157,7 +157,7 @@ export async function createMeatPurchase(opts: {
     action: "create",
     entityType: "transaction",
     entityId: txn.id,
-    summary: `Gasto desde meat: ${description}`,
+    summary: `Gasto desde Meat: ${description}`,
   });
 
   return txn;

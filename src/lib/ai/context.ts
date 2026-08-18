@@ -131,7 +131,7 @@ export async function buildFinanceContext(opts: {
   }
 
   lines.push(
-    "Grocery shops posted from the meat app appear as expenses (often auto-generated, description starts with meat / Compra meat)."
+    "Grocery shops posted from the Meat app appear as expenses (often auto-generated, description starts with Meat / Compra Meat)."
   );
 
   return clip(redactForModel(lines.join("\n"), privacy.book));
