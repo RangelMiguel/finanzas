@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LayoutGrid } from "lucide-react";
 import { useApp } from "@/components/providers/app-provider";
 import { api } from "@/lib/api-client";
@@ -22,7 +23,14 @@ export function AppLauncher() {
   const { t } = useApp();
   const [open, setOpen] = useState(false);
   const [href, setHref] = useState(meatHref());
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     api<{ meat: { appUrl?: string } }>("/api/integrations/meat")
@@ -32,15 +40,27 @@ export function AppLauncher() {
 
   useEffect(() => {
     if (!open) return;
+    const place = () => {
+      const box = rootRef.current?.getBoundingClientRect();
+      if (!box) return;
+      setPos({ top: box.bottom + 8, right: window.innerWidth - box.right });
+    };
+    place();
     const onPointer = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
     return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
       document.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
@@ -54,6 +74,44 @@ export function AppLauncher() {
       href,
     },
   ];
+
+  const menu =
+    open && mounted ? (
+      <div
+        ref={menuRef}
+        role="menu"
+        className="fixed z-[80] w-[16.5rem] rounded-2xl border border-[var(--line)] bg-[var(--bg-card,#0c101f)] p-3 shadow-2xl"
+        style={{ top: pos.top, right: pos.right }}
+      >
+        <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-[var(--fg-faint)]">
+          {t.suite.apps}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {apps.map((app) => (
+            <a
+              key={app.id}
+              role="menuitem"
+              href={app.href || undefined}
+              target="_blank"
+              rel="noreferrer"
+              className={`flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center no-underline transition hover:bg-white/10 ${
+                app.href ? "cursor-pointer" : "cursor-not-allowed opacity-70"
+              }`}
+              onClick={(event) => {
+                if (!app.href) event.preventDefault();
+                setOpen(false);
+              }}
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-sm font-semibold text-[var(--fg)]">
+                M
+              </span>
+              <strong className="text-xs font-medium text-[var(--fg)]">{app.label}</strong>
+              <em className="text-[10px] not-italic leading-tight text-[var(--fg-faint)]">{app.hint}</em>
+            </a>
+          ))}
+        </div>
+      </div>
+    ) : null;
 
   return (
     <div className="relative" ref={rootRef}>
@@ -69,38 +127,7 @@ export function AppLauncher() {
       >
         <LayoutGrid className="h-4 w-4" />
       </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+0.45rem)] z-50 w-[16.5rem] rounded-2xl border border-[var(--line)] bg-[var(--bg-card,#0c101f)] p-3 shadow-2xl"
-        >
-          <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-[var(--fg-faint)]">
-            {t.suite.apps}
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {apps.map((app) => (
-              <a
-                key={app.id}
-                role="menuitem"
-                href={app.href || undefined}
-                target="_blank"
-                rel="noreferrer"
-                className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center no-underline transition hover:bg-white/8"
-                onClick={(event) => {
-                  if (!app.href) event.preventDefault();
-                  setOpen(false);
-                }}
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-sm font-semibold text-[var(--fg)]">
-                  M
-                </span>
-                <strong className="text-xs font-medium text-[var(--fg)]">{app.label}</strong>
-                <em className="text-[10px] not-italic leading-tight text-[var(--fg-faint)]">{app.hint}</em>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+      {menu ? createPortal(menu, document.body) : null}
     </div>
   );
 }
