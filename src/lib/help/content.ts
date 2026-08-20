@@ -318,7 +318,7 @@ const es: HelpContent = {
           summary: "Laboratorio de flujo de caja con proyección, metas y escenarios.",
           href: "/safe-to-spend",
           paragraphs: [
-            "Responde “¿cuánto puedo gastar hoy sin romper el flujo?” combinando saldos de cuentas (todas o una), ingresos futuros, pagos de tarjetas, MSI, deudas y, opcionalmente, presupuestos no gastados.",
+            "Responde “¿cuánto puedo gastar hoy sin romper el flujo?” combinando saldos de cuentas compartidas del hogar (sin cuentas personales), ingresos futuros, pagos de tarjetas, MSI, deudas y, opcionalmente, presupuestos no gastados.",
             "Modos: Panorama (visión general), Proyectar a una fecha, y ¿Cuándo tendré X? (meta de saldo).",
             "Escenarios hipotéticos: agrega gastos o ingresos simulados sin guardarlos en la contabilidad real.",
             "“Incluir ingresos futuros” usa recurrentes y proyecciones. “Reservar presupuestos” aparta lo presupuestado aún no gastado (incl. quincenas futuras con default).",
@@ -920,7 +920,7 @@ const en: HelpContent = {
           summary: "Cash-flow lab with projection, goals, and what-if scenarios.",
           href: "/safe-to-spend",
           paragraphs: [
-            "Answers “how much can I spend today without breaking cash flow?” using account balances (all or one), future income, card payments, installments, debts, and optionally unspent budgets.",
+            "Answers “how much can I spend today without breaking cash flow?” using shared household account balances (personal accounts are excluded), future income, card payments, installments, debts, and optionally unspent budgets.",
             "Modes: Overview, Project to a date, and When will I have X?",
             "What-if scenarios: simulated income/expense that never hit real books.",
             "“Include future income” uses recurring projections. “Reserve budgets” holds unspent budget (including future halves with defaults).",

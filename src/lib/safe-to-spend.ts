@@ -13,7 +13,7 @@ export type AccountForProjection = {
 };
 
 export type ProjectionInput = {
-  /** All household accounts to include in the combined cash position. */
+  /** Shared household accounts to include in the combined cash position (no personal). */
   accounts: AccountForProjection[];
   transactions: TxnLike[];
   futureItems: FutureItem[];

@@ -70,7 +70,7 @@ export default function SafeToSpendPage() {
     setLoading(true);
     try {
       const body: Record<string, unknown> = {
-        // No accountId → all household accounts combined
+        // No accountId → shared household accounts (personal pockets excluded)
         includeIncome,
         reserveBudgets,
         horizon: parseInt(horizon, 10) || 90,

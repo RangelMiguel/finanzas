@@ -2,6 +2,7 @@ import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { projectSafeToSpend, type FutureItem } from "@/lib/safe-to-spend";
+import { isPersonalAccount } from "@/lib/personal";
 import { amountToCents, todayISO } from "@/lib/utils";
 import {
   addDaysISO,
@@ -47,9 +48,11 @@ async function buildFutureItems(opts: {
   if (opts.includeIncome) {
     const recurring = await prisma.recurringIncome.findMany({
       where: { householdId: opts.householdId, active: true },
+      include: { account: { select: { type: true, ownerUserId: true } } },
     });
     // Skip dates already on the ledger or soft-deleted by the user (dismissed auto-salary)
     for (const r of recurring) {
+      if (r.account && isPersonalAccount(r.account)) continue;
       const dates = listFutureRecurringDates({
         dayOfMonth: r.dayOfMonth,
         fromDate: todayStr,
@@ -77,8 +80,10 @@ async function buildFutureItems(opts: {
 
   const recurringExpenses = await prisma.recurringExpense.findMany({
     where: { householdId: opts.householdId, active: true },
+    include: { account: { select: { type: true, ownerUserId: true } } },
   });
   for (const r of recurringExpenses) {
+    if (r.account && isPersonalAccount(r.account)) continue;
     const dates = listFutureRecurringDates({
       dayOfMonth: r.dayOfMonth,
       fromDate: todayStr,
@@ -311,16 +316,10 @@ export async function GET(req: Request) {
       userId: session.userId,
     });
 
-    const accounts = await prisma.account.findMany({
-      where: { householdId: m.householdId },
-      orderBy: { createdAt: "asc" },
-    });
-    if (!accounts.length) return jsonOk({ empty: true });
-
-    // Optional filter (legacy); default = all household accounts combined
-    const selected = accountId
-      ? accounts.filter((a) => a.id === accountId)
-      : accounts;
+    const selected = await loadHouseholdAccountsForProjection(
+      m.householdId,
+      accountId
+    );
     if (!selected.length) return jsonOk({ empty: true });
 
     const transactions = await loadBankTxnsForProjection(m.householdId);
@@ -405,15 +404,10 @@ export async function POST(req: Request) {
       userId: session.userId,
     });
 
-    const accounts = await prisma.account.findMany({
-      where: { householdId: m.householdId },
-      orderBy: { createdAt: "asc" },
-    });
-    if (!accounts.length) return jsonOk({ empty: true });
-
-    const selected = accountId
-      ? accounts.filter((a) => a.id === accountId)
-      : accounts;
+    const selected = await loadHouseholdAccountsForProjection(
+      m.householdId,
+      accountId
+    );
     if (!selected.length) return jsonOk({ empty: true });
 
     const transactions = await loadBankTxnsForProjection(m.householdId);
@@ -449,6 +443,26 @@ export async function POST(req: Request) {
   } catch (e) {
     return jsonError(e);
   }
+}
+
+/**
+ * Shared household cash only. Personal member pockets are a private pool
+ * and must not inflate (or drain) “how much can I spend”.
+ */
+async function loadHouseholdAccountsForProjection(
+  householdId: string,
+  accountId?: string | null
+) {
+  const accounts = await prisma.account.findMany({
+    where: {
+      householdId,
+      ownerUserId: null,
+      type: { not: "personal" },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  if (accountId) return accounts.filter((a) => a.id === accountId);
+  return accounts;
 }
 
 /**

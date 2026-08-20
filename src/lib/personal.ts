@@ -2,6 +2,14 @@ import { prisma } from "./db";
 import { budgetPeriodBounds } from "./utils";
 import { accountBalance } from "./money";
 
+/** Private pocket for one member — not household cash. */
+export function isPersonalAccount(account: {
+  type?: string | null;
+  ownerUserId?: string | null;
+}) {
+  return account.type === "personal" || !!account.ownerUserId;
+}
+
 /**
  * Ensure each household member has exactly one private personal account.
  * Funded via household transfers TO this account (not editable allocations).

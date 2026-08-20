@@ -794,13 +794,14 @@ export const es = {
     title: "¿Cuánto puedo gastar?",
     subtitle: "Laboratorio de flujo de caja: proyecta fechas, metas y escenarios",
     account: "Cuentas",
-    allAccounts: "Todas las cuentas del hogar",
-    allAccountsHint: "El saldo combina todas las cuentas (transferencias internas se anulan)",
+    allAccounts: "Cuentas compartidas del hogar",
+    allAccountsHint:
+      "El saldo combina las cuentas del hogar, sin las personales (transferencias internas se anulan)",
     includeIncome: "Incluir ingresos futuros",
     reserveBudgets: "Reservar presupuestos",
     reserveBudgetsHint:
       "Aparta lo no gastado del presupuesto y del fondo de emergencia (como si lo fueras a gastar todo), más los presupuestos de quincenas futuras",
-    balanceToday: "Saldo hoy (todas las cuentas)",
+    balanceToday: "Saldo hoy (cuentas compartidas)",
 
     safeToSpend: "Seguro para gastar",
     minProjected: "Saldo mínimo proyectado",
@@ -2406,13 +2407,14 @@ export const en: Dictionary = {
     title: "How much can I spend?",
     subtitle: "Cash-flow lab: project dates, goals, and what-if scenarios",
     account: "Accounts",
-    allAccounts: "All household accounts",
-    allAccountsHint: "Balance combines every account (internal transfers cancel out)",
+    allAccounts: "Shared household accounts",
+    allAccountsHint:
+      "Balance combines household accounts, excluding personal ones (internal transfers cancel out)",
     includeIncome: "Include future income",
     reserveBudgets: "Reserve budgets",
     reserveBudgetsHint:
       "Holds unspent budget and emergency funding as if you will spend it all, plus full budgets for future half-months",
-    balanceToday: "Balance today (all accounts)",
+    balanceToday: "Balance today (shared accounts)",
     safeToSpend: "Safe to spend",
     minProjected: "Minimum projected balance",
     future: "Future income / payments",
