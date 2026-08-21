@@ -139,6 +139,7 @@ async function buildFutureItems(opts: {
         installmentPlanId: true,
         type: true,
         deletedAt: true,
+        ccBillingCutoff: true,
         fundings: {
           select: {
             amountCents: true,
@@ -159,6 +160,7 @@ async function buildFutureItems(opts: {
         description: true,
         totalAmountCents: true,
         removedDates: true,
+        billingCutoffs: true,
       },
     }),
     loadRecordedCardPayments(opts.householdId),

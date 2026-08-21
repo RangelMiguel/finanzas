@@ -234,6 +234,7 @@ const es: HelpContent = {
             "En la lista ves gasto del mes, montos a pagar y un acceso a pagos pendientes. Al entrar al detalle de una tarjeta ves cargos, planes MSI y puedes editar o eliminar.",
             "Al eliminar un cargo MSI te pregunta si quitas solo ese mes o todo el plan. Eso evita borrar por error un financiamiento completo.",
             "Para pagar la tarjeta pulsa Pagar y elige la cuenta de origen. Ese movimiento nunca se crea solo: baja el saldo de la cuenta y lo pendiente del ciclo. ¿Cuánto gastar? solo proyecta lo que aún no has pagado.",
+            "Si un cargo se hizo antes del corte pero el banco lo procesó después, usa Ajustar por procesamiento: escribe el saldo al corte y marca los movimientos que deben pasar al siguiente ciclo. La fecha de compra no cambia.",
           ],
           bullets: [
             {
@@ -252,6 +253,7 @@ const es: HelpContent = {
           tips: [
             "Configura bien corte y gracia: de eso depende ¿Cuánto gastar? y los recordatorios de pago.",
             "Cargos “fantasma” de un gasto ya borrado se pueden limpiar en el detalle de la tarjeta.",
+            "El saldo al corte es el monto facturado del ciclo, no el saldo de la app del banco después de pagar.",
           ],
         },
         {
@@ -836,6 +838,7 @@ const en: HelpContent = {
             "The list shows month spend, amounts due, and pending payments. Card detail lists charges and installment plans you can edit or delete.",
             "Deleting an installment charge asks whether to remove only that month or the whole plan—so you don’t wipe a financing plan by mistake.",
             "To pay the card, press Pay and pick the source account. That movement is never created automatically: it lowers the account balance and the remaining due. Safe to spend only projects what is still unpaid.",
+            "If a charge was made before the cut-off but the bank posted it after, use Adjust for processing: enter the statement balance at cut-off and mark the movements that should move to the next cycle. The purchase date stays the same.",
           ],
           bullets: [
             {
@@ -854,6 +857,7 @@ const en: HelpContent = {
           tips: [
             "Set cutoff and grace carefully—Safe to spend and payment timing depend on them.",
             "Orphan charges from deleted expenses can be cleaned on the card detail screen.",
+            "Balance at cut-off is the billed cycle total, not the bank-app balance after you paid.",
           ],
         },
         {

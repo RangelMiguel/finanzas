@@ -18,8 +18,13 @@ import {
   CreditCardPayDialog,
   type PayTarget,
 } from "@/components/credit-card-pay-dialog";
-import { Banknote, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  CreditCardAdjustDialog,
+  type AdjustTarget,
+} from "@/components/credit-card-adjust-dialog";
+import { ArrowRightLeft, Banknote, ChevronDown, ChevronRight } from "lucide-react";
 import { todayISO } from "@/lib/utils";
+import { nextCutoffAfter } from "@/lib/credit-card-cycles";
 
 type PaymentLine = {
   date: string;
@@ -29,6 +34,7 @@ type PaymentLine = {
   paymentDue: string;
   planId?: string;
   transactionId?: string;
+  billingCutoff?: string | null;
 };
 
 type Payment = {
@@ -108,6 +114,7 @@ export default function CreditCardDetailPage() {
   );
   const [saving, setSaving] = useState(false);
   const [payTarget, setPayTarget] = useState<PayTarget | null>(null);
+  const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null);
   const [expandedMsi, setExpandedMsi] = useState<Record<string, boolean>>({});
 
   function toggleMsi(key: string) {
@@ -282,6 +289,68 @@ export default function CreditCardDetailPage() {
     });
   }
 
+  function openAdjust(pay: Payment) {
+    const current = data?.creditCard;
+    if (!current) return;
+    const nextEnd = nextCutoffAfter(pay.end, current.cutoffDay);
+    const next = data?.payments.find((p) => p.end === nextEnd) || null;
+    setPayTarget(null);
+    setAdjustTarget({
+      cardId: current.id,
+      cardName: current.name,
+      cutoffDay: current.cutoffDay,
+      cycle: {
+        start: pay.start,
+        end: pay.end,
+        paymentDue: pay.paymentDue,
+        chargedCents: pay.chargedCents ?? pay.amountCents,
+        lines: pay.lines,
+      },
+      nextCycle: next
+        ? {
+            start: next.start,
+            end: next.end,
+            paymentDue: next.paymentDue,
+            chargedCents: next.chargedCents ?? next.amountCents,
+            lines: next.lines,
+          }
+        : null,
+    });
+  }
+
+  async function undoShift(line: PaymentLine, cycleEnd: string) {
+    const current = data?.creditCard;
+    if (!current) return;
+    const ok = await confirm({
+      title: t.cards.adjustUndoShift,
+      description: t.cards.adjustConfirmUndo,
+      confirmLabel: t.cards.adjustUndoShift,
+      cancelLabel: t.cancel,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/credit-cards/${current.id}/adjust-processing`, {
+        method: "POST",
+        json: {
+          cycleEnd,
+          moves: [
+            {
+              kind: line.kind,
+              transactionId: line.transactionId,
+              planId: line.planId,
+              chargeDate: line.kind === "msi" ? line.date : undefined,
+              action: "clear",
+            },
+          ],
+        },
+      });
+      toast.success(t.cards.adjustSuccess);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
   const card = data?.creditCard;
 
   return (
@@ -303,6 +372,23 @@ export default function CreditCardDetailPage() {
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            {data && data.payments.some((p) => p.lines.length > 0) && card && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const first =
+                    data.payments.find(
+                      (p) =>
+                        p.lines.length > 0 &&
+                        (p.remainingCents ?? p.amountCents) > 0
+                    ) || data.payments.find((p) => p.lines.length > 0);
+                  if (first) openAdjust(first);
+                }}
+              >
+                <ArrowRightLeft className="h-4 w-4" aria-hidden />
+                {t.cards.adjustProcessing}
+              </Button>
+            )}
             {data && data.totalPendingCents > 0 && (
               <Button
                 onClick={() => {
@@ -339,6 +425,11 @@ export default function CreditCardDetailPage() {
             target={payTarget}
             onClose={() => setPayTarget(null)}
             onPaid={() => load()}
+          />
+          <CreditCardAdjustDialog
+            target={adjustTarget}
+            onClose={() => setAdjustTarget(null)}
+            onAdjusted={() => load()}
           />
           <p className="text-xs text-amber-200/80">{t.cards.payHint}</p>
           <p className="text-xs text-[var(--fg-faint)]">{t.cards.orphanHint}</p>
@@ -627,22 +718,34 @@ export default function CreditCardDetailPage() {
                     <p className={`font-display text-2xl ${remaining > 0 && overdue ? "money-expense" : "text-[var(--fg)]"}`}>
                       {money(remaining)}
                     </p>
-                    {remaining > 0 && card && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          setPayTarget({
-                            cardId: card.id,
-                            cardName: card.name,
-                            cycleDue: pay.paymentDue,
-                            remainingCents: remaining,
-                          })
-                        }
-                      >
-                        <Banknote className="h-3.5 w-3.5" aria-hidden />
-                        {t.cards.pay}
-                      </Button>
-                    )}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {card && pay.lines.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openAdjust(pay)}
+                        >
+                          <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden />
+                          {t.cards.adjustProcessing}
+                        </Button>
+                      )}
+                      {remaining > 0 && card && (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            setPayTarget({
+                              cardId: card.id,
+                              cardName: card.name,
+                              cycleDue: pay.paymentDue,
+                              remainingCents: remaining,
+                            })
+                          }
+                        >
+                          <Banknote className="h-3.5 w-3.5" aria-hidden />
+                          {t.cards.pay}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="divide-y divide-white/5 border-t border-white/5 p-0">
@@ -667,6 +770,11 @@ export default function CreditCardDetailPage() {
                             }
                             onEditMsi={() => undefined}
                             onDeleteMsi={() => undefined}
+                            onUndoShift={
+                              line.billingCutoff
+                                ? () => undoShift(line, pay.end)
+                                : undefined
+                            }
                           />
                         ))}
                         {msiLines.length > 0 && (
@@ -710,6 +818,11 @@ export default function CreditCardDetailPage() {
                                   nested
                                   onEditPurchase={() => undefined}
                                   onDeletePurchase={() => undefined}
+                                  onUndoShift={
+                                    line.billingCutoff
+                                      ? () => undoShift(line, pay.end)
+                                      : undefined
+                                  }
                                   onEditMsi={() => {
                                     const plan =
                                       msiList.find((x) => x.id === line.planId) ||
@@ -816,6 +929,7 @@ function PayLineRow({
   onDeletePurchase,
   onEditMsi,
   onDeleteMsi,
+  onUndoShift,
 }: {
   line: PaymentLine;
   fmtDate: (iso: string) => string;
@@ -824,6 +938,7 @@ function PayLineRow({
   onDeletePurchase: () => void;
   onEditMsi: () => void;
   onDeleteMsi: () => void;
+  onUndoShift?: () => void;
 }) {
   const { money, t } = useApp();
   return (
@@ -837,10 +952,16 @@ function PayLineRow({
         <p className="text-xs text-[var(--fg-faint)]">
           {fmtDate(line.date)}
           {line.kind === "msi" ? " · MSI" : ""}
+          {line.billingCutoff ? ` · ${t.cards.adjustShifted}` : ""}
         </p>
       </div>
       <div className="flex items-center gap-2">
         <span className="shrink-0 money-expense">{money(line.amountCents)}</span>
+        {onUndoShift && (
+          <Button variant="secondary" size="sm" onClick={onUndoShift}>
+            {t.cards.adjustUndoShift}
+          </Button>
+        )}
         {line.kind === "msi" && line.planId && (
           <>
             <Button variant="secondary" size="sm" onClick={onEditMsi}>

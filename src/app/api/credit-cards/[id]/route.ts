@@ -51,6 +51,7 @@ export async function GET(
           installmentPlanId: true,
           type: true,
           deletedAt: true,
+          ccBillingCutoff: true,
           fundings: {
             select: {
               amountCents: true,
@@ -71,6 +72,7 @@ export async function GET(
           description: true,
           totalAmountCents: true,
           removedDates: true,
+          billingCutoffs: true,
         },
       }),
       loadRecordedCardPayments(m.householdId, id),

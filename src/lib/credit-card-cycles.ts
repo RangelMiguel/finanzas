@@ -27,6 +27,8 @@ export type ChargeLike = {
   type?: string;
   description?: string | null;
   deletedAt?: Date | string | null;
+  /** Statement cut-off override when the bank posted after the purchase date. */
+  ccBillingCutoff?: string | null;
   /** Split payment rows; card portions count toward this card. */
   fundings?: {
     amountCents: number;
@@ -45,6 +47,8 @@ export type InstallmentLike = {
   totalAmountCents?: number;
   /** JSON string or array of charge dates excluded from the schedule */
   removedDates?: string | string[] | null;
+  /** JSON string or map of charge date → statement cut-off */
+  billingCutoffs?: string | Record<string, string> | null;
 };
 
 export function parseRemovedDates(
@@ -67,6 +71,61 @@ export function serializeRemovedDates(dates: Iterable<string>): string {
   return JSON.stringify([...new Set(dates)].sort());
 }
 
+export function parseBillingCutoffs(
+  raw: string | Record<string, string> | null | undefined
+): Record<string, string> {
+  if (!raw) return {};
+  if (typeof raw !== "string") {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (k && typeof v === "string" && v) out[k] = v.slice(0, 10);
+    }
+    return out;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (k && typeof v === "string" && v) out[k] = v.slice(0, 10);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function serializeBillingCutoffs(
+  map: Record<string, string>
+): string {
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(map)) {
+    if (k && v) clean[k] = v.slice(0, 10);
+  }
+  return JSON.stringify(clean);
+}
+
+/** Cut-off a charge actually bills on (override, or derived from purchase date). */
+export function chargeBillingCutoff(
+  charge: { date: string; billingCutoff?: string | null },
+  cutoffDay: number
+): string {
+  if (charge.billingCutoff) {
+    return lastCutoffOnOrBefore(charge.billingCutoff, cutoffDay);
+  }
+  return cutoffForPurchase(charge.date, cutoffDay);
+}
+
+export function chargesInCycle<T extends { date: string; billingCutoff?: string | null }>(
+  charges: T[],
+  cycle: BillingCycle,
+  cutoffDay: number
+): T[] {
+  return charges.filter((c) => chargeBillingCutoff(c, cutoffDay) === cycle.end);
+}
+
 export type LabeledCharge = {
   date: string;
   amountCents: number;
@@ -75,6 +134,8 @@ export type LabeledCharge = {
   planId?: string;
   /** Source transaction id for non-MSI purchases (for edit/delete). */
   transactionId?: string;
+  /** Statement cut-off this charge bills on when different from the purchase date. */
+  billingCutoff?: string | null;
 };
 
 export type CardPaymentSummary = {
@@ -333,6 +394,7 @@ export function expandInstallmentCharges(
     if (p.creditCardId !== creditCardId) continue;
     if (p.monthlyAmountCents <= 0 || p.months <= 0) continue;
     const removed = parseRemovedDates(p.removedDates);
+    const shifts = parseBillingCutoffs(p.billingCutoffs);
     let shown = 0;
     const activeMonths = p.months - removed.size;
     for (let i = 0; i < p.months; i++) {
@@ -347,23 +409,11 @@ export function expandInstallmentCharges(
           : `MSI (${shown}/${Math.max(activeMonths, 1)})`,
         kind: "msi",
         planId: p.id,
+        billingCutoff: shifts[date] || null,
       });
     }
   }
   return out;
-}
-
-function sumInCycle(
-  charges: { date: string; amountCents: number }[],
-  cycle: BillingCycle
-): number {
-  let sum = 0;
-  for (const c of charges) {
-    if (c.date >= cycle.start && c.date <= cycle.end) {
-      sum += c.amountCents;
-    }
-  }
-  return sum;
 }
 
 /** Charges that hit a card statement: non-MSI purchases + MSI monthly installments. */
@@ -380,6 +430,7 @@ export function collectCardCharges(
     if (t.installmentPlanId) continue;
 
     const label = t.description?.trim() || "Purchase";
+    const billingCutoff = t.ccBillingCutoff || null;
 
     if (t.fundings && t.fundings.length > 0) {
       for (const f of t.fundings) {
@@ -390,6 +441,7 @@ export function collectCardCharges(
             label,
             kind: "purchase",
             transactionId: t.id,
+            billingCutoff,
           });
         }
       }
@@ -403,6 +455,7 @@ export function collectCardCharges(
       label,
       kind: "purchase",
       transactionId: t.id,
+      billingCutoff,
     });
   }
   charges.push(...expandInstallmentCharges(installments, creditCardId));
@@ -418,10 +471,12 @@ export function lastInstallmentChargeDate(
   for (const p of plans) {
     if (p.creditCardId !== creditCardId || p.months <= 0) continue;
     const removed = parseRemovedDates(p.removedDates);
+    const shifts = parseBillingCutoffs(p.billingCutoffs);
     for (let i = 0; i < p.months; i++) {
       const d = addMonthsISO(p.startDate, i);
       if (removed.has(d)) continue;
-      if (!last || d > last) last = d;
+      const effective = shifts[d] || d;
+      if (!last || effective > last) last = effective;
     }
   }
   return last;
@@ -535,8 +590,11 @@ export function detailedCardPaymentSchedule(opts: {
 
   const built: DetailedCardPayment[] = [];
   for (const cycle of cycles) {
-    const lines: PaymentLine[] = charges
-      .filter((c) => c.date >= cycle.start && c.date <= cycle.end)
+    const lines: PaymentLine[] = chargesInCycle(
+      charges,
+      cycle,
+      opts.cutoffDay
+    )
       .map((c) => ({ ...c, paymentDue: cycle.paymentDue }))
       .sort((a, b) => a.date.localeCompare(b.date));
     const amountCents = lines.reduce((s, l) => s + l.amountCents, 0);
@@ -596,7 +654,10 @@ export function listCardPayments(opts: {
   );
   const raw = cycles.map((cycle) => ({
     ...cycle,
-    amountCents: sumInCycle(charges, cycle),
+    amountCents: chargesInCycle(charges, cycle, opts.cutoffDay).reduce(
+      (s, c) => s + c.amountCents,
+      0
+    ),
     creditCardId: opts.creditCardId,
     creditCardName: opts.creditCardName,
   }));
