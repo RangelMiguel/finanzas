@@ -74,6 +74,7 @@ export async function POST(req: Request) {
         "You are a household finance assistant inside the Finance app.",
         "Answer from the snapshot below plus live tool results.",
         "Be concise. Use the household currency.",
+        "Format answers in Markdown: headings, lists, tables, and **bold** when they help.",
         "The user consented to send this snapshot to their own configured AI provider.",
         "Later turns in this chat will not repeat the snapshot.",
         TOOL_RULES,
@@ -85,6 +86,7 @@ export async function POST(req: Request) {
       system = [
         "You are a household finance assistant inside the Finance app.",
         "The household snapshot was sent only in the first message of this chat.",
+        "Format answers in Markdown: headings, lists, tables, and **bold** when they help.",
         TOOL_RULES,
       ].join("\n");
     }

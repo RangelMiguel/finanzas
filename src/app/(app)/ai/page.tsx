@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/components/ui/markdown";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useApp } from "@/components/providers/app-provider";
@@ -120,17 +121,21 @@ export default function AiPage() {
               {messages.map((msg, i) => (
                 <div
                   key={`${msg.role}-${i}`}
-                  className={`max-w-[46rem] rounded-2xl px-3 py-2 text-sm ${
+                  className={`max-w-[46rem] rounded-2xl text-sm ${
                     msg.role === "user"
-                      ? "ml-auto bg-[var(--accent)]/20 text-[var(--fg)]"
-                      : "bg-white/5 text-[var(--fg)]"
+                      ? "ml-auto bg-[var(--accent)]/20 px-3 py-2 text-[var(--fg)]"
+                      : "bg-white/5 px-3.5 py-2.5 text-[var(--fg)]"
                   }`}
                 >
                   <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-[var(--fg-faint)]">
                     {msg.role === "assistant" ? <Sparkles className="h-3 w-3" /> : null}
                     {msg.role === "user" ? copy.you : copy.assistant}
                   </div>
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {msg.role === "assistant" ? (
+                    <Markdown>{msg.content}</Markdown>
+                  ) : (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  )}
                   {msg.actions && msg.actions.length > 0 && (
                     <ul className="mt-2 flex flex-wrap gap-1.5">
                       {msg.actions.map((action, j) => (
