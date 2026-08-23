@@ -6,6 +6,8 @@ export type SecurityEventType =
   | "login_failed"
   | "login_passkey_success"
   | "login_passkey_failed"
+  | "sso_login"
+  | "sso_register"
   | "register"
   | "logout"
   | "wipe"
@@ -22,6 +24,8 @@ const SEVERITY: Record<SecurityEventType, SecuritySeverity> = {
   login_failed: "warning",
   login_passkey_success: "info",
   login_passkey_failed: "warning",
+  sso_login: "info",
+  sso_register: "info",
   register: "info",
   logout: "info",
   wipe: "critical",
@@ -42,6 +46,7 @@ const TRAY_TYPES = new Set<SecurityEventType>([
   "rate_limited",
   "invite_accepted",
   "register",
+  "sso_register",
   "member_removed",
   // login_success intentionally omitted from default tray noise
 ]);

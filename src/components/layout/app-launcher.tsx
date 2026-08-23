@@ -91,7 +91,7 @@ export function AppLauncher() {
             <a
               key={app.id}
               role="menuitem"
-              href={app.href || undefined}
+              href={app.href ? "/api/auth/sso/launch" : undefined}
               target="_blank"
               rel="noreferrer"
               className={`flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center no-underline transition hover:bg-white/10 ${

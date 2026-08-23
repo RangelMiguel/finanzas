@@ -763,6 +763,15 @@ model RateLimitBucket {
   @@index([windowStart])
 }
 
+/// One-time suite SSO handoff tickets (Meat ↔ Finance).
+model SsoNonce {
+  jti       String   @id
+  usedAt    DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 /// Security monitoring events (shown to household owner + emailed in near real-time)
 model SecurityAlert {
   id          String    @id @default(cuid())

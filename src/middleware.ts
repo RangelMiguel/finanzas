@@ -7,6 +7,8 @@ function isPublic(path: string) {
   if (publicExact.includes(path)) return true;
   if (path.startsWith("/invite/")) return true;
   if (path === "/api/auth/login" || path === "/api/auth/register") return true;
+  // Meat ↔ Finance suite handoff (launch redirects; /auth/sso sets the cookie)
+  if (path === "/auth/sso" || path === "/api/auth/sso/launch") return true;
   // WebAuthn login (options + verify) must be reachable without a session
   if (path.startsWith("/api/auth/webauthn/login")) return true;
   if (path.startsWith("/api/invites/peek")) return true;

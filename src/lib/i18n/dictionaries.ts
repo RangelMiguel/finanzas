@@ -164,6 +164,8 @@ export const es = {
     emailOptionalPasskey: "tu@correo.com (opcional)",
     emailOptionalPasskeyHint:
       "Opcional: ayuda a elegir la llave correcta. En el mismo dispositivo puedes omitirlo.",
+    ssoFailed:
+      "No se pudo entrar desde Meat. Inicia sesión aquí o vuelve a abrir Finance desde el menú de apps.",
   },
 
   dashboard: {
@@ -1240,7 +1242,8 @@ export const es = {
       tokenRevoked: "Llave revocada",
       hint: "En Meat → Ajustes → Finance, pega la URL de esta app y la llave.",
       appUrl: "URL de Meat",
-      appUrlHint: "Dirección web de la app Meat, para el menú de apps arriba a la derecha.",
+      appUrlHint:
+        "Dirección web de Meat. El menú de apps abre Meat e inicia sesión (o crea la cuenta) con tus datos.",
       noneOption: "Sin asignar",
       confirmRotate: "¿Regenerar la llave? La anterior dejará de funcionar en Meat.",
       confirmRevoke: "¿Revocar la llave? Meat dejará de poder enviar gastos.",
@@ -1250,7 +1253,7 @@ export const es = {
   suite: {
     apps: "Apps",
     meat: "Meat",
-    meatHint: "Comidas y cocina",
+    meatHint: "Comidas y cocina · entra con esta cuenta",
     needUrl: "Pon la URL de Meat en Ajustes → conexión Meat",
   },
 
@@ -1809,6 +1812,8 @@ export const en: Dictionary = {
     emailOptionalPasskey: "you@email.com (optional)",
     emailOptionalPasskeyHint:
       "Optional: helps pick the right key. On the same device you can leave it blank.",
+    ssoFailed:
+      "Could not sign in from Meat. Sign in here, or open Finance again from the apps menu.",
   },
 
   dashboard: {
@@ -2882,7 +2887,8 @@ export const en: Dictionary = {
       tokenRevoked: "Key revoked",
       hint: "In Meat → Settings → Finance, paste this app’s URL and the key.",
       appUrl: "Meat URL",
-      appUrlHint: "Web address of the Meat app, for the Apps menu at the top right.",
+      appUrlHint:
+        "Web address of Meat. The Apps menu opens Meat and signs you in (or creates the account) with your profile.",
       noneOption: "Unassigned",
       confirmRotate: "Regenerate the key? The old one will stop working in Meat.",
       confirmRevoke: "Revoke the key? Meat will no longer be able to send expenses.",
@@ -2892,7 +2898,7 @@ export const en: Dictionary = {
   suite: {
     apps: "Apps",
     meat: "Meat",
-    meatHint: "Meals and kitchen",
+    meatHint: "Meals and kitchen · opens with this account",
     needUrl: "Set the Meat URL in Settings → Meat connection",
   },
 

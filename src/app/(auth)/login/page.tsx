@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useState, Suspense } from "react";
+import { FormEvent, useEffect, useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,11 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const { t, locale, setLocale, refresh } = useApp();
+  const ssoError = params.get("error") === "sso";
+
+  useEffect(() => {
+    if (ssoError) toast.error(t.auth.ssoFailed);
+  }, [ssoError, t.auth.ssoFailed]);
 
   async function onPasskey(e?: FormEvent) {
     e?.preventDefault();
