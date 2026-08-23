@@ -16,6 +16,7 @@ function isPublic(path: string) {
   // meat → Finance inbound API (Bearer token, no session cookie)
   if (path.startsWith("/api/integrations/meat/purchases")) return true;
   if (path.startsWith("/api/integrations/meat/status")) return true;
+  if (path.startsWith("/api/integrations/meat/family")) return true;
   if (path.startsWith("/_next") || path.startsWith("/favicon")) return true;
   return false;
 }
