@@ -12,7 +12,7 @@ import {
   parseVisibility,
   serializeVisibility,
 } from "@/lib/visibility";
-import { logActivity } from "@/lib/household";
+import { createHouseholdWithOwner, logActivity } from "@/lib/household";
 import { recordSecurityEvent } from "@/lib/security-monitor";
 import { clientIp, clientUserAgent } from "@/lib/rate-limit";
 
@@ -189,13 +189,16 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const otherMembership = await prisma.membership.findFirst({
-      where: {
-        userId: target.userId,
-        householdId: { not: m.householdId },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const [otherMembership, passkeys] = await Promise.all([
+      prisma.membership.findFirst({
+        where: {
+          userId: target.userId,
+          householdId: { not: m.householdId },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.webAuthnCredential.count({ where: { userId: target.userId } }),
+    ]);
 
     await prisma.$transaction(async (tx) => {
       await tx.membership.delete({ where: { id: target.id } });
@@ -210,6 +213,31 @@ export async function DELETE(req: Request) {
         });
       }
     });
+
+    if (!otherMembership && passkeys === 0) {
+      await prisma.household.updateMany({
+        where: { createdBy: target.userId },
+        data: { createdBy: null },
+      });
+      await prisma.transaction.updateMany({
+        where: { createdById: target.userId },
+        data: { createdById: null },
+      });
+      await prisma.transaction.updateMany({
+        where: { spentById: target.userId },
+        data: { spentById: null },
+      });
+      await prisma.invite.updateMany({
+        where: { createdById: target.userId },
+        data: { createdById: null },
+      });
+      await prisma.user.delete({ where: { id: target.userId } }).catch(() => undefined);
+    } else if (!otherMembership) {
+      await createHouseholdWithOwner({
+        name: `Hogar de ${target.user.displayName}`,
+        userId: target.userId,
+      });
+    }
 
     await logActivity({
       householdId: m.householdId,

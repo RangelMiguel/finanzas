@@ -930,9 +930,9 @@ export const es = {
     copy: "Copiar",
     copied: "Copiado",
     roleUpdated: "Rol actualizado",
-    remove: "Quitar",
+    remove: "Quitar del hogar",
     removeConfirm:
-      "¿Quitar a {name} del hogar? Perderá el acceso. Su cuenta no se elimina.",
+      "¿Quitar a {name} del hogar? Pierde el acceso. Si nunca registró una llave de acceso, su cuenta se elimina.",
     removed: "Miembro quitado del hogar",
     activity: "Actividad reciente",
     noActivity: "Sin actividad aún",
@@ -2576,9 +2576,9 @@ export const en: Dictionary = {
     copy: "Copy",
     copied: "Copied",
     roleUpdated: "Role updated",
-    remove: "Remove",
+    remove: "Remove from household",
     removeConfirm:
-      "Remove {name} from the household? They will lose access. Their account is not deleted.",
+      "Remove {name} from the household? They lose access. If they never set up a passkey, their account is deleted.",
     removed: "Member removed from the household",
     activity: "Recent activity",
     noActivity: "No activity yet",
