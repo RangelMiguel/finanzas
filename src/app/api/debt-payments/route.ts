@@ -4,7 +4,12 @@ import { requireSession, requireHouseholdAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/access";
 import { pesosToCents, todayISO } from "@/lib/utils";
-import { consumePaymentPlanStep, parsePaymentPlan } from "@/lib/debts";
+import {
+  consumePaymentPlanStep,
+  debtPaymentDescription,
+  parsePaymentPlan,
+} from "@/lib/debts";
+import { undoDebtPayment } from "@/lib/debt-payments";
 
 export async function POST(req: Request) {
   try {
@@ -29,52 +34,61 @@ export async function POST(req: Request) {
 
     const capitalCents = pesosToCents(body.capital);
     const interestCents = pesosToCents(body.interest || 0);
+    const date = body.date || todayISO();
+    const cashCents = capitalCents + interestCents;
 
-    const payment = await prisma.debtPayment.create({
-      data: {
-        householdId: m.householdId,
-        debtId: body.debtId,
-        date: body.date || todayISO(),
-        capitalCents,
-        interestCents,
-        accountId: body.accountId || null,
-        notes: body.notes || null,
-      },
-    });
-
-    // Advance custom plan so projections stay in sync after "pay this month".
-    const hasPlan = !!parsePaymentPlan(debt.paymentPlanCents)?.length;
-    const shouldConsume = body.consumePlan !== false && hasPlan && capitalCents > 0;
-    if (shouldConsume) {
-      const rest = consumePaymentPlanStep(debt.paymentPlanCents);
-      await prisma.debt.update({
-        where: { id: debt.id },
-        data: {
-          paymentPlanCents: rest === null ? Prisma.DbNull : rest,
-        },
-      });
-    }
-
-    // Ledger movement only when the user pays from an account (same as cards).
-    if (body.accountId && capitalCents + interestCents > 0) {
-      await prisma.transaction.create({
-        data: {
-          householdId: m.householdId,
-          date: body.date || todayISO(),
-          amountCents: capitalCents + interestCents,
-          description: `Pago a ${debt.name}`,
-          type: "expense",
-          accountId: body.accountId,
-          createdById: session.userId,
-          fundings: {
-            create: {
-              amountCents: capitalCents + interestCents,
-              accountId: body.accountId,
+    const payment = await prisma.$transaction(async (tx) => {
+      let transactionId: string | null = null;
+      if (body.accountId && cashCents > 0) {
+        const txn = await tx.transaction.create({
+          data: {
+            householdId: m.householdId,
+            date,
+            amountCents: cashCents,
+            description: debtPaymentDescription(debt.name),
+            type: "expense",
+            accountId: body.accountId,
+            createdById: session.userId,
+            fundings: {
+              create: {
+                amountCents: cashCents,
+                accountId: body.accountId,
+              },
             },
           },
+        });
+        transactionId = txn.id;
+      }
+
+      const plan = parsePaymentPlan(debt.paymentPlanCents);
+      const shouldConsume =
+        body.consumePlan !== false && !!plan?.length && capitalCents > 0;
+      const consumedPlanStepCents =
+        shouldConsume && plan ? plan[0] : null;
+      if (shouldConsume) {
+        const rest = consumePaymentPlanStep(debt.paymentPlanCents);
+        await tx.debt.update({
+          where: { id: debt.id },
+          data: {
+            paymentPlanCents: rest === null ? Prisma.DbNull : rest,
+          },
+        });
+      }
+
+      return tx.debtPayment.create({
+        data: {
+          householdId: m.householdId,
+          debtId: body.debtId,
+          date,
+          capitalCents,
+          interestCents,
+          accountId: body.accountId || null,
+          notes: body.notes || null,
+          transactionId,
+          consumedPlanStepCents,
         },
       });
-    }
+    });
 
     return jsonOk({ payment }, 201);
   } catch (e) {
@@ -92,7 +106,13 @@ export async function DELETE(req: Request) {
       where: { id, householdId: m.householdId },
     });
     if (!existing) throw new Error("Pago no encontrado");
-    await prisma.debtPayment.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await undoDebtPayment(tx, {
+        householdId: m.householdId,
+        payment: existing,
+        deleteLinkedTransaction: true,
+      });
+    });
     return jsonOk({ ok: true });
   } catch (e) {
     return jsonError(e);

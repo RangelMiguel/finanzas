@@ -15,6 +15,10 @@ import {
   normalizeExpenseFundings,
   type FundingInput,
 } from "@/lib/transaction-funding";
+import {
+  findDebtPaymentForTransaction,
+  undoDebtPayment,
+} from "@/lib/debt-payments";
 
 const fundingInclude = {
   fundings: {
@@ -551,21 +555,31 @@ export async function DELETE(req: Request) {
 
     const planId = existing.installmentPlanId;
 
-    if (hard) {
-      await prisma.transaction.delete({ where: { id } });
-    } else {
-      await prisma.transaction.update({
-        where: { id },
-        data: { deletedAt: new Date(), installmentPlanId: null },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      const debtPay = await findDebtPaymentForTransaction(tx, existing);
+      if (debtPay) {
+        await undoDebtPayment(tx, {
+          householdId: m.householdId,
+          payment: debtPay,
+        });
+      }
 
-    // Drop MSI plan so safe-to-spend / card schedules stop counting installments
-    if (planId) {
-      await prisma.installmentPlan.deleteMany({
-        where: { id: planId, householdId: m.householdId },
-      });
-    }
+      if (hard) {
+        await tx.transaction.delete({ where: { id } });
+      } else {
+        await tx.transaction.update({
+          where: { id },
+          data: { deletedAt: new Date(), installmentPlanId: null },
+        });
+      }
+
+      // Drop MSI plan so safe-to-spend / card schedules stop counting installments
+      if (planId) {
+        await tx.installmentPlan.deleteMany({
+          where: { id: planId, householdId: m.householdId },
+        });
+      }
+    });
 
     return jsonOk({ ok: true });
   } catch (e) {

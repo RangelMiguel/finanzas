@@ -14,6 +14,7 @@ import {
   parsePaymentPlan,
   suggestMonthlyDebtPay,
 } from "@/lib/debts";
+import { healOrphanedDebtPayments } from "@/lib/debt-payments";
 
 const interestMethodSchema = z.enum(DEBT_INTEREST_METHODS);
 
@@ -45,6 +46,8 @@ export async function GET() {
     if (!canSeeModule(m.visibility, "debts")) {
       throw new ForbiddenError("No access to debts");
     }
+    await healOrphanedDebtPayments(m.householdId);
+
     const debts = await prisma.debt.findMany({
       where: { householdId: m.householdId },
       include: {

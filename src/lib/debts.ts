@@ -287,6 +287,60 @@ export function consumePaymentPlanStep(
   return rest.length > 0 ? rest : null;
 }
 
+/**
+ * Put an installment back at the front of a custom plan (undoing a payment).
+ * A non-positive step leaves the plan unchanged.
+ */
+export function prependPaymentPlanStep(
+  paymentPlanCents: unknown,
+  stepCents: number
+): number[] | null {
+  const step = Math.round(Number(stepCents));
+  if (!Number.isFinite(step) || step <= 0) {
+    return parsePaymentPlan(paymentPlanCents);
+  }
+  const plan = parsePaymentPlan(paymentPlanCents) ?? [];
+  return [step, ...plan];
+}
+
+/** Ledger description used when a debt payment moves money from an account. */
+export function debtPaymentDescription(debtName: string): string {
+  return `Pago a ${debtName}`;
+}
+
+export type DebtLedgerTxnMatch = {
+  id: string;
+  date: string;
+  amountCents: number;
+  accountId: string | null;
+  description: string;
+  type: string;
+};
+
+export type DebtPaymentLedgerMatch = {
+  date: string;
+  capitalCents: number;
+  interestCents: number;
+  accountId: string | null;
+  transactionId?: string | null;
+};
+
+/** True when a movement is the cash side of this debt payment. */
+export function paymentMatchesLedgerTxn(
+  payment: DebtPaymentLedgerMatch,
+  txn: DebtLedgerTxnMatch,
+  debtName: string
+): boolean {
+  if (payment.transactionId && payment.transactionId === txn.id) return true;
+  if (txn.type !== "expense") return false;
+  if (txn.date !== payment.date) return false;
+  if ((txn.accountId || null) !== (payment.accountId || null)) return false;
+  if (txn.amountCents !== payment.capitalCents + payment.interestCents) {
+    return false;
+  }
+  return txn.description === debtPaymentDescription(debtName);
+}
+
 export type DebtAmortizeOpts = {
   remainingCents: number;
   monthlyPaymentCents: number;

@@ -365,6 +365,7 @@ model Transaction {
   /// How this expense was paid (one or more bank accounts and/or credit cards)
   fundings        TransactionFunding[]
   pricePurchases  PricePurchase[]
+  debtPayments    DebtPayment[]
 
   @@index([householdId, date])
   @@index([householdId, type])
@@ -584,11 +585,16 @@ model DebtPayment {
   interestCents    Int      @default(0)
   accountId        String?
   notes            String?
+  /// Ledger movement created with this payment (null if recorded without an account)
+  transactionId    String?  @unique
+  /// Custom-plan installment consumed when recording this payment (restored on undo)
+  consumedPlanStepCents Int?
   createdAt        DateTime @default(now())
 
-  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  debt      Debt      @relation(fields: [debtId], references: [id], onDelete: Cascade)
-  account   Account?  @relation(fields: [accountId], references: [id])
+  household   Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  debt        Debt         @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  account     Account?     @relation(fields: [accountId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
   @@index([householdId])
   @@index([debtId])

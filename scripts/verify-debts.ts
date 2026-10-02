@@ -2,10 +2,13 @@ import {
   amortizeDebt,
   consumePaymentPlanStep,
   daysBetweenISO,
+  debtPaymentDescription,
   parsePaymentPlan,
+  paymentMatchesLedgerTxn,
   paymentPlanSumCents,
   periodInterestCents,
   planCoverageFromAmortization,
+  prependPaymentPlanStep,
   projectedDebtPaymentAmounts,
   simpleDailyInterestCents,
   suggestMonthlyDebtPay,
@@ -129,7 +132,62 @@ assert(
   "consume first step"
 );
 assert(consumePaymentPlanStep([50_000]) === null, "last step clears plan");
+assert(
+  JSON.stringify(prependPaymentPlanStep([100_000, 200_000], 50_000)) ===
+    JSON.stringify([50_000, 100_000, 200_000]),
+  "prepend restores first step"
+);
+assert(
+  JSON.stringify(prependPaymentPlanStep(null, 50_000)) ===
+    JSON.stringify([50_000]),
+  "prepend rebuilds exhausted plan"
+);
+assert(prependPaymentPlanStep([100_000], 0)![0] === 100_000, "ignore 0 step");
 assert(parsePaymentPlan(null) === null, "null plan");
+assert(
+  debtPaymentDescription("Hipoteca") === "Pago a Hipoteca",
+  "ledger description"
+);
+assert(
+  paymentMatchesLedgerTxn(
+    {
+      date: "2026-10-01",
+      capitalCents: 900,
+      interestCents: 100,
+      accountId: "acc1",
+    },
+    {
+      id: "t1",
+      date: "2026-10-01",
+      amountCents: 1000,
+      accountId: "acc1",
+      description: "Pago a Hipoteca",
+      type: "expense",
+    },
+    "Hipoteca"
+  ),
+  "match payment to movement"
+);
+assert(
+  !paymentMatchesLedgerTxn(
+    {
+      date: "2026-10-01",
+      capitalCents: 900,
+      interestCents: 100,
+      accountId: "acc1",
+    },
+    {
+      id: "t1",
+      date: "2026-10-01",
+      amountCents: 1000,
+      accountId: "acc1",
+      description: "Pago a Hipoteca",
+      type: "expense",
+    },
+    "Auto"
+  ),
+  "reject other debt name"
+);
 assert(
   JSON.stringify(parsePaymentPlan([100, 200])) === JSON.stringify([100, 200]),
   "parse plan"

@@ -542,7 +542,10 @@ export const es = {
     created: "Deuda creada",
     updated: "Deuda actualizada",
     paid: "Pago registrado",
+    paymentDeleted: "Pago eliminado",
     confirmDelete: "¿Eliminar deuda?",
+    confirmDeletePayment:
+      "¿Eliminar este pago? Si hay un movimiento ligado, también se elimina y el mes deja de contar como pagado.",
     namePlaceholder: "Ej: Préstamo auto",
     ratePayDay: "Tasa {rate}% · Pago sugerido {payment} · Día {day}",
     capitalLine: "Capital {capital}",
@@ -2189,7 +2192,10 @@ export const en: Dictionary = {
     created: "Debt created",
     updated: "Debt updated",
     paid: "Payment recorded",
+    paymentDeleted: "Payment deleted",
     confirmDelete: "Delete debt?",
+    confirmDeletePayment:
+      "Delete this payment? The linked movement is also removed and the month is no longer marked as paid.",
     namePlaceholder: "e.g. Car loan",
     ratePayDay: "Rate {rate}% · Suggested payment {payment} · Day {day}",
     capitalLine: "Principal {capital}",

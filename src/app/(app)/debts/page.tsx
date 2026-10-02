@@ -451,6 +451,24 @@ export default function DebtsPage() {
     await load();
   }
 
+  async function removePayment(id: string) {
+    const ok = await confirm({
+      title: t.delete,
+      description: t.debts.confirmDeletePayment,
+      confirmLabel: t.delete,
+      cancelLabel: t.cancel,
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/debt-payments?id=${id}`, { method: "DELETE" });
+      toast.success(t.debts.paymentDeleted);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t.error);
+    }
+  }
+
   const paying = payFor ? debts.find((d) => d.id === payFor) : null;
 
   return (
@@ -779,6 +797,7 @@ export default function DebtsPage() {
             onPayCustom={() => openPayMonth(d)}
             onEdit={() => openEdit(d)}
             onDelete={() => remove(d.id)}
+            onDeletePayment={removePayment}
             onPaymentSaved={load}
           />
         );
@@ -794,6 +813,7 @@ function DebtCard({
   onPayCustom,
   onEdit,
   onDelete,
+  onDeletePayment,
   onPaymentSaved,
 }: {
   debt: Debt;
@@ -802,6 +822,7 @@ function DebtCard({
   onPayCustom: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onDeletePayment: (id: string) => void;
   onPaymentSaved: () => Promise<void>;
 }) {
   const { money, t, tr } = useApp();
@@ -1335,10 +1356,10 @@ function DebtCard({
             {d.payments.slice(0, 5).map((p) => (
               <div
                 key={p.id}
-                className="flex justify-between text-xs text-[var(--fg-faint)]"
+                className="flex items-center justify-between gap-2 text-xs text-[var(--fg-faint)]"
               >
                 <span>{p.date}</span>
-                <span>
+                <span className="flex items-center gap-1">
                   {tr(t.debts.capitalLine, {
                     capital: money(p.capitalCents),
                   })}
@@ -1347,6 +1368,16 @@ function DebtCard({
                         interest: money(p.interestCents),
                       })
                     : ""}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onClick={() => onDeletePayment(p.id)}
+                    aria-label={t.delete}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </span>
               </div>
             ))}
