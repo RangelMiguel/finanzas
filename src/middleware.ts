@@ -15,6 +15,8 @@ function isPublic(path: string) {
   if (path.startsWith("/api/cron/")) return true;
   // meat → Finance inbound API (Bearer token, no session cookie)
   if (path.startsWith("/api/integrations/meat/purchases")) return true;
+  // Grok MCP (Bearer token). Key management stays on /api/mcp/tokens behind the session.
+  if (path === "/api/mcp") return true;
   if (path.startsWith("/api/integrations/meat/status")) return true;
   if (path.startsWith("/api/integrations/meat/family")) return true;
   if (path.startsWith("/_next") || path.startsWith("/favicon")) return true;

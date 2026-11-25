@@ -45,6 +45,7 @@ model User {
   propertyOwners       PropertyOwner[]
   investmentProfiles   InvestmentProfile[]
   creditCounterparties Credit[]            @relation("CreditCounterparty")
+  mcpTokens            McpToken[]
 }
 
 /// Prevents duplicate creates when offline outbox retries a POST.
@@ -115,6 +116,7 @@ model Household {
   credits            Credit[]
   creditPayments     CreditPayment[]
   meatLink           MeatLink?
+  mcpTokens          McpToken[]
 }
 
 /// Add-on modules installed for this household (marketplace).
@@ -486,6 +488,25 @@ model MeatLink {
   account    Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
   creditCard CreditCard? @relation(fields: [creditCardId], references: [id], onDelete: SetNull)
   category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+}
+
+/// Personal key so Grok (or another MCP client) can act as this member.
+model McpToken {
+  id           String    @id @default(cuid())
+  userId       String
+  householdId  String
+  label        String    @default("Grok")
+  tokenHash    String    @unique
+  tokenPrefix  String
+  enabled      Boolean   @default(true)
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([householdId])
 }
 
 model InstallmentPlan {

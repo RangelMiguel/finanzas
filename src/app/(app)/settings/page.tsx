@@ -16,6 +16,7 @@ import type { AppLocale } from "@/lib/currencies";
 import { DEFAULT_THEME, THEMES, type ThemeId } from "@/lib/themes";
 import { PwaSetup } from "@/components/pwa/pwa-setup";
 import { MeatLinkCard } from "@/components/meat-link-card";
+import { McpConnectCard } from "@/components/mcp-connect-card";
 import { AiSettingsCard } from "@/components/ai-settings-card";
 
 type Cat = {
@@ -353,6 +354,8 @@ export default function SettingsPage() {
       </Card>
 
       <AiSettingsCard />
+
+      <McpConnectCard />
 
       <MeatLinkCard />
 

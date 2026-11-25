@@ -49,6 +49,7 @@ Passkey-only. Use **Register** to create a household and enroll Face ID / finger
 - Banamex-style MSI text/PDF import
 - Activity feed + `createdBy` / `spentBy` attribution
 - Soft-delete transactions; household wipe (admin)
+- **Grok MCP**: personal key so Grok can read the household and log movements (`/api/mcp`)
 
 ## Optional AI extraction (receipts & statements)
 
@@ -74,6 +75,18 @@ export LLM_MODEL=          # override model id
 Keys stay **server-side** only (API routes). Without keys, OCR + regex parsers run as before.
 
 Check status: `GET /api/ai/status` (authenticated).
+
+## Connect Grok (MCP)
+
+Grok talks to this app over [MCP](https://modelcontextprotocol.io) at `POST /api/mcp` (stateless Streamable HTTP). The key is personal: Grok sees and changes only what that member can.
+
+1. Deploy this version. The Vercel build runs `prisma migrate deploy` and creates `McpToken`.
+2. Open **Settings → Connect Grok**, create a key, and copy the command.
+3. Run it in a terminal, then start a new Grok session. Tools are prefixed `finanzas__` (`finance_briefing`, accounts, expenses, income, and the rest).
+
+The deployment host `finanzas-n3w775mqg-mmangelrm98-4090s-projects.vercel.app` currently redirects to Vercel login, so Grok cannot call it until **Deployment Protection** allows `/api/mcp`. Turn protection off for that environment, or create a **Protection Bypass for Automation** and paste it into the optional bypass field before copying the command.
+
+The key is shown once and stored only as a hash. Do not commit it.
 
 ## Security (summary)
 

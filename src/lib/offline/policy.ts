@@ -9,6 +9,7 @@ const ONLINE_ONLY_PREFIXES = [
   "/api/tickets/",
   "/api/push/",
   "/api/ai/",
+  "/api/mcp",
 ];
 
 export function isWriteMethod(method: string | undefined): boolean {

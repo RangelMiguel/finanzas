@@ -8,7 +8,7 @@ import {
   type MemberVisibility,
 } from "@/lib/visibility";
 import { redactForModel } from "./privacy";
-import { loadFinancePrivacy } from "./privacyBook";
+import { loadFinancePrivacy, type FinancePrivacy } from "./privacyBook";
 
 function clip(text: string, max = 12_000): string {
   if (text.length <= max) return text;
@@ -22,17 +22,29 @@ export async function buildFinanceContext(opts: {
   currency: string;
   householdName: string;
   locale: string;
+  /** MCP passes a book whose aliases are the real labels. The in-app assistant omits this. */
+  privacy?: FinancePrivacy;
+  named?: boolean;
 }): Promise<string> {
   const { householdId, visibility, currency, locale } = opts;
-  const privacy = await loadFinancePrivacy(householdId, opts.subjectUserId);
+  const privacy =
+    opts.privacy ?? (await loadFinancePrivacy(householdId, opts.subjectUserId));
   const period = budgetPeriodKey();
-  const lines: string[] = [
-    "App: Finance (household finances)",
-    "Household: Household",
-    `Currency: ${currency}`,
-    `Period: ${period}`,
-    "People, account labels, card numbers, emails, and phones are omitted. Use Account N / Card N / Member N or ids from tools.",
-  ];
+  const lines: string[] = opts.named
+    ? [
+        "App: Finance (household finances)",
+        `Household: ${opts.householdName}`,
+        `Currency: ${currency}`,
+        `Period: ${period}`,
+        "Names below are this household's own labels. Amounts use the household currency.",
+      ]
+    : [
+        "App: Finance (household finances)",
+        "Household: Household",
+        `Currency: ${currency}`,
+        `Period: ${period}`,
+        "People, account labels, card numbers, emails, and phones are omitted. Use Account N / Card N / Member N or ids from tools.",
+      ];
 
   if (canSeeModule(visibility, "accounts") && canSeeAccountBalances(visibility)) {
     const accounts = await prisma.account.findMany({
