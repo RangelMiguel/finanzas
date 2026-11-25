@@ -82,7 +82,11 @@ Grok talks to this app over [MCP](https://modelcontextprotocol.io) at `POST /api
 
 1. Deploy this version. The Vercel build runs `prisma migrate deploy` and creates `McpToken`.
 2. Open **Settings → Connect Grok**, create a key, and copy the command.
-3. Run it in a terminal, then start a new Grok session. Tools are prefixed `finanzas__` (`finance_briefing`, accounts, expenses, income, and the rest).
+3. Run it in a terminal, then start a new Grok session. Tools are prefixed `finanzas__` (`finance_briefing`, accounts, expenses, income, and quincena closes).
+
+`budget_close_status` previews a half-month (days 1–15 or 16–end). `close_budget_period` closes it: leftover can carry as emergency into the next quincena, go to a goal, or be marked spent. Categorize a movement first with `update_transaction` when it should count against that budget.
+
+The same server can run the rest of the household: accounts, cards, debts, goals, retirement, allowances, personal envelopes, properties, prices, investments, credits, invites, and add-on modules. It does not expose security (visibility policies, impersonation, alerts, passkeys, or wiping the household).
 
 The deployment host `finanzas-n3w775mqg-mmangelrm98-4090s-projects.vercel.app` currently redirects to Vercel login, so Grok cannot call it until **Deployment Protection** allows `/api/mcp`. Turn protection off for that environment, or create a **Protection Bypass for Automation** and paste it into the optional bypass field before copying the command.
 

@@ -4,10 +4,14 @@ export const MCP_PROTOCOL = "2025-03-26";
 
 export const MCP_INSTRUCTIONS = [
   "This server is the household finance app. You are signed in as one member; every change is real.",
+  "You can use the household the way the app can: accounts, movements, budgets and quincena closes, cards, debts, goals, retirement, allowances, personal envelopes, properties, prices, investments, credits, family invites, and add-on modules.",
+  "Do not try to change security: no visibility policies, impersonation, security alerts, passkeys, API keys, or wiping the household.",
   "Amounts are currency units (185.50), never cents.",
   "Call finance_briefing before answering questions about balances, spending, budgets, debts, or goals.",
+  "A quincena is half a month: YYYY-MM-1 is days 1-15, YYYY-MM-2 is day 16 through month end. Closing it applies each category's leftover.",
+  "Call budget_close_status before close_budget_period. Close or undo only when the user asked. Uncategorized expenses are not counted; use update_transaction to set a category first when the user wants them included.",
   "Use list_accounts, list_categories, list_credit_cards, list_members, and search_transactions when you need ids or a fresh list.",
-  "add_expense and add_income create movements. update_transaction edits one. delete_transaction removes one — only when the user clearly asked to delete it.",
+  "add_expense and add_income create movements and can set a category by name. update_transaction edits one, including its category. delete_transaction removes one — only when the user clearly asked to delete it.",
   "If a tool returns an error, say so. Do not invent balances or claim you saved something the tool did not confirm.",
 ].join("\n");
 

@@ -4,6 +4,7 @@ import {
   rpcError,
 } from "../src/lib/mcp/protocol";
 import { mcpToolList } from "../src/lib/mcp/catalog";
+import { APP_TOOL_NAMES } from "../src/lib/mcp/app-catalog";
 import { grokMcpCommand } from "../src/lib/mcp/command";
 
 let failed = 0;
@@ -48,6 +49,32 @@ async function main() {
   ]);
   assert(tools[0]?.name === "finance_briefing", "briefing is first");
   assert(tools[0]?.annotations?.readOnlyHint === true, "briefing is read-only");
+  assert(
+    tools.find((tool) => tool.name === "budget_close_status")?.annotations?.readOnlyHint === true,
+    "quincena preview is read-only"
+  );
+  assert(
+    tools.find((tool) => tool.name === "close_budget_period")?.annotations?.readOnlyHint === false,
+    "quincena close writes"
+  );
+  assert(
+    tools.find((tool) => tool.name === "undo_budget_close")?.annotations?.destructiveHint === true,
+    "undo close is destructive"
+  );
+  assert(APP_TOOL_NAMES.has("get_dashboard"), "dashboard tool");
+  assert(APP_TOOL_NAMES.has("list_debts") && APP_TOOL_NAMES.has("save_goal"), "debts and goals");
+  assert(APP_TOOL_NAMES.has("close_budget_period") === false, "quincena close stays on its own tool");
+  for (const blocked of ["wipe_household", "impersonate", "security_alerts", "manage_visibility"]) {
+    assert(!APP_TOOL_NAMES.has(blocked), `${blocked} is not exposed`);
+  }
+  assert(
+    tools.find((tool) => tool.name === "delete_debt")?.annotations?.destructiveHint === true,
+    "delete debt is destructive"
+  );
+  assert(
+    tools.find((tool) => tool.name === "get_dashboard")?.annotations?.readOnlyHint === true,
+    "dashboard is read-only"
+  );
   assert(
     tools.find((tool) => tool.name === "add_expense")?.annotations?.readOnlyHint === false,
     "add_expense writes"

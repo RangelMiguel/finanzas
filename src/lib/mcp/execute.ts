@@ -12,17 +12,20 @@ import type { ToolExecResult } from "@/lib/ai/complete";
 import { executeFinanceTool, type FinanceToolContext } from "@/lib/ai/tools";
 import type { McpToolOutcome } from "./protocol";
 import { FINANCE_BRIEFING_TOOL } from "./catalog";
+import { executeBudgetTool } from "./budgets";
+import { executeAppTool, isAppTool } from "./app-run";
 import { loadMcpPrivacy } from "./privacy";
 
 export type McpContext = FinanceToolContext & {
   displayName: string;
+  email: string;
   role: string;
 };
 
 export async function buildMcpContext(access: HouseholdAccess): Promise<McpContext> {
   const user = await prisma.user.findUnique({
     where: { id: access.userId },
-    select: { locale: true, displayName: true },
+    select: { locale: true, displayName: true, email: true },
   });
   const privacy = await loadMcpPrivacy(access.householdId, access.subjectUserId);
   return {
@@ -34,6 +37,7 @@ export async function buildMcpContext(access: HouseholdAccess): Promise<McpConte
     locale: user?.locale || "es",
     privacy,
     displayName: user?.displayName?.trim() || "You",
+    email: user?.email || "",
     role: access.role,
   };
 }
@@ -78,7 +82,11 @@ export async function executeMcpTool(
     const result =
       name === FINANCE_BRIEFING_TOOL.name
         ? await financeBriefing(ctx)
-        : await executeFinanceTool(ctx, { id: "mcp", name, arguments: args });
+        : name === "budget_close_status" || name === "close_budget_period" || name === "undo_budget_close"
+          ? await executeBudgetTool(ctx, name, args)
+          : isAppTool(name)
+            ? await executeAppTool(ctx, name, args)
+            : await executeFinanceTool(ctx, { id: "mcp", name, arguments: args });
     return { text: payload(result), isError: !result.ok };
   } catch (error) {
     if (

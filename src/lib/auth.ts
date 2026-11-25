@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
@@ -27,6 +28,13 @@ export type SessionPayload = {
   email: string;
   displayName: string;
 };
+
+/** Lets the MCP server call app routes as the key's member without setting a browser cookie. */
+const sessionOverride = new AsyncLocalStorage<SessionPayload>();
+
+export function runWithSession<T>(session: SessionPayload, fn: () => Promise<T>): Promise<T> {
+  return sessionOverride.run(session, fn);
+}
 
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
@@ -82,6 +90,8 @@ export async function clearSessionCookie() {
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
+  const overridden = sessionOverride.getStore();
+  if (overridden) return overridden;
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
